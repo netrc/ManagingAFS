@@ -1,0 +1,1996 @@
+CHAPTER 10: DEBUGGING PROBLEMS
+
+A distinct disadvantage to AFS is a direct result of the success of its 
+implementation. With more users dependent on fewer servers and with fewer 
+administrators to watch over these servers, any problems which arise are likely 
+to affect a large population. That being so, you should carefully plan and test any administrative tasks in an AFS 
+cell before customers see poor 
+performance or fret about unavailable data. 
+
+When any problems do arise, the best offense is a well-practiced
+debugging methodology. You should have a clear idea of exactly what
+systems in your cell should be performing what tasks - whether the systems 
+are database servers, file servers, system configuration machines, or
+backup tape coordinators. Task assignments should be well defined and
+publicized.
+
+The database servers in a cell should be completely listed in the ~~CellServDB~/~
+file on all servers and clients. Tape coordinators are listed in the ~~backup~/~
+database and can be displayed with a ~~backup listhosts~/~ command. Update
+servers can be discovered by searching the ~~bos~/~ jobs on servers and seeing
+where the ~~upserver~/~ process is running. Interestingly, there's no
+definitive list of active file server machines in a cell. The best you can
+do is search the volume location database and find out which machines are
+currently being used to store volumes. A simple one-line UNIX command to do
+this goes like this:
+
+PROGRAM DONE
+	$ <B>vos listvldb | awk '/server/{print $2}' | sort -u</B>
+	fs-one
+	fs-two
+PROGRAM
+
+There's also no way to find out directly where in the AFS namespace
+a particular volume is mounted. Any volume can be mounted anywhere
+in the namespace, as many times as people may have desired. There's no
+problem with file access or security holes because of multiple mount points, but it does make it difficult to make sure that no one is using a volume
+if you'd like to delete it. 
+
+A reasonable policy is to mandate that volumes names must follow a strict
+naming convention and that the volumes will be supported only at a
+specific point in the tree. It then becomes easier to audit the VLDB
+contents and look for stray volumes that may have been created temporarily.
+
+The VLDB is an important tool for investigating AFS management but the
+database keeps track only of a volume's basic statistics. You may find
+it useful to construct a parallel database (using either a relational
+database or simply a structured text file) to track other items of
+interest. For example, writing a wrapper to the ~~vos release~/~ command
+which causes a brief record to be appended somewhere can help answer the
+question, when were the last few times the replicas were updated?
+
+Other general tasks of AFS administration are as follows:
+
+-- Archive AFS databases regularly and store them on tape in convenient locations on disk for rapid recovery.
+
+-- Dump important volumes outside AFS: small dumps of many of the
+top-level volumes stored in out-of-the-way locations (even ~~/tmp~/~) of
+some file server will prove beneficial in emergencies. 
+
+-- Be familiar with the log directory; rotate the
+log files so that new messages do not overwrite previous problems.
+
+-- Keep as much free space as possible on the disk on which you store the server's database files, log files, 
+and potential core files. Usually, these files are located on the ~~/usr~/~ partition.
+
+-- Know what release of the AFS binaries you're running everywhere.
+
+-- Have additional hardware available so that a new server or
+disk can be swapped in with as little downtime as possible.
+
+-- Reserve disk space on at least one file server 
+so that volume operations or archival restores have a staging area
+in which to operate.
+
+-- Use a test cell to hone debugging skills and train new
+administrators.
+
+You should test regularly to make sure that your administration processes work and
+that your staff is not rusty on the operations required. The
+time spent on testing will be repaid quickly when disaster strikes. Testing is
+also a good educational session for new administrators; for example, backups and restores
+involve many of the processes and databases which make AFS work.
+
+SECTION: FILE SERVER PERFORMANCE
+
+When examining a file server for potential bottlenecks, start
+with the basics. Though AFS servers provide an integrated service, 
+individually, they're fairly normal machines. Address performance problems
+with the usual tools: on a UNIX server, use commands such as ~~iostat~/~ and ~~vmstat~/~ to determine if the system
+is disk or processor bound. With the increased number of partitions
+available in AFS 3.4a, it may be easy to overload a file server's CPU.
+
+Similarly, use the ~~netstat~/~ command to see if there is an inordinate amount 
+of network traffic. If so, investigate the volumes on the server 
+with the ~~vos examine~/~ command and the ~~-extended~/~ option to see if certain 
+volumes that are hogging the network could profitably be moved to other
+servers nearer their natural client users.
+
+File server disk performance is as important to AFS as it is to any other
+database system. Any writes from a client to a server will come in large
+chunks of data. Each of these chunks will be received and then written
+to disk. Because the chunks are often large, these operations will normally be
+quite efficient, but any increase in disk performance will prove beneficial
+to clients and servers overall.
+
+Any written chunks will still have copies available in the server's
+memory buffers. If a client read request asks for data
+just written, that data will be automatically served from the server's
+memory rather than requiring a disk read. This two-level cache is simply
+a consequence of standard operating system design. However, if a 
+read request has not been satisfied by the client's own cache, the odds are that
+it won't be satisfied by the server's kernel cache either - client
+read requests are for files that the client hasn't read recently.
+
+For this reason, it is still important to manage performance by
+spreading expected client loads among a number of file servers and a number
+of disk drives. With the goal of keeping the server CPU and disks busy. With
+AFS management tools to move volumes around and manage servers, there's 
+not much need to invest in special-purpose servers or hardware accelerators;
+fast, cheaper workstations sold in server configurations are perfect for AFS servers.
+High-performance servers are usually needed only for servers running the 
+backup processes.
+
+The classic architectural difference between NFS and AFS is that the former
+attempts to be a stateless protocol and the latter stateful. AFS keeps track
+of myriad items of client information so as to provide a guaranteed
+consistency model while still providing efficient services. The penalty is
+that this state must be kept somewhere, so AFS servers often need more system
+memory. Exactly how much is used by an AFS file server can be adjusted
+through command-line arguments to the ~~fileserver~/~ process.
+
+In normal usage, the ~~fileserver~/~ process is started with no options and is by 
+default running a so-called medium-sized image. Using the ~~-S~/~ option reduces the sizes
+of certain data structures, ~~-L~/~ increases them. Among the structures that
+are affected are:
+
+-- The maximum number of lightweight processes
+
+-- The maximum number of directory blocks cached
+
+-- The maximum number of vnodes cached for tracking directory and
+file contents
+
+-- The maximum number of callbacks stored
+
+-- The maximum number of Rx protocol packets used
+
+-- The maximum size of the volume data cache
+
+The ~~-S~/~ option decreases these sizings to the minimum, in which case, the
+~~fileserver~/~ will consume approximately 751 kbytes of memory. When ~~fileserver~/~ is run under
+the ~~-L~/~ option, the defaults are raised to a reasonable maximum, using up
+about 1400 kbytes. With the systems now available from most UNIX vendors, the
+large size may be useful for most sites.
+
+Several other options are available to fine-tune individual structures. The
+number of callbacks stored by file servers is of particular importance. Because a
+file server must track all read-write file accesses to be able to send messages about
+stale cache contents to the clients, each callback must be stored
+separately. This table is kept in memory; when it becomes full, the server 
+flushes the oldest entries, sending a preemptive callback to the clients
+in question and then deleting the entry to make way for a new record.
+This feature ensures that the consistency guarantees are kept, albeit at the 
+expense of having some clients checking the server to see if certain 
+unchanged files are up to date. The small model allocates enough space for 
+20,000 callbacks, the default (medium) model has room for 32,000, and the 
+large model, 40,000. Making this table even larger, by using the ~~-cb~/~ option, 
+is one recommended way to possibly increase large-scale system performance.
+
+Another structure that can safely be made larger is the size of the volume
+data cache. This regular memory-cache increases performance of
+the server because it decreases repeated disk accesses to read volume data.
+In the small model, the volume cache is set to 200 volumes, in the default
+model, it is set to 400 volumes, and in the large model, 600. Use the ~~-vc~/~ option to set this number higher.
+
+Recall that the ~~fileserver~/~ process is not run directly on an AFS server
+system but is managed as a job by the ~~bosserver~/~. In a very large cell, you may want to create this job with the large model
+flags and larger values for the callback table and volume cache.
+
+PROGRAM DONE
+	# <B>bos create fs-one fs fs "/usr/afs/bin/fileserver -L -cb 64000 -vc 800" /usr/afs/bin/volserver /usr/afs/bin/salvager</B>
+PROGRAM
+
+Whether this actually increases performance is another question.
+The first thing to check is the kernel memory usage of the file server
+system. As you've just drastically increased the memory requirements of the
+process, make sure that the system is not hogging resources needed by other
+processes.
+
+Then, use the ~~afsmonitor~/~ command, described later in this chapter, to 
+check on client and server statistics to see if cache hits are greater and
+callbacks are more infrequent. If so, the result will be a much lighter
+load on the server.
+
+SECTION: FILE SERVER PROBLEMS
+
+If a server goes down, you'll likely be flooded with calls from users
+who can't access the read-write volumes on that machine. You should have
+other monitoring systems - SNMP, etc. - on all server machines to check for hardware outages. If those
+haven't triggered and someone calls about access problems, you should
+suspect a problem with the file server and the ~~fileserver~/~ process if:
+
+-- ~~vos examine~/~ shows VLDB information but not volume header info.
+
+-- ~~bos status~/~ shows that the ~~fileserver~/~ process is running
+but the UNIX process table information on the server shows that the
+process is not actively using CPU. 
+
+-- Running ~~bos restart~/~ on the ~~fs~/~ job doesn't appear to cause the
+~~fileserver~/~ process to restart.
+
+If someone reports that a particular path is not
+responding to access requests, you should be able to deduce what volume underlies that
+path, based on your volume creation and naming policies. A first step
+is to query the ~~volserver~/~ job on the file server machine with the
+~~vos examine~/~ command.
+
+PROGRAM DONE
+	$ <B>vos examine user.alice</B>
+	Could not fetch the information about volume 536870921 from the server
+	Possible communication failure
+	Error in vos examine command. Possible communication failure
+	 
+	Dump only information from VLDB
+	 
+	user.alice 
+	    RWrite: 536870921     Backup: 536870923 
+	    number of sites -> 1
+	       server fs-one partition /vicepa RW Site 
+PROGRAM
+
+Here, the ~~volserver~/~ is not responding to a basic query. The next question
+is whether the process is running at all. The ~~bos status~/~ command or even
+a UNIX process status display on the server itself should tell you
+if the process is running or has crashed.
+
+When an AFS server process appears to be running but doesn't respond to command
+requests, use the ~~rxdebug~/~ program to see where the
+process is stuck. As the name implies, ~~rxdebug~/~ connects to the Transarc Rx
+RPC layer in a remote server process; use the resulting output to
+determine if the process is completely hung or is simply busy with other
+processing.
+
+In this next case, the ~~fileserver~/~ process is suspected of being stuck.
+The arguments to ~~rxdebug~/~ are, first, the address of the server, followed by the
+port number of the AFS service you want to query. Other options select 
+debugging information you'd like to see displayed. Here, we choose to
+examine the statistics of the Rx protocol used by the ~~fileserver~/~ process
+on ~~fs-one~/~:
+
+PROGRAM DONE
+	$ <B>rxdebug 192.168.3.21 7000 -rxstats</B>
+	Trying 192.168.3.21 (port 7000):
+	Free packets: 328, packet reclaims: 0, calls: 0, used FDs: 8
+	not waiting for packets.
+	0 calls waiting for a thread
+	rx stats: free packets 0, allocs 9, alloc-failures(rcv 0,send 0,ack 0)
+	   greedy 0, bogusReads 0 (last from host 0), noPackets 0, noBuffers 0, selects 14, sendSelects 0
+	   packets read: data 3 ack 0 busy 0 abort 0 ackall 0 challenge 2 response 0 debug 2 params 0 unused 0 unused 0 unused 0 version 0 
+	   other read counters: data 3, ack 0, dup 0 spurious 0
+	   packets sent: data 3 ack 2 busy 0 abort 0 ackall 0 challenge 0 response 2 debug 0 params 0 unused 0 unused 0 unused 0 version 0 
+	   other send counters: ack 2, data 3 (not resends), resends 0, pushed 0, acked&ignored 0
+		(these should be small) sendFailed 0, fatalErrors 0
+	   0 server connections, 4 client connections, 4 peer structs, 2 call structs, 0 free call structs
+	   0 clock updates
+	Connection from host 192.168.3.94, port 7003, Cuid ac769209/2351a28c
+	  serial 3,  natMTU 1472, flags pktCksum, security index 2, client conn
+	  rxkad: level clear, flags pktCksum
+	  Received 0 bytes in 1 packets
+	  Sent 60 bytes in 1 packets
+	    call 0: # 1, state dally, mode: receiving, flags: receive_done
+	    call 1: # 0, state not initialized
+	    call 2: # 0, state not initialized
+	    call 3: # 0, state not initialized
+	Connection from host 192.168.5.90, port 7002, Cuid ac769209/2351a290
+	  serial 4,  natMTU 1472, flags pktCksum, security index 2, client conn
+	  rxkad: level crypt, flags pktCksum
+	  Received 48 bytes in 2 packets
+	  Sent 16 bytes in 2 packets
+	    call 0: # 2, state dally, mode: receiving, flags: receive_done
+	    call 1: # 0, state not initialized
+	    call 2: # 0, state not initialized
+	    call 3: # 0, state not initialized
+	Done.
+PROGRAM
+
+The output is designed to aid in the debugging of the Rx RPC layers
+themselves and is not well laid-out for AFS administrators. However, in the
+output you can see some hints about the state of the server: The number of
+calls waiting for a thread (in the third line of output) tells you how many
+outstanding requests are still waiting for processing; the 
+number of calls (in the second line) tells you the total number of Rx calls; and the number of ~~noBuffers~/~ is a measure of how many times Rx had
+to discard a packet because it did not have enough memory.
+
+These numbers, though cryptic, can distinguish a broken server
+from a busy one. If the number of calls waiting for a thread is zero, 
+and the total number of calls and ~~noBuffers~/~ remains stable and greater than zero, the server is most
+likely simply overloaded and busy with current requests. There's little to
+do except to make sure there are no other non-AFS jobs running on the
+machine, wait for some spare processing time, and perhaps split some of the
+heavily used volumes among less burdened servers.
+
+If the number of calls waiting for a thread and the number of ~~noBuffers~/~ keeps 
+rising but the total number of calls remains the same, these symptoms indicate a 
+~~fileserver~/~ "meltdown," so called because the server process is most likely hung.
+
+Of course, if there is no response whatsoever from the ~~rxdebug~/~ program 
+and the server process is using 100 percent of the system CPU, the job is clearly 
+misbehaving.
+
+In either of the last two cases, you'll have to force a ~~fileserver~/~
+restart. To aid Transarc in tracking down the server bug, you can send the
+server a signal to cause a core dump of the process image to be created. For
+the ~~fileserver~/~ process, a good signal to use is ~~SIGABRT~/~.
+On a Solaris file server, the command sequence would be:
+
+PROGRAM DONE
+	# <B>ps -ef</B> 
+             UID   PID  PPID  C    STIME TTY      TIME CMD
+	    root   548   248  0 16:24:38 ?        0:00 /usr/afs/bin/fileserver
+	...
+	# <B>kill -ABRT 548</B>
+	# <B>bos status fs-one fs</B>
+	Instance fs, has core file, currently running normally.
+	    Auxiliary status is: salvaging file system.
+	#
+	# <B>cd /usr/afs/logs</B>
+	# <B>ls -l core.file.fs</B>
+	-rw-rw-rw-   1 root     root     3582580 Mar 30 16:27 core.file.fs
+PROGRAM
+
+Note that ~~bosserver~/~ has done its duty and restarted the ~~fileserver~/~ and
+~~salvager~/~ processes immediately after discovering that the job had crashed. 
+~~bosserver~/~ reports that also ~~salvager~/~ is now running and shows that a core file exists.
+Changing the server log directory, we see a core file listed. Core files are all named with a ~~core.~/~ prefix followed by the
+name of the job that crashed; in the case of the fs job, you may see either
+~~core.file.fs~/~ or ~~core.vol.fs~/~, depending on whether the ~~fileserver~/~ or ~~volserver~/~
+daemon failed.
+
+
+At this point, you can call Transarc product support and arrange to deliver
+to them the core file and any relevant log files. Note that the ~~fileserver~/~
+binary is delivered not stripped, that is, debugging information has been kept
+in the executable file. This information makes the program file bigger, but you'll be able 
+to use your local debugger, such as ~~dbx~/~ or ~~gdb~/~, to get a handle on where 
+problems might be. (Other AFS binaries are delivered stripped.)
+
+If you're lucky, you should be able to see the process stack trace from the core file,
+using ~~dbx~/~, ~~gdb~/~, or another general UNIX debugger. If you examine the output of 
+the trace carefully, you should see some variable names such as 
+~~volid~/~ or ~~volptr~/~; if you have access to the source, you would be able to 
+determine exactly what those variables are used for. Otherwise, for debugging 
+purposes, you'll just have to guess that any variables with names that 
+include the string ~~vol~/~ probably contain a volume identification number. 
+By printing out the identification number, you will be able to compare it
+with the data in the VLDB and perhaps have a clue as to what the process
+was doing when it crashed.
+
+Other variables may include the letters ~~fid~/~; these variables should contain a complete 
+AFS file identifier, which includes the volume, vnode, and uniquifier numbers.
+Let's assume that the volume number is 536870921, the vnode is 6, and the
+uniquifier is 3. As before, you can search the VLDB to find out which 
+volume was being accessed. 
+
+PROGRAM DONE
+	$ <B>vos listvldb 536870921</B>
+ 
+	user.alice 
+	    RWrite: 536870921     Backup: 536870923 
+	    number of sites -> 1
+	       server fs-one partition /vicepa RW Site 
+	    Volume is currently LOCKED  
+PROGRAM
+
+As you can see, this is a user's volume and the volume is in the ~~LOCKED~/~ state.
+This state usually indicates that some operation was being performed on the volume 
+when either the client or server process crashed.
+
+To find out exactly what file was being accessed at the time of the crash,
+we need to find out which file corresponds to the vnode in that volume.
+Transarc doesn't provide a tool for this function, but we do know the 
+algorithm that is used to convert between volume and
+vnode identifiers and the UNIX inode number of the file. The uniquifier, the third numeric identifier in
+each FID, is not used when translating to an inode; instead, each AFS file appears
+in UNIX to have the same inode during its entire existence and only the AFS 
+servers know about the unique version number of the file.
+
+At Transarc's FTP site, you'll find a program, ~~calcinode~/~, that transforms 
+a volume and vnode number into an inode. But the algorithm can be trivially 
+performed in a few lines of Perl code or by any hexadecimal-enabled calculator. 
+Here's a snippet of Perl code that performs the calculation for our
+particular data.
+
+PROGRAM DONE
+	#  perl script to translate volume and vnode into inode
+	$volume = 536870921;
+	$vnode = 6;
+
+	#  take the low-order two bytes
+	$volume = $volume & 0xFFFF;
+	$vnode = $vnode & 0xFFFF;
+
+	#  check for an overflow
+	if ($volume >= 0x8000) { $volume -= 0x8000; }
+
+	#  convert into an inode
+	printf "%d\n", ($volume<<16) + $vnode
+PROGRAM
+
+Running this script answers our question.
+
+PROGRAM DONE
+	$ <B>perl5 calcinode.pl</B>
+	589630
+PROGRAM
+
+Once the UNIX inode is known, you can traverse the directories, starting
+at the mount point of the previously identified volume, to find the file.
+We'll use the ~~find~/~ program, which has a built-in option to search for a
+specified inode.
+
+PROGRAM DONE
+	$ <B>cd /afs/hq.firm/user/alice</B>
+	$ <B>find /afs/hq.firm/user/alice -inum 589830 -print</B>
+	/afs/hq.firm/user/alice/script1
+	$ <B>ls -l /afs/hq.firm/user/alice/script1</B>
+	589830 -r-xr-xr-x   1 alice    staff         29 Mar 29 16:57 script1
+PROGRAM
+
+Knowing what file was involved during the crash might give you a clue as
+to its cause. Presumably, some user was processing that file, either reading 
+or writing it. Of course, any reads or writes are not supposed to result in
+a crash. But perhaps this file can help track down who was using the file;
+perhaps it was on a client workstation with a newly ported version of the cache manager.
+
+As you search for more information about this problem, consult
+the ~~fileserver~/~ log file. As with other servers, the amount of detail stored
+in the file depends on the current debugging level. When tracking down
+repeatable bugs, you can increase that level by sending the ~~fileserver~/~
+process a ~~SIGTSTP~/~ signal, or you can reset the level to basic process data with the ~~SIGHUP~/~ signal. Here's how these signals work:
+
+-- First ~~SIGTSTP~/~ (level 1) - ~~fileserver~/~ logs Rx RPC calls received.
+
+-- Second ~~SIGTSTP~/~ (level 5) - Also logs the return code of all Rx RPCs.
+
+-- Third ~~SIGTSTP~/~ (level 25) - Also logs where the RPC call originated.
+
+-- ~~SIGHUP~/~ (level 0) - Resets to base level.
+
+-- ~~SIGQUIT~/~ - Gracefully kills the process.
+	
+At level 1, there's just enough detail to watch basic server processing:
+
+PROGRAM DONE
+	# <B>ps -ef </B>
+             UID   PID  PPID  C    STIME TTY      TIME CMD
+	    root   569   248  0 16:28:20 ?        0:00 /usr/afs/bin/fileserver
+	...
+	# <B>kill -TSTP 569</B>
+	#
+	# <B>tail /usr/afs/logs/FileLog</B>
+	Sun Mar 30 16:35:07 1997 Set Debug On level = 1
+	Sun Mar 30 16:35:27 1997 SAFS_FetchStatus,  Fid = 536870913.2.2811
+	Sun Mar 30 16:35:44 1997 SRXAFS_FetchData, Fid = 536870919.2.822
+	Sun Mar 30 16:35:44 1997 SAFS_FetchStatus,  Fid = 536870955.1.1
+	Sun Mar 30 16:36:10 1997 SAFS_CreateFile b,  Did = 536870985.1.1
+	Sun Mar 30 16:36:29 1997 SAFS_FetchACL, Fid = 536870985.1.1
+	Sun Mar 30 16:36:29 1997 SAFS_StoreACL, Fid = 536870985.1.1, ACL=3
+	0
+	system:administrators 127
+	system:anyuser 9
+	robert 127
+	Sun Mar 30 16:36:30 1997 SAFS_FetchStatus,  Fid = 536870985.1.1
+	Sun Mar 30 16:36:30 1997 SAFS_CreateFile b,  Did = 536870985.1.1
+	Sun Mar 30 16:36:30 1997 SRXAFS_FetchData, Fid = 536870985.6.405
+	Sun Mar 30 16:36:30 1997 StoreData: Fid = 536870985.6.405
+	#
+	# <B>kill -HUP 569</B>
+	# <B>tail 1 /usr/afs/logs/FileLog</B>
+	Sun Mar 30 16:38:02 1997 Reset Debug levels to 0
+PROGRAM
+
+
+SECTION: SALVAGING FILES
+
+In AFS, a <I>disk salvage</I> is the process by which the internal structures of a
+~~vice~/~ partition are analyzed and any inconsistencies corrected. Because the
+system uses the native UNIX file system of the server's operating system,
+an AFS disk salvage is similar, in effect, to the vendor's file system check program but 
+goes much further in examining and restoring the internal layout policies 
+of volume headers and files.
+
+The ~~fileserver~/~ and ~~volserver~/~ processes do their best to store coherent
+and stable versions of files and volume headers. But occasionally,
+if a server crashes or loses power or if a ~~vice~/~ partition becomes
+corrupted, then inconsistent data may be written to disk. More 
+infrequently, certain volume operations such as a ~~vos move~/~, if interrupted 
+during execution by the administrator or by a network or system failure, 
+can cause a similar problem.
+
+When ~~volserver~/~ is running, it keeps track of which volumes are in use 
+at any given time. These are referred to as the active volumes. During 
+a system crash, it is these active volumes that may be corrupted. 
+The ~~salvager~/~ process first checks these volumes for trouble, then pieces together any file data blocks or directories that appear to 
+be disconnected.
+
+A salvage is performed automatically when the ~~bosserver~/~ process detects that
+the ~~fileserver~/~ process has crashed, for example, after the reboot of a panic'd server
+machine, or when Transarc's ~~vfsck~/~ program (as a replacement for the
+vendor's ~~fsck~/~ program) deletes some level of corruption 
+in a ~~vice~/~ partition. When ~~fsck~/~ detects a corrupted partition, it creates a file ~~FORCESALVAGE~/~, in the root
+of the vice partition. When the ~~fileserver~/~ process
+first starts, it checks for ~~FORCESALVAGE~/~; if it exists, ~~fileserver~/~
+passes control to the ~~salvager~/~.
+
+When the ~~fileserver~/~ process starts, it writes a sentinel file,
+~~/usr/afs/local/SALVAGE.fs~/~, which will be deleted during the normal shut down
+sequence. If ~~bosserver~/~ detects the file on restart, it assumes that
+the server either panic'd or was brought down incorrectly, either of which
+cases means that the partitions may have been corrupted. One way to run
+salvages is to create the sentinel file by hand before starting AFS services.
+
+Alternatively, administrators can manually instruct ~~bosserver~/~ to run 
+salvages to try to resurrect a specific volume, partition, or all 
+partitions on a server.
+
+An administrator can set two important options on the command line (or that of the ~~bos salvager~/~ job).
+¥ ~~-parallel~/~ option, which raises or lowers the number of partitions ~~salvager~/~ checks in parallel. The default is 4.
+¥ ~~-tmpdir~/~ option, which redirects temporary files written by ~~salvager~/~. Normally, the current partition is used for temporaries. In cases where 
+little room is left on the disk, you can use this option to indicate 
+an alternate workspace.
+
+Salvaging, like most AFS actions, can be initiated from any machine in the
+cell. The ~~bos~/~ suite has a ~~salvage~/~ subcommand to run salvages on any of the
+file servers. The subcommand takes an option of ~~-all~/~ to check all the partitions on a
+server, or a server name and list of partitions to check only a certain servers devices,
+or a server name, partition, and volume identifier number to check just a
+single volume. But beware when salvaging a whole partition: the ~~fileserver~/~
+process on that system will be shut down, causing a service interruption. 
+Shutting down AFS makes some sense, especially because salvages are run after 
+kernel panics or file server crashes.
+Yet during a salvage of just a single partition, it would be much nicer
+if Transarc would permit other partitions to still be available.
+
+You may notice that ~~bosserver~/~ creates a temporary job entry on the
+server that is being salvaged. During this operation, ~~salvager~/~ writes information to the ~~/usr/afs/logs/SalvageLog~/~ file; use the ~~-showlog~/~ option to remotely display the file to the administration desktop.
+
+PROGRAM DONE
+	$ <B>bos salvage fs-one -all -showlog</B>
+	bos: shutting down fs.
+	Starting salvage.
+	bos: waiting for salvage to complete.
+	bos: waiting for salvage to complete.
+	bos: salvage completed
+	SalvageLog:
+	@(#)Base configuration afs3.4 5.00
+	03/30/97 16:42:42 STARTING AFS SALVAGER 2.4 (/usr/afs/bin/salvager -f)
+	03/30/97 16:42:42 Starting salvage of file system partition /vicepa
+	03/30/97 16:43:32 Starting salvage of file system partition /vicepb
+	03/30/97 16:42:42 SALVAGING FILE SYSTEM PARTITION /vicepa (device=c0t1d0s4)
+	03/30/97 16:42:42 ***Forced salvage of all volumes on this partition***
+	03/30/97 16:42:53 Scanning inodes on device /dev/rdsk/c0t1d0s4...
+	03/30/97 16:43:05 CHECKING CLONED VOLUME 536870913.
+	03/30/97 16:43:05 root.afs.readonly (536870913) updated 03/29/97 12:32
+	03/30/97 16:43:05 SALVAGING VOLUME 536870912.
+	03/30/97 16:43:05 root.afs (536870912) updated 03/29/97 12:32
+	03/30/97 16:43:05 Salvaged root.afs (536870912): 5 files, 7 blocks
+	03/30/97 16:43:05 CHECKING CLONED VOLUME 536870919.
+	03/30/97 16:43:05 root.cell.readonly (536870919) updated 03/29/97 13:44
+	03/30/97 16:43:05 SALVAGING VOLUME 536870918.
+	03/30/97 16:43:05 root.cell (536870918) updated 03/29/97 13:44
+	03/30/97 16:43:05 Salvaged root.cell (536870918): 4 files, 5 blocks
+	03/30/97 16:43:05 SALVAGING VOLUME 536870921.
+	03/30/97 16:43:05 user.alice (536870921) updated 03/29/97 17:46
+	03/30/97 16:43:05 Salvaged user.alice (536870921): 9 files, 14 blocks
+	...
+PROGRAM
+
+You should check that the server's volumes are all on-line.
+
+PROGRAM DONE
+	$ <B>vos listvol fs-one</B>
+	Total number of volumes on server fs-one partition /vicepa: 15 
+	cell.sys                          536870960 RW          2 K On-line
+	cell.tmp                          536870957 RW          5 K On-line
+	cell.tmp.readonly                 536870958 RO          4 K On-line
+	cell.user                         536870954 RW          7 K On-line
+	cell.user.readonly                536870955 RO          7 K On-line
+	root.afs                          536870912 RW          7 K On-line
+	root.afs.readonly                 536870913 RO          7 K On-line
+	root.cell                         536870918 RW          5 K On-line
+	root.cell.readonly                536870919 RO          5 K On-line
+	tmp.sample                        536870973 RW      51202 K On-line
+	user.alice                        536870921 RW         14 K On-line
+	user.david                        536870976 RW       1026 K On-line
+	user.david.backup                 536870978 BK       1026 K On-line
+	user.rob                          536870967 RW          2 K On-line
+	user.rob.backup                   536870969 BK          2 K On-line
+	...
+PROGRAM
+
+The ~~SalvageLog~/~ output indicates which volumes were checked and updated and, occasionally, which volumes could not be salvaged. In these cases, attempt another
+salvage. If that salvage also fails, you'll have to resort to
+other strategies to resurrect those volumes: perhaps move all correctly
+salvaged volumes off the disk and move the disk to a spare server
+where more intensive disk repair tools can be used to discover the problem.
+
+You can salvage a single volume without otherwise affecting the server.
+
+PROGRAM DONE
+	$ <B>bos salvage fs-one a user.alice -showlog</B>
+	Starting salvage.
+	bos: waiting for salvage to complete.
+	bos: waiting for salvage to complete.
+	bos: salvage completed
+	SalvageLog:
+	@(#)Base configuration afs3.4 5.00
+	03/30/97 16:46:02 STARTING AFS SALVAGER 2.4 (/usr/afs/bin/salvager /vicepa 536870921)
+	03/30/97 16:46:12 Scanning inodes on device /dev/rdsk/c0t1d0s4...
+	03/30/97 16:46:25 SALVAGING VOLUME 536870921.
+	03/30/97 16:46:25 user.alice (536870921) updated 03/29/97 17:46
+	03/30/97 16:46:25 Salvaged user.alice (536870921): 9 files, 14 blocks
+PROGRAM
+
+If ~~bosserver~/~ is unavailable or other salvage options are needed, you'll have to
+start the salvage on the server machine and run the process via the command
+line. In this case, if salvaging one or more partitions, shut down the ~~fs~/~ job before proceeding; if only a single volume is to be salvaged, the
+~~fs~/~ job should remain running.
+
+Other options which may prove useful are:
+
+-- ~~-force~/~ - Forces all volumes, rather than only the active volumes, on the partitions to be checked and salvaged.
+
+-- ~~-salvagedirs~/~ - Forces all directories to be rebuilt. Normally,
+directories are reconstructed only when corrupt. Forcing
+all directories to be rebuilt is time consuming but can potentially
+relink files that are otherwise lost.
+
+-- ~~-blockread~/~ - By default, the ~~salvager~/~ reads multiple disk
+blocks at a time in order to be as efficient and quick as possible.
+But a physically damaged disk may cause a multiple-block read request to
+fail. With this option, only a single block is read at a time. While this
+method is time consuming, single-block reads can skip over damaged disk blocks and
+thereby salvage more of a ~~vice~/~ partition.
+
+During salvaging operations, the process must often create new versions
+of files, directories, or volume headers. Normally, these new files are created on the partition that is being salvaged. This practice can be a problem
+if the disk is corrupted or full. In these cases, use the ~~-tmpdir~/~ 
+option to supply an argument directing the ~~salvager~/~ to create new temporary
+files on an alternate partition, such as ~~/tmp~/~ or ~~/var/tmp~/~. The old versions of the file or directory blocks will be cleared from the partition being salvaged and the new version will then be moved back from the temporary
+location to the ~~vice~/~ partition.
+
+Finally, use the ~~-nowrite~/~ option to bring online all undamaged volumes 
+immediately, leaving any damaged volumes unsalvaged on the partition. With
+this option, undamaged volumes can be moved off of the partition and
+work can then continue on salvaging the damaged volumes, possibly 
+limiting further unintended downtime for working volumes.
+
+Volumes can become unavailable for a few reasons. One common reason is that
+a ~~vos move~/~ operation was unexpectedly terminated. Moving volumes involves a
+number of steps, which AFS attempts to perform as a transaction. If an
+administrator interrupts the move, AFS will try to clean
+up any completed steps to the state that existed before the command was run.
+This is not always successful. The first indication of failure is that the
+volume is locked against further operations; ~~vos examine~/~ will display this
+information.
+
+The commonest problems are that the volume was being moved and now two
+versions of the volume exist, the original and the copy. To correct for this, follow these steps.
+
+1. Manually unlock the volume.
+
+2. Examine the volume location database to find out which server
+and partition contain the legitimate version.
+
+3. Examine the volume headers on the server and partition to determine the
+state of the legitimate version.
+
+4. If the preferred volume is reported to be unattached, then salvaged it.
+
+5. Once the volume is OK, run ~~zap~/~to delete the other version from disk.
+
+6. Make sure that any temporary clone volumes are removed. 
+
+	Because temporary clones do not show up
+in either the VLDB or the server's volume headers, you must salvage the entire partition by brute force. <I>At the next available maintenance period</I>, run the partition salvage (remember, partition salvages bring the file server down).
+
+SECTION: DATABASE SERVERS
+
+If your database servers are also file servers, the sum total of the server 
+jobs will take more memory and processing than if they were separated. But 
+even a machine that is just a database server can have poor performance if 
+it is the sync site, for then, that one server is the location to which 
+all updates for all databases in the cell must be delivered.
+
+If segregated from the file servers, the database processes only need a 
+fast CPU and plenty of memory: any fast desktop workstation will provide 
+excellent price/performance.
+
+As long as there is sufficient processing power, users will only experience
+database outages due to a loss of network connectivity. If a command
+is run which accesses the databases (as do most administrative, 
+authentication, and group management commands,) and the network
+is partitioned, the command will appear to hang as it
+looks for an available database server. If the command needed to perform
+an update and the issuer cannot transmit to the sync site, then the
+updates will fail. 
+
+Once running, the different database instances keep log files on the server in
+~~/usr/afs/logs~/~. Because updates are sent to the database sync site (normally
+the lowest IP-addressed database server in the cell) for processing, the sync sites files usually contain the most relevant log data.
+ 
+The ~~AuthLog~/~ file, for the Kerberos server, is especially terse and does not
+log many messages unless there is a significant internal inconsistency. A
+typical functioning ~~kaserver~/~ will simply log its initialization.
+ 
+PROGRAM DONE
+        $ <B>cat /usr/afs/logs/AuthLog</B>
+        kerberos/udp port=750
+        kerberos5/udp is unknown; check /etc/services.  Using port=88 as default
+        Starting to listen for UDP packets
+        start 5 min check lwp
+        Starting to process AuthServer requests
+PROGRAM
+ 
+The ~~BackupLog~/~ file, used by the backup server, stores messages
+about dumps made and restored. You might be able to get a better overview
+of the cellwide backup activity by scanning this file with regular
+ASCII tools, rather than by using the backup database query commands.
+ 
+PROGRAM DONE
+        $ <B>cat /usr/afs/logs/BackupLog</B>
+        ...
+        03/30/97 12:30:05 Create dump users.full (DumpID 859743005), path /full
+        03/30/97 13:27:05 Create dump Ubik_db_dump (DumpID 859746425), path
+        03/30/97 13:29:48 Delete dump users.full (DumpID 859743005), path /full
+        ...
+PROGRAM
+
+For the ~~volserver~/~, a useful option is ~~-log~/~. Without this option, 
+only certain operations are recorded; with it, all volume creation, deletion,
+and moves are logged along with the names of the users
+who initiate the operation. As with other file or database server options,
+this option needs to be added to the ~~bos~/~ configuration entry for this process.
+This logging provides a very good audit trail of AFS management operations.
+But you must remember to rotate the logs manually and archive them yourself 
+if you are to have a robust history of all AFS operations; the ~~volserver~/~
+overwrites the previous ~~/usr/afs/log/VolserLog.old~/~ file every time it starts.
+ 
+ 
+PROGRAM DONE
+        $ <B>cat /usr/afs/log/VolserLog</B>
+        Sun Mar 30 14:24:37 1997: Starting AFS Volserver 2.0 (/usr/afs/bin/volse
+rver)
+        Sun Mar 30 14:34:18 1997: 1 Volser: Delete: volume 536870955 deleted
+        Sun Mar 30 14:34:18 1997: 1 Volser: Clone: Cloning volume 536870954 to n
+ew volume 536870955
+        Sun Mar 30 15:29:53 1997: 1 Volser: Delete: volume 536870993 deleted
+        Sun Mar 30 15:30:42 1997: 1 Volser: CreateVolume: volume 536870994 (user.helen)
+ created
+        Sun Mar 30 15:31:12 1997: 1 Volser: Delete: volume 536870994 deleted
+PROGRAM
+
+Few options are available to optimize the ~~volserver~/~ process. To increase
+concurrency, it runs with nine threads of control. This number can be modified at
+startup via the flag ~~-p~/~ given a value from 4 to 16.
+
+The volume location server, ~~vlserver~/~, stores log information in
+~~/usr/afs/logs/VLLog~/~; this file is new to AFS 3.4a. However, when
+started, ~~vlserver~/~ by default does not log any information to this file.
+Three different levels of debug output are available:
+ 
+-- Level one - ~~vlserver~/~ logs volume creations, deletions, change address
+operations, replacements, updates, volume locks and unlocks, and
+new volume identifier operations.
+ 
+-- Level two - in addition to the level one data, ~~vlserver~/~ logs volume lookup by name
+or identification number, list attributes, get statistics, or get
+addresses.
+ 
+-- Level three - in addition to levels one and two data, ~~vlserver~/~ logs other operations
+such as list entries.
+ 
+To set the level of debugging, send UNIX signals to the ~~vlserver~/~ 
+process: the ~~SIGTSTP~/~ signal increments the current level number, the ~~SIGHUP~/~ signal
+decrements the level. (Note that this is different from the debugging protocol 
+used by the ~~fileserver~/~.) There's no way to find out what the current level is, so either keep careful
+track or send some extra ~~SIGHUP~/~ signals to ensure that the current level is level zero. The following shows how logging might be initialized.
+ 
+PROGRAM DONE
+        # <B>hostname</B>
+        db-one
+        # <B>ps -ef</B>
+             UID   PID  PPID  C    STIME TTY      TIME CMD
+        ...
+            root  1760  1309  0 15:32:19 ?        0:00 /usr/afs/bin/vlserver
+        ...
+        # <B>kill -TSTP 1760</B>
+PROGRAM
+ 
+The contents of the log file look like this:
+ 
+PROGRAM DONE
+        $ <B>cat /usr/afs/logs/VLLog</B>
+        Sun Apr  6 17:01:08 1997 Starting AFS vlserver 4 (/usr/afs/bin/vlserver)
+        @(#)Base configuration afs3.4 5.00
+        Sun Apr  6 17:02:07 1997 Set Debug On level = 1
+ 
+PROGRAM
+ 
+Like other server processes, the ~~vlserver~/~ internally runs several threads of
+control to increase concurrency. In previous versions of AFS, four
+threads managed the volume location database; as of version 3.4a,
+the default number of threads is 9. This number can be increased to 16 via the ~~-p~/` option.
+
+SECTION: UBIK DEBUGGING
+
+AFS databases replicate themselves automatically and reliably without any
+regular maintenance by administrators. When there are multiple database
+servers, each with its own dedicated hardware on which to run, there will
+be few problems with their operation. Because the architecture of the Ubik
+protocol is designed to overcome network problems and failed transactions,
+it is likely that users will never see an AFS database problem except in
+extraordinary situations.
+
+Since AFS version 3.4a, data from any of the databases is still readable even 
+when the servers have lost quorum and updates are rejected. Hence, if there 
+are problems communicating with the security servers, you can manually choose 
+to use a particular server with the ~~-server~/~ option to the ~~klog~/~ and ~~kas~/~ commands.
+
+PROGRAM DONE
+	$ <B>klog afsadmin -server db-two</B>
+	Password:
+PROGRAM
+
+When tracking down database server outages situations, use ~~udebug~/~ to query the status
+of each database server, determine which site is the master, and which site
+has an out-of-date copy of the data. To check the Ubik data of a running
+server, choose a port number appropriate for the database you want to
+check. Here, 7002 is the port for ~~ptserver~/~:
+
+PROGRAM DONE
+	$ <B>udebug db-two 7002</B>    
+	Host's 192.168.3.12 time is Sun Mar 30 16:51:23 1997
+	Local time is Sun Mar 30 16:51:23 1997 (time differential 0 secs)
+	Last yes vote for 192.168.3.11 was 7 secs ago (sync site); 
+	Last vote started 6 secs ago (at Sun Mar 30 16:51:17 1997)
+	Local db version is 859748652.9
+	I am not sync site
+	Lowest host 192.168.3.11 was set 7 secs ago
+	Sync host 192.168.3.11 was set 7 secs ago
+	Sync site's db version is 859748652.9
+	0 locked pages, 0 of them for write
+PROGRAM
+
+This output from a nonsync site shows only the local database conditions.
+When querying a syncsite, you will see information on all known database servers (for
+that database process).
+
+PROGRAM DONE
+	$ <B>udebug db-one 7002</B>  
+	Host's 192.168.3.11 time is Sun Mar 30 16:51:29 1997
+	Local time is Sun Mar 30 16:51:27 1997 (time differential -2 secs)
+	Last yes vote for 192.168.3.11 was 10 secs ago (sync site); 
+	Last vote started 10 secs ago (at Sun Mar 30 16:51:17 1997)
+	Local db version is 859748652.9
+	I am sync site until 49 secs from now (at Sun Mar 30 16:52:16 1997) (2 servers)
+	Recovery state 1f
+	Sync site's db version is 859748652.9
+	0 locked pages, 0 of them for write
+	Last time a new db version was labelled was:
+		 10035 secs ago (at Sun Mar 30 14:04:12 1997)
+	 
+	Server 192.168.3.12 (db 859748652.9)
+	    last vote rcvd 11 secs ago (at Sun Mar 30 16:51:16 1997),
+	    last beacon sent 10 secs ago (at Sun Mar 30 16:51:17 1997), last vote was yes
+	    dbcurrent=1, up=1 beaconSince=1
+	 
+	Server 192.168.5.13 (db 859748652.9)
+	    last vote rcvd 13 secs ago (at Sun Mar 30 16:51:14 1997),
+	    last beacon sent 15 secs ago (at Sun Mar 30 16:51:12 1997), last vote was yes
+	    dbcurrent=1, up=1 beaconSince=1
+PROGRAM
+
+Having all machines in a cell know the same time is vital, especially for
+Ubik database servers. Each database process pings the others so each
+has an idea of how out of synchronization their times may be. If the "~~his time is n~/~" line
+is greater than 10, this information indicates that the clock is more than 10 seconds
+off and could be the source of database election problems.
+
+Votes for sync sites are performed every 15 seconds and are conducted by the
+sync site. Each database process keeps track of when the last vote was
+conducted; if no new vote is held for 75 seconds, then nonsync servers
+will initiate their own vote. The "~~Last vote for~/~" line shows the Internet
+address of the server that the site queried voted for and how long ago 
+that vote took place. If the server has just been restarted and has
+not voted for anyone, the Internet address is displayed as 255.255.255.255.
+This default address is also displayed for sites running a single database process because 
+there is no need to vote for the sync site.
+
+The database version number consists of a timestamp and a version number.
+The timestamp is the time at which the sync site was elected, and the version
+number is incremented after every update to the database. A database
+version of 0.0 means the database is corrupt (the file makes no internal
+sense) or can't be read.
+
+The sync site also displays its recovery state. This is a 5-bit-wide
+status flag, where an on bit means ~~OK~/~. In hexadecimal, all 5 ~~OK~/~ bits will display
+as recovery state ~~1f~/~. If any of the following 5 bits is zero, there's a problem:
+
+-- bit 0 off - I am not the sync site
+-- bit 1 off - Not all the database versions on the other servers are ok.
+-- bit 2 off - The sync site does not have the best database version?
+-- bit 3 off - The version number has changed
+-- bit 4 off - I am the sync site, but my database has not been copied to 
+any other database servers.
+
+The sync site will display the status of any on-going writes,
+"~~n locked pages, n of them for write~/~." The number of locked pages should usually be 0 because the updates take very little time to execute. If the
+numbers do not change, the database process could be hung.
+
+Updates to an AFS database are sent from the Ubik sync site to the replicas as whole
+objects; rather than the entire database, only the complete object 
+that was updated is sent. For example, when changes are made to group membership in the protection database, 
+the new value of the group, that is, all the new and old members, is sent to 
+each replica. Large groups can therefore present a problem: if thousands of 
+users are placed in a single, updates to that group, such 
+as adding or deleting a single person, will cause the entire group 
+membership list to be transmitted. In such a case, 
+the transmittal time may interfere with the on-going Ubik elections and
+therefore cause the ~~ptserver~/~ processes to lose quorum.
+
+If there is not enough room on disk to store the updates to a database, a
+sync site will return a failure to the client request. Disk shortages on a secondary will cause the secondary to disallow
+access until it is able to retrieve the new version of the entire, 
+too-large database. Because the sync site must process all write requests, 
+make sure that it has the most CPU, memory, and disk space.
+
+If one database server process determines that its copy of the database is
+corrupt, it will initiate a transfer of the entire database from a 
+working database server. You can use this functionality to your advantage:
+If you suspect a database is bad, you can simply rename the database files. In short order, the server process that controls the database will 
+notice the missing database files and will get a new copy. 
+This technique is preferable to copying over the database
+files via FTP or some other manual process because Ubik will correctly, lock the
+system from any updates. Thus the site retrieves a uniform version
+of the database. The process looks like this:
+
+PROGRAM DONE
+	# <B>bos shutdown db-two kaserver -localauth</B>
+	# <B>cd /usr/afs/db</B>
+	# <B>mv kaserver.DB0 kaserver.DB0.corrupt</B>
+	# <B>rm kaserver.DBSYS1</B>
+	# <B>bos restart db-two kaserver -localauth</B>
+	# <B>udebug db-two 7004</B>
+	Host's 192.168.3.12 time is Sun Mar 30 16:55:57 1997
+	Local time is Sun Mar 30 16:55:57 1997 (time differential 0 secs)
+	Last yes vote for 255.255.255.255 was 80 secs ago (not sync site); 
+	Last vote started 859758957 secs ago (at Wed Dec 31 19:00:00 1969)
+	Local db version is 859748656.8
+	I am not sync site
+	Lowest host 192.168.3.11 was set 14 secs ago
+	Sync host 192.168.3.11 was set 14 secs ago
+	Sync site's db version is 0.0
+	0 locked pages, 0 of them for write
+PROGRAM
+
+Immediately after the restart of ~~kaserver~/~ on ~~db-two~/~, you can see that
+the database version number is 0.0. Eventually, after perhaps a minute, you'll see that all is well.
+
+PROGRAM DONE
+	# <B>udebug db-two 7004</B>
+	Host's 192.168.3.12 time is Sun Mar 30 16:56:14 1997
+	Local time is Sun Mar 30 16:56:14 1997 (time differential 0 secs)
+	Last yes vote for 192.168.3.11 was 0 secs ago (sync site); 
+	Last vote started -1 secs ago (at Sun Mar 30 16:56:15 1997)
+	Local db version is 859748656.8
+	I am not sync site
+	Lowest host 192.168.3.11 was set 0 secs ago
+	Sync host 192.168.3.11 was set 0 secs ago
+	Sync site's db version is 859748656.8
+	0 locked pages, 0 of them for write
+PROGRAM
+
+In a worst-case scenario, you can step all the servers and restore a database  from tape to the sync site. The other servers will then get their database copy soon.
+
+If a database server crashes and will be down for some time, you may need to
+inform all client machines of the situation so they can work around the
+problem without interfering with other user operations. Use the ~~fs serverprefs~/~
+command to reset preferences for the database servers, as
+described in Chapter 5, or, more permanently, change a client's
+~~CellServDB~/~ file and/or kernel cell information.
+
+Inform Transarc product support of any database corruptions that 
+might have resulted from otherwise normal operations (as opposed to 
+bad disk blocks or machine crashes). To assist them, save a copy
+of the correct as well as the corrupt database.
+
+SECTION: THE SCOUT MONITOR
+
+AFS file servers are naturally the focus of much administration. Transarc
+provides one tool, ~~scout~/~, designed for minute-by-minute monitoring of these
+file servers. Unfortunately, the monitoring facilities of ~~scout~/~ are not 
+integrated with other management systems such as UNIX ~~syslog~/~ or the 
+SNMP protocol. But its graphical interface does provide a good visual 
+indication of the status of the cell.
+
+When started from the command line, ~~scout~/~ displays labels in the current terminal screen showing file servers,
+available space on each server's partition, number of active clients, and
+other information. Certain items can be flagged for alarm conditions; if the
+conditions are exceeded, the items are displayed in reverse-video. This
+terminal display capability is provided by the UNIX Curses library, which
+relies on the setting of the process's ~~TERM~/~ environment variable. This
+set up is normally provided by your system administrator.
+
+Any user can run ~~scout~/~, pointing it at any one or more servers in the cell.
+Since no administrative controls can be run from the program - only collective
+statistics are printed - access control is not an issue.
+
+A typical use of ~~scout~/~ in our example cell is:
+
+PROGRAM DONE
+	$ <B>scout -server fs-one fs-two</B>
+PROGRAM
+
+This command immediately clears the current terminal screen and displays
+information, as shown in Figure 10-1.
+
+[[Figure 10-1: The ~~Scout~/~ Screen]]
+
+The information includes the number of active connections, the
+number of fetch and store packets, the number of active clients, the server
+name, and then a set of numbers, one set for each partition on the server
+and the number of kilobytes still available on that partition.
+
+In the first column, the number of active connections represents the
+number of active user sessions on all the workstations served from that
+file server. Since each workstation can support more than one user and each
+user can have more than one connection going at once, this number will
+likely be larger than the number of active workstations in the fourth
+column.
+
+The second and third columns show the number of fetch and store
+packets sent to the server. The fetch packets include all get data,
+access lists, and status; store packets include all put data, access lists,
+and status. These numbers are reset to zero when the file server restarts.
+
+The fourth column shows the number of active clients. Active in
+this context means that the client has communicated with the server in the
+last 15 minutes.
+
+The fifth column displays the file server name. If the name is
+longer than 12 characters, it is truncated.
+
+The last column contains a set of values, one for each of the
+partitions on that server and displaying the number of kilobytes still
+available. Each value set is composed of the abbreviated partition name,
+"a" for the partition on ~~/vicepa~/~, for example, a colon character, and the
+number of kilobytes. This column is headed by a label that shows the condition threshold beyond which the partition will be displayed in reverse video, indicating a
+low-space problem. By default, this condition is reached when the partition
+is 95 percent full.
+
+At the bottom of the screen is a label that shows how many times the file
+servers have been queried by this instance of the ~~scout~/~ process. 
+The data is updated every 60 seconds by default.
+
+In Figure 10-1, you can see that file server ~~fs-one~/~ has 5 active connections
+from 2 active workstations.
+
+
+Note that the file servers named on the ~~scout~/~ command
+line do not need to be limited to the local cell or even be members of
+the same cell. File servers are only loosely coupled to their cells to
+begin with; there is no communication between file servers nor even a central
+configuration file for a cell's file servers. Thus, the servers must be specified individually 
+on the ~~scout~/~ command line. Because the load posed by the ~~scout~/~ probes is
+quite small, you can use ~~scout~/~ freely to monitor one or
+more file servers for one or more cells.
+
+SECTION: AFSMONITOR
+
+A more detailed analysis of clients and servers is available with the
+~~afsmonitor~/~ utility. Much of this data will be of interest only to the
+implementors of AFS, but a few of the statistics help 
+administrators to examine cache hit ratios or server load.
+Like ~~scout~/~, the program displays the results of regularly probing AFS servers. But in addition to probing servers, ~~afsmonitor~/~ can query clients, highlight data that exceeds certain thresholds, and also run 
+external programs when specified conditions are reached.
+
+Like ~~scout~/~, ~~afsmonitor~/~ is a Curses-based display program and so will run
+in any correctly configured terminal screen, either a dedicated monitor
+or a virtual terminal as provided by the ~~xterm~/~ program. Also, all users are
+normally permitted to run the monitor; there are no access control issues
+and the burden on the servers or clients of a running monitor is quite
+light.
+
+A typical session might start with:
+
+PROGRAM DONE
+	$ <B>afsmonitor -fshosts fs-one fs-two -cmhosts desktop1</B>
+PROGRAM
+
+This command begins probing two file servers and one desktop machine;
+it queries servers and clients separately to retrieve their unique
+information. The probes by default are triggered once every minute or as
+specified in a ~~-frequency~/~ option.
+
+When this command runs, it paints an overview page into the current
+terminal window. The page shows the machines indicated on the command
+line, summary statistics on the number of servers, clients, and errors, and
+the number of probes that have occurred. The servers are listed in a column
+on the left and the clients on the right. Any machine for which a
+statistic has indicated a problem will show the number of probes returned
+which have exceeded its threshold; if the machine has failed to answer the
+previous probe, the letters ~~PF~/~ - probe failure - are displayed. Note well,
+in the upper right-hand corner, the current page number and total number of
+pages available are printed. Figure 10-2 shows the initial display from ~~afsmonitor~/~.
+
+[[Figure 10-2: The ~~afsmonitor~/~ Initial Screen]]
+
+During the run of the program, you can enter commands at the keyboard to
+navigate the many pages of information available. You can begin by entering
+either ~~fs~/~ to display ~~fileserver~/~ statistics or ~~cm~/~ to display client cache
+manager data. Once the family of machines has been specified, a new page
+displays a large table of data showing results from the last probe.
+Each row displays information for one machine with each
+column devoted to a different statistic.
+
+You can navigate back to the overview page by entering ~~oview~/~, to the other
+family of machines with either ~~fs~/~ or ~~cm~/~, or move the table left or right by
+entering ~~l~/~ or ~~r~/~. In the top right-hand column, again, you can see the
+number of available pages and columns. Figure 10-3 shows a snapshot
+of the file server statistics display.
+
+[[Figure 10-3: The ~~afsmonitor fs~/~ Screen]]
+
+When running ~~afsmonitor~/~, you will first notice the tremendous
+number of irrelevant statistics - and the column headers
+are practically indecipherable. See Appendix A of <I>AFS System Administrator's 
+Guide</I> for an explanation of each column ( 271 for servers, 570 for clients). However, amid all the noise are many pieces 
+of data that are of interest. When examining clients, you can extract 
+data on:
+
+-- ~~dlocalAccesses~/~, ~~vlocalAccesses~/~ - The number of accesses to file
+data and metadata, respectively, from the client to the local cell
+
+-- ~~dcacheHits~/~, ~~dcacheMisses~/~ - The number of cache hits and misses
+for file data
+
+-- ~~vcacheHits~/~, ~~vcacheMisses~/~ - The number of cache hits and misses
+for file metadata
+
+-- ~~OutStandingMemUsage~/~ - The amount of allocated kernel memory
+
+-- ~~fs_sc_numDowntimeIncidents~/~ - The number of times a file server was
+believed to be down
+
+-- ~~vl_sc_numDowntimeIncidents~/~ - The number of times a volume location
+database server was believed to be down
+
+[[Figure 10-4: The ~~afsmonitor~/~, Client Screen]]
+
+[[Figure 10-5: The ~~afsmonitor~/~, Client Screen with Cache Hits]]
+
+Detailed records are also kept for each client/file server remote
+procedure call. The details include number of operations, number
+successful, sum of timings for all operations, minimum and maximum times for
+any given operation, and the number of server, network, and access errors.
+These records are kept for the following events: fetch file data, fetch access control list,
+fetch file status, store file data, store access control list, store status,
+remove file, create file, rename file, create symlink, create hard link,
+make directory, remove directory, set lock, extend lock, release lock, get
+statistics, give up callbacks, get volume info, set volume status, get root
+volume, check token, get time, get volume info, and bulk status. In addition, ~~afsmonitor~/~ reports 
+the minimum, maximum, and sum of bytes transferred during data fetch and
+store operations.
+
+[[Figure 10-6: The ~~afsmonitor fs~/~ Screen with Rx Statistics]]
+
+On the file server side, the statistics are cumulative across all clients
+being serviced. Table 10-1 lists specifics of all Rx remote procedure calls.
+
+Table 10-1 		Rx Remote Procedure Calls
+RPC Statistic		Description
+
+-- ~~rx_dataPacketsSent~/~ - Number of unique data packets sent
+
+-- ~~rx_dataPacketsReSent~/~ - Number of retransmissions
+
+-- ~~rx_totalRtt_Sec~/~, ~~rx_totalRtt_Usec~/~ - Total round-trip time
+in seconds and milliseconds
+
+-- ~~rx_minRtt_Sec~/~, ~~rx_minRtt_Usec~/~ - Minimum round-trip time in
+seconds and milliseconds 
+
+-- ~~rx_maxRtt_Sec~/~, ~~rx_maxRtt_Usec~/~ - Maximum round-trip time in
+seconds and milliseconds 
+
+-- ~~rx_nRttSamples~/~ - Number of round-trip time samples
+
+-- ~~host_NumClients~/~ - Total number of clients seen by the server
+
+-- ~~host_HostsInDiffSubnet~/~ - Number of clients in different subnet
+than server
+
+Also on the file server, statistics include the number of file server operations,
+successful requests, and minimum and maximum response time for all of the types
+of operations, as enumerated above for clients.
+
+This level of detail is far more than you will need for your daily work.
+But there will come a time when your engineering staff will need to
+understand exactly how certain pieces of client and server hardware are
+behaving, perhaps when installing new network segments or storage technology. You can then show these
+statistics as proof that the system works or fails. 
+
+In a production cell, once you've determined which pieces of data 
+indicate potential problems for your site, you can set up ~~afsmonitor~/~ to notify you when the threshold conditions are reached. First, construct a
+configuration file listing the file servers, cache managers, thresholds, and
+triggers. Each line of the configuration script must be one of:
+
+-- ~~cm hostname~/~ - Adds a client to the list of monitored cache
+managers.
+
+-- ~~fs hostname~/~ - Adds a server to the list of monitored file servers.
+
+-- ~~thresh fs|cm column value [command preset-args]~/~ - Instructs the
+monitor to indicate an error condition when the specified file server or cache manager
+statistic exceeds a certain value. If a command is appended to this line, it is assumed to be an
+executable and is run when the threshold is exceeded. When executed,
+the command's arguments will be set to ~~command fs|cm column value
+actual-value preset-args~/~.
+
+When a ~~thresh~/~ line comes after a ~~cm~/~ or ~~fs~/~ line, the 
+threshold applies only to that single machine. If the line is before any 
+named machine lines, it applies globally to all file servers or cache 
+managers.
+
+-- ~~show fs|cm column~/~ - Determines which columns are displayed. You can enter any
+number of ~~show~/~ lines to customize the display. Take the
+name for the column argument from the list of statistics in
+Appendix A of the AFS Administrator's Guide; alternatively, the argument could indicate a group or section of
+statistics, or all statistics for file servers or cache managers.
+
+A brief example:
+
+PROGRAM DONE
+	$ <B>thresh fs rx_maxRtt_sec 1 logThresh</B>
+	$ <B>fs fs-one</B>
+	$ <B>fs fs-two</B>
+	$ <B>cm desktop1</B>
+	$ <B>thresh cm vl_sc_numDowntimeIncidents 10</B>
+PROGRAM
+
+Here, we set a global threshold for all file servers: when the maximum round-trip time for Rx protocol packets exceeds 1 second, the program
+~~logThresh~/~ will run. You could design this program to simply log the fact
+that a particular threshold was exceeded at a certain time and day; then later you can analyze and correlate the data with other network or system problems.
+
+Next, we defined a selection of file server and clients. On the last line, we set a
+threshold for a single client (in this case, just ~~desktop1~/~) that exceeds
+10 fail overs of volume location database servers; we did not designate a threshold program, so if the number of fail overs passes 10, only the visual
+display of the ~~afsmonitor~/~ program will indicate this error.
+
+To run ~~afsmonitor~/~ with this configuration, add ~~-config~/~ and the file name to
+the command-line invocation. 
+
+Additionally, ~~afsmonitor~/~ can save all collected statistics in a data file.
+This way, hours', days', or weeks' worth of performance information can be
+stored away for later investigation. Simply add the ~~-output~/~ option with a
+writeable file name as an argument.
+
+Many of these statistics are too arcane for much use outside of the Transarc
+programming staff. On the other hand, it's nice to be given as much
+information about your own cell as any engineer can retrieve. Among the
+data provided are many Rx protocol statistics; some of which are listed in Table 10-2.
+
+Table 10-2		Rx Protocol Statistics
+Statistic		Description
+
+-- ~~rx_noPacketOnRead~/~ - The number of times the Rx system
+tried to read a packet and discovered that nothing was available.
+This value should normally be 0 or other small number.
+
+-- ~~rx_noPacketBuffersOnRead~/~ - The number of packets read for
+which no buffer space was available to store the data. Any value 
+larger than 0 indicates an out-of-memory condition.
+
+-- ~~rx_dataPacketsRead~/~ - Total number of packets read. This is a large number that increases over time on 
+a healthy file server. Use this number to calculate the proportion
+of bad packets in the next few listed entries.
+
+-- ~~rx_dupPacketsRead~/~ - The number of duplicate packets read. 
+Should be less than 2 percent of the total number of packets.
+ 
+-- ~~rx_SpuriousPacketsRead~/~ - The number of packets with
+inconsistent headers. It, too, should be less than 2 percent of the total number of
+packets.
+
+-- ~~rx_dataPacketsSent~/~ - The total number of packets sent.
+
+-- ~~rx_dataPacketsReSent~/~ - The number of packets that had to
+be retransmitted because of some failure. This number should be less than 2 percent
+of the total number of packets sent.
+
+If you desire, you can even go one step further and write a customized
+program to probe a machine for any statistic you'd like; the
+entire data collection facility is provided as a programming library,
+~~libxstat.a~/~. To realize the fullest benefit of this system, access
+Transarc's internal information, which explains the workings of the library.
+It is available on the Internet at ~~ftp://ftp.transarc.com/pub/doc/afs/xstat~/~.
+
+Or, once you have AFS up and running, execute:
+
+PROGRAM DONE
+	$ <B>cd /afs/grand.central.org/pub/doc/afs/xstat</B>
+PROGRAM
+
+
+One nice statistic to calculate is the client cache hit ratio, the number 
+of times that data requested from a file was found in the local cache.
+In the ~~afsmonitor~/~ output, you can read the hits and misses for any client:
+
+-- ~~dcacheHits~/~, ~~dcacheMisses~/~ - The number of times file data was found 
+in the cache, and the number of misses that forced a request
+to be sent to the server.
+
+-- ~~vcacheHits~/~, ~~vcacheMisses~/~ - The same statistics for file metadata.
+
+Performing a bit of math produces the cache hit rates:
+
+PROGRAM DONE
+	dcache hit ratio = dcacheHits / ( dcacheHits + dcacheMisses)
+	vcache hit ratio = vcacheHits / ( vcacheHits + vcacheMisses)
+PROGRAM
+
+There's no particularly right or wrong value for the hit ratio because it 
+depends on what the client has been doing and how large its cache. 
+You can use this value as a guide either to increase the cache size 
+to raise the hit ratios or to reduce the cache if you feel that 
+the larger sizes are not justified: there's not much sense in adding 
+another 100 megabytes just to move from 98 percent to 99 percent.
+
+In general, many sites have found that they can achieve hit rates of
+98 percent for file data and 96 percent for file metadata without resorting to 
+enormous caches.
+
+Study these statistics to understand how a set of 
+programs uses the file system or to get a feel for your standard 
+environment. Different users and applications will tend to use
+or abuse the client cache in hard-to-predict ways. Even software developers,
+the target population for the AFS system, can either make extremely good
+use of their cache, if they are spending all day fixing bugs in
+a source file in a large project, or very poor use of the cache, if they
+are using many analysis tools and rebuilding many different
+packages in a short period of time.
+
+To get a good snapshot of the numbers, reboot the client or server to 
+make sure that the statistics are valid for the tests you run. You should
+collect the relevant statistics just before and after your test, check
+the total number of operations performed - create, delete, getattr, etc. -
+as well as the total number of bytes read and written and the
+callback activity generated. This data can help you decide how to change your
+client cache manager configurations, validate that AFS is performing
+as expected, or show that certain applications are trashing your cache.
+
+SECTION: AIX AUDITING
+
+IBM's AIX operating system comes with an extensive built-in auditing
+mechanism that AFS can use to log significant file service events.
+To enable the auditing of AFS, add to each desired file server file, ~~/usr/afs/local/Audit~/~,
+which contains the single character string "AFS_AUDIT_AllEvents". Then restart all file server processes to cause the
+system to begin logging events to the AIX audit service.
+
+You can use three other IBM system files for further configuration:
+
+-- ~~/etc/security/audit/events~/~ - Describes the possible events that can be
+audited. The AFS file ~~/usr/afs/local/audit/events.sample~/~ contains the
+data that should be added to the IBM configuration file.
+
+-- ~~/etc/security/audit/config~/~ - Classifies the auditing events. The
+file ~~/usr/afs/local/audit/config.sample~/~ contains examples of the six
+categories of AFS events.
+
+-- ~~/etc/security/audit/objects~/~ - Defines the audit files. The file
+~~/usr/afs/local/audit/objects.sample~/~ has examples.
+
+With this system, file service events, such as listed in Table 10-3, can be completely monitored.
+
+Table 10-3		AIX Commands for System Monitoring
+AIX Command		File Service Event
+
+-- ~~AFS_VS_Start~/~ - The volume server has started.
+
+-- ~~AFS_VS_CrVol~/~ - A volume has been created. The host ID and volume
+name and number are recorded.
+
+-- ~~AFS_VS_DelVol~/~ - A volume has been deleted. Again, the host ID and
+volume number are recorded. Similar events for other volume server
+operations are audited.
+
+-- ~~AFS_VL_CreEnt~/~ - An entry in the volume location database has been
+created. Other volume location database server operations are also recorded.
+
+-- ~~AFS_BUDB_Start~/~ - The ~~backup~/~ server has started. Most backup
+operations such as creating a backup dump, (AFS_BUDB_CrDump) are also recorded.
+
+-- ~~AFS_PTS_Start~/~ - The protection server has started. Again,
+protection database operations, such as creating or deleting an entry, are
+recorded.
+
+-- ~~AFS_KAA_Auth~/~ - An authentication operation succeeded. Other
+operations such as creating or deleting a user account and setting and changing
+passwords are recorded.
+
+-- ~~AFS_NoAuthEnbl~/~ - The server has been set to run in no
+authentication mode
+
+-- ~~AFS_BOS_StartAl~/~ - The ~~bosserver~/~ process has been instructed to start all jobs. 
+
+Other operations such as shutting down all jobs, and adding or
+deleting names from the UserList are also recorded.
+
+This auditing provides a good mechanism for tracking down administration
+problems or unauthorized access to the cell. But, of course, it records
+the event only after the action has been completed. This record can give an organization
+a tool to debrief administrators on what has occurred, but it does not replace proper
+security policy implementation.
+
+SECTION: CLIENT DEBUGGING
+
+AFS clients will only rarely need debugging. Prior to AFS 3.4a, 
+a ~~debug~/~ subcommand of the ~~fs~/~ suite enabled administrators to extract 
+information on the status of a client cache manager. Now, a separate command, 
+~~fstrace~/~, performs this task. The information available is 
+quite detailed and requires familiarity with the algorithms and 
+implementation of the client. Note that it extracts immediate 
+information on suspected problems; that is, it is not a long-running 
+monitoring tool.
+
+Most AFS customers will run this command only when requested by Transarc product
+support to provide the engineers with details of reported problems. Other
+AFS sites, especially those with source code, can run this command as desired,
+though the resulting information may be cryptic, if not even misleading. You must be root to run ~~fstrace~/~ because tracing client operations will affect performance somewhat and because some of the information may be considered proprietary to users on the system.
+
+This facility enables logging of a variety of client-side AFS events. When
+this debugging service is turned on, the cache manager records data about
+its operations into an in-kernel circular buffer. You can read this information directly from the kernel or save a snapshot into a file,
+You can even set the service to continuously save new data to a log file; in this
+case, be sure to set aside plenty of space because the amount
+of information logged can be quite large.
+
+When researching problems, follow good debugging
+practices and restrict the problem set to as small an area as possible.
+If a large number of AFS operations are being performed on a client
+during this investigation, the ~~fstrace~/~ log will likely have too much data
+in it, making debugging by either you or Transarc difficult at best.
+
+To begin tracing, activate the facility and declare which set of 
+operations to log; currently there is only one such set for the cache manager.
+
+PROGRAM DONE
+	# <B>fstrace setset -active</B>
+PROGRAM
+
+Activating the trace sets aside the in-kernel memory buffer for storing event 
+information. This buffer is by default 60 kilobytes large. At times, logging 
+information will wrap around the end and start again at the beginning.  A 
+message "Log wrapped; data missing" will appear on standard output if this 
+happens before a snapshot of the data has been saved to a log file. A larger 
+buffer may reduce the amount of missing data. To set the buffer to 100 
+kilobytes, use the ~~setlog~/~ subcommand.
+
+PROGRAM DONE
+	# <B>fstrace setlog -buffersize 100</B>
+PROGRAM
+
+To toggle tracing off and on, you can issue options to ~~setset~/~ to change
+the current state: ~~-inactive~/~ temporarily stops tracing; ~~-dormant~/~ 
+stops tracing and deallocates the in-kernel memory buffer. An ~~-inactive~/~
+option confines the log information to just the operations
+surrounding the suspected problem area.
+
+After activating tracing, the cache manager automatically starts logging
+its actions to the in-kernel buffer. You can then display the buffer
+contents with ~~fstrace dump~/~.
+
+PROGRAM DONE
+	# <B>fstrace dump</B>
+	AFS Trace Dump -
+	 
+	   Date: Sun Mar 30 17:12:06 1997
+	 
+	Found 1 logs.
+	 
+	Contents of log cmfx:
+	time 266.962153, pid 0: Sun Mar 30 17:11:22 1997
+	 
+	 
+	time 266.962153, pid 793: RPC GetVolumeByName for 536870913 
+	time 266.965527, pid 793: Analyze RPC op -1 conn 0x5095b278 code 0x0 user 0x489 
+	time 266.986471, pid 793: Analyze RPC op 2 conn 0x5095b440 code 0x0 user 0x489 
+	time 266.986496, pid 793: ProcessFS vp 0x5082a000 old len 0x800 new len 0x800 
+	time 266.986520, pid 793: Gn_open vp 0x5082a000 flags 0x0 (returns 0x0) 
+	time 266.986574, pid 793: GetdCache vp 0x5082a000 dcache 0x508da0b0 dcache low-v
+	ersion 0x16, vcache low-version 0x16 
+	time 266.986625, pid 793: Lookup adp 0x5082a000 name hq.firm fid (1:536870913.2.2
+	811), code=0 
+	time 267.001945, pid 793: Analyze RPC op 2 conn 0x5095b440 code 0x0 user 0x489 
+	time 267.001966, pid 793: ProcessFS vp 0x5082a120 old len 0xb new len 0xb 
+	time 267.002020, pid 793: RPC GetVolumeByName for root.cell 
+	time 267.018888, pid 793: Analyze RPC op -1 conn 0x5095b278 code 0x0 user 0x489 
+	time 267.018988, pid 793: Mount point is to vp 0x5082a120 fid (1:536870913.2.281
+	1) 
+
+PROGRAM
+
+If the output includes raw operation codes rather than textual description
+(such as ~~RPC GetVolumeByName~/~), check that the client has the file 
+~~/usr/vice/etc/C/afszcm.cat~/~ installed correctly. This so-called catalog 
+file stores the actual text of the messages in a standard format. 
+
+The times recorded in the log are the number of seconds relative to a 
+timestamp logged to the buffer every 1024 seconds. To find the absolute 
+time of an operation, you have to perform some math to translate the relative 
+number of seconds to the most recent timestamp logged: in the above example,
+the operation ~~RPC GetVolumeByName~/~, which occurred 266.962153 seconds after
+the previous timestamp, actually occurred at 17:15:48.962153.
+
+For a continuous display of the in-kernel buffer, use 
+the ~~-follow~/~ option. Every 10 seconds, the latest contents of the buffer
+are dumped. To save this information in a file rather than have it
+scroll off the top of your terminal screen, use the ~~-file~/~ option:
+
+PROGRAM DONE
+	# <B>fstrace dump -follow cmfx -file /tmp/fstrace.dump &</B>
+	# <B>tail -f /tmp/fstrace.dump</B>
+	AFS Trace Dump -
+ 
+	   Date: Sun Mar 30 17:13:50 1997
+ 
+	time 266.962153, pid 0: Sun Mar 30 17:11:22 1997
+ 
+	 
+	time 266.962153, pid 793: RPC GetVolumeByName for 536870913 
+	time 266.965527, pid 793: Analyze RPC op -1 conn 0x5095b278 code 0x0 user 0x489 
+	time 266.986471, pid 793: Analyze RPC op 2 conn 0x5095b440 code 0x0 user 0x489 
+	...
+PROGRAM
+
+The ~~cmfx~/~ argument to the ~~-follow~/~ option specifies which kernel buffer to use;
+the only available buffer is the cache manager's ~~cmfx~/~. 
+Again, be aware that this trace file can grow quite large, quite quickly.
+
+To query the current state of the trace facility.
+
+PROGRAM DONE
+	# <B>fstrace lsset cm</B>
+	Set cm: active
+	# <B>fstrace lslog cm -long</B>
+	Logs for set 'cm':
+	cmfx : 100 kbytes (allocated)
+PROGRAM
+
+Rather than generate logs of operational messages, you may want to just
+find out what a particular client is doing right now. You can use the ~~cmdebug~/~ ("cache 
+manager debug") program to display the current state of client 
+operations. Here, we add the ~~-long~/~ option to look at all cache entries.
+
+PROGRAM DONE
+	# <B>cmdebug client1 -long</B>
+	Lock afs_xvcache status: (none_waiting)
+	Lock afs_xdcache status: (none_waiting)
+	Lock afs_xserver status: (none_waiting)
+	Lock afs_xvcb status: (none_waiting)
+	Lock afs_xbrs status: (none_waiting)
+	Lock afs_xcell status: (none_waiting)
+	Lock afs_xconn status: (none_waiting)
+	Lock afs_xuser status: (none_waiting)
+	Lock afs_xvolume status: (none_waiting)
+	Lock puttofile status: (none_waiting)
+	Lock afs_ftf status: (none_waiting)
+	Lock afs_xcbhash status: (none_waiting)
+	Lock afs_xaxs status: (none_waiting)
+	** Cache entry @ 0x5082a000 for 1.536870913.1.1
+	    2048 bytes  DV 22 refcnt 4
+	    callback 505ffd20   expires 859767116
+	    0 opens     0 writers
+	    volume root
+	    states (0x4), read-only
+	** Cache entry @ 0x5082a120 for 1.536870913.2.2811
+	    11 bytes    DV 1 refcnt 0
+	    callback 505ffd20   expires 859767115
+	    0 opens     0 writers
+	    mount point
+	    states (0x4), read-only
+	...
+PROGRAM
+
+A normally running client will show a small set of locks; over time, repeated
+runs of ~~cmdebug~/~ will show a different set of locks. If you suspect that
+a particular entry is causing a problem, you should determine which file
+is being accessed. You can see the internal identifiers of
+the cache entry displayed as a quartet of numbers; in the first cache entry above,
+the quartet is 1.536870913.1.1. This number represents the cell number, the volume
+number, the vnode number, and the uniquifier or version number. You
+can find what volume is involved by running a vos command such as ~~listvldb~/~;
+based on the volume name, you should know where in the tree the volume is 
+mounted. Then, use the ~~calcinode~/~ algorithm to determine the exact
+inode for the file.
+
+You can also see a line showing which server is holding a callback promise
+on which cache entries.
+
+PROGRAM DONE
+	callback  c0a80315   expires 861438532
+PROGRAM
+
+The number after the word callback is simply the Internet address, expressed in hexadecimal, of the server holding the callback: c0a80315 is 
+separated into c0.a8.03.15, which is 192.168.3.21 in decimal. The expiration 
+time is in seconds since the epoch January 1, 00:00 GMT. Another unsupported 
+Transarc program, ~~calctime~/~, can be used to translate the time in seconds 
+into a readable timestamp. (Perl and other programming languages can perform 
+this translation as well).
+
+Other information for each entry shows its size, how many processes have
+the file open or are writing to it, whether the file is a normal
+file, a mount point, or the root of a volume.
+
+SECTION: CACHE PROBLEMS
+
+The heart of AFS is the client cache. Without the cache, there'd be little need
+for the complications of a stateful server. Because the AFS kernel-resident code package must be maintained across a 
+variety of vendor hardware, problems can creep in, and occasionally you 
+may see inconsistencies between client caches on two
+desktops. These problems usually arise with ports to new versions of
+operating systems or with hardware platforms unavailable for testing at
+Transarc. And sometimes, the inconsistencies are merely figments of users'
+imaginations. It is therefore important to learn how to determine that real,
+client cache inconsistencies exist and to help Transarc find the cause of
+the problem.
+
+There are two general problems with client caches: either one client sees
+inconsistent or stale data that should have been updated automatically, or 
+else the data is simply corrupt. You know you're seeing stale data when
+two clients have different versions of the same file. (Make sure you've
+got the exact same path; read-write volumes can be expected to have a 
+newer set of files in them than their read-only replicas.) Stale data
+can be caused by missed callbacks on either the client or file server side. 
+
+While fixing a cache problem by using the fs ~~flush~/~ command is trivial, it is very important - for both you and Transarc - to collect data
+about the problem and, if the problem is reproducible, to contact Transarc for help. Normally, the best strategy includes comparing the kernel
+structures of two clients and dumping the callback structures from the
+servers.
+
+To compare client kernels, run the ~~kdump~/~ program on the affected
+client and on a client that can see the correct version of the file. The
+printout will be somewhat unintelligible
+but will contain data that can be used by Transarc's technical staff
+to determine the exact state of the client system. Next, you can use some
+tools provided by customer support to track down exactly which V-files in
+the client cache hold this file, copy those files to a save area. Then, after
+fixing the problem by flushing the client cache, get a new kernel structure
+dump. Transarc can compare the before-and-after snapshots with the data from a "good" client to help determine the pieces of kernel state that made the
+inconsistent client think it had the right data.
+
+On the file server, you can send a signal to the ~~fileserver~/~ process to
+cause the job to dump a file detailing all the callback promises it is
+keeping. This is a list of all the read-write files that the file server's clients have read
+and cached; when a newer version of the affected file was written to this
+server, it should have contacted certain clients to warn them that their
+copy of the file data was inconsistent. There may be clues in this file that
+the server lost contact with the client or that a network problem might have caused the callback to be ignored.
+
+A corrupt cache is often the result of a transient problem.
+If a file is composed of parts that are correct and parts that are
+garbled or composed of nulls, then the data that was stored in the cache
+was damaged somewhere in the transfer from the server to the client disk.
+When dealing with cache corruption, you'll be asked to retrieve all of the
+previous debugging information, and additionally, to qualify what kind of
+corruption has occurred:
+
+-- Is the incorrect data just a few bytes or is it large sections of the
+file? Is the size of the corruption related to the chunk-size of the cache?
+
+-- Is the incorrect data at the beginning of the file or in the
+middle? If in the middle, does it start at a particular chunk or page
+boundary?
+
+These characterizations can point to either server, network, or client
+problems. There may be a bad disk on the server or client, or other processes
+on the client may be encroaching on the cache. Again, you'll be asked to
+retrieve kernel snapshots and copies of good and bad versions of the file.
+All of this data should be delivered immediately to Transarc support for
+debugging.
+
+While it is time consuming to produce this debugging information, and
+quicker to simply flush the cache and get the user back to work, it should
+be obvious that without sufficient data Transarc will be unable to
+investigate the cache problem and improve their product. Happily, cache
+problems are rare and are usually associated with sites pushing AFS to the
+limits, either with extremely large WANs, new hardware or disks, or with
+overly customized cell and server configurations.
+
+SECTION: DISASTER RECOVERY
+
+Previously, RAID or otherwise highly reliable disk drives were recommended
+as storage systems for master volumes because AFS does not implement
+any high-level, read-write data-mirroring mechanism, you're faced with a potential failure.
+Given what is essentially a single CPU and a single disk as the foundation
+for your writeable volumes - home directories, development areas, etc. -
+when disaster strikes, you're faced with two recovery modes: resurrecting an AFS server or resurrecting a disk.
+
+If it is the disk that is damaged and the volumes on the disk are primarily 
+read-write masters, you'll have to start recovering data from backup tapes. 
+Any data in a home directory or a development area that was written after 
+the time of the last archive operation will be lost. 
+
+If the read-write volumes in question are replicated, the data may be somewhat 
+easier to recover. What's needed is a command that will simply turn one of 
+the read-only volumes into the new read-write master. Alas, there's no such tool,
+but the process is straightforward. You'll use the volume dump 
+command to temporarily save the data and then restore it to a new volume. 
+
+Here, we assume we need to recreate a read-write volume named ~~sunos.usrbin~/~ 
+from its read-only.
+
+PROGRAM DONE
+	$ <B>vos listvldb sunos.usrbin</B>
+	 
+	sunos.usrbin 
+	    RWrite: 536930451     ROnly: 5369304512
+	    number of sites -> 3
+	       server fs-one partition /vicepa RW Site 
+	       server fs-one partition /vicepa RO Site 
+	       server fs-two partition /vicepa RO Site 
+	$
+	$ <B>vos dump sunos.usrbin.readonly 0 -file /tmp/x</B>
+	Dumped volume sunos.usrbin.readonly in file /tmp/x
+	$
+	$ <B>vos restore fs-one a sunos.usrbin -file /tmp/x</B>
+	The volume sunos.usrbin 536930451 already exists in the VLDB
+	Do you want to do a full/incremental restore or abort? [fia](a): f
+	Volume exists; Will delete and perform full restore
+	Restoring volume sunos.usrbin Id 536930451 on server fs-one partition /vicepa .. done
+	Restored volume sunos.usrbin on fs-one /vicepa
+PROGRAM
+
+The ~~listvldb~/~ command displays the information stored in the volume
+location database; this volume's read-write version is stored on ~~fs-one~/~
+with one read-only on ~~fs-two~/~. The ~~vos dump~/~ operation saves all the data in the volume 
+(because the timestamp option is 0) to a file. The subsequent ~~restore~/~ 
+operation reads that data and makes a new read-write volume on ~~fs-two~/~,
+~~vice~/~ partition ~~/vicepa~/~. The ~~restore~/~ operation recognizes that the old read-write location information is being updated.
+The last ~~listvldb~/~ operation shows that the system is back in synchronization.
+
+The ~~dump~/~ command stored the data in a file; you could easily attach the
+standard output of ~~vos dump~/~ to the standard input of ~~vos restore~/~ with a
+UNIX command-line pipe. Because no particular read-only volume was 
+specified when dumping, the ~~vos~/~ command has to query the database and
+choose to retrieve the volume data from one of the read-only volumes. There's no
+way on the command line to affect which read-only is used, so there may be
+delays as the command searches for one of the remaining available read-only volumes.
+You can use the ~~fs setserverprefs~/~ command to temporarily bias the client 
+toward getting data from one server versus another.
+
+If the volume location database is still not correct after the restoration, 
+you may need to run ~~vos delentry~/~ commands to remove individual entries from
+the VLDB or ~~vos zap~/~ commands to delete orphan volumes from disks. You can then follow these
+operations with ~~vos syncserv~/~ and/or ~~vos syncvldb~/~ commands
+to further synchronize the database with the actual contents of the disks.
+
+SECTION: CRASHING
+
+If, or when, a server crashes, the system tries to make the effects as
+minimal as possible. Certainly, any client access to replicated files will
+automatically fail over to other servers. Also, any requests to read
+information from any AFS database will succeed because all database information
+is duplicated to other database servers.
+
+If the machine that crashes is the database Ubik sync site, usually
+no updates can be performed until the site reboots and reestablishes mastery 
+over the other sites. If the recovery process takes some time and there are 
+sufficient other sites, a new sync site could be elected that would permit 
+updates to occur. When the original server finally rejoins the cell, the other 
+sites will recognize it, it will get a new copy of the latest database, and at
+some point, after a new election, it will again become the sync site.
+
+File server crashes are more interesting. We've already discussed the salvaging process, but what about the state information retained by the
+~~fileserver~/~ process? What about all those callbacks? File servers maintain
+state on which clients have cached copies of read-write files they store and
+also on which read-only volumes are being accessed. After reboot and
+reattachement of disks and partitions, a file server knows that no new
+versions of the read-write files could have been retrieved or updated because it
+is the only repository for them. But the callback state is stored only in
+memory, so the server doesn't know who was using any of the files; if a file
+write request comes in immediately, the server won't be able to tell any clients
+that their copies are invalid.
+
+To solve this problem, two tactics work.
+
+First, clients probe servers
+periodically to see if they are alive. If a server is down, the server cannot respond to the probe, at which point the client will refuse to let
+any of its users use that server's read-write files. 
+
+Second, when the server
+comes back up, it will wait for the probe interval to pass before responding
+to any client requests for file data. After the probe interval passes, the 
+server knows that any clients in the cell that have cached some of its file 
+data will have attempted a probe to it and, receiving no response, learned that 
+the server was down. So, after the interval passes, when any client contacts
+it, the server first responds with a message that effectively says it
+has just rebooted. Upon discovering this, the client will conclude that
+any read-write file it has stored in its cache from that server could be stale;
+so, it will recheck files, as they are used by applications, to see
+if newer versions exist.
+
+When a client crashes and reboots, as far as the client is concerned, it will 
+proceed as usual and any callbacks that come in will invalidate its cache. 
+But since the client may have missed something while it was down, it 
+checks all files against their server counterparts to make sure that the file
+is up to date. 
+
+Meanwhile, while the client was down, the server could well have noticed 
+that a callback to that client failed. Servers that notice 
+unresponsive clients will retry that client again in a few minutes; after all, 
+it may just have been a transient network outage. If the callback RPC fails 
+again, the server assumes that the client is actually down and deletes
+that client from all of its callback lists, because the client will be checking
+for those files anyway.
+
+SECTION: VERSION CONTROL
+
+Some odd problems are caused simply by having different versions of AFS
+server or client code running in the same cell at the same time. There's no
+client command to determine the revision level of the various AFS servers, so
+you'll have to resort to some standard UNIX tricks.
+
+PROGRAM DONE
+	$ <B>what /usr/afs/bin/fileserver | grep Base</B>
+        Base configuration afs3.4 5.13
+	$ <B>what /usr/vice/etc/afsd | grep Base</B>
+        Base configuration afs3.4 5.13
+PROGRAM
+
+The UNIX ~~what~/~ command reads through a program file and looks for ASCII
+strings that have been automatically embedded by the source code control
+tools used by the Transarc programmers. Though many such strings are 
+placed into each AFS binary, only the string with the word "Base" in it
+(which is extracted with the ~~grep~/~ command) signifies which
+release level has been installed.
+
+As of March, 1997, the latest release number for AFS version 3.4 is 5.13.
+
+If the ~~what~/~ command is unavailable, use the UNIX ~~strings~/~ command, which
+performs a more general search through a file for ASCII strings.
+
+PROGRAM DONE
+	$ <B>strings /usr/afs/bin/fileserver | grep Base</B>
+	@(#)Base configuration afs3.4 5.13
+PROGRAM
+
+Another technique uses the Rx protocol system.
+
+PROGRAM DONE
+	$ <B>rxdebug fs-one 7000 -vers</B>
+	Trying 192.168.3.21 (port 7000):
+	AFS version: Base configuration afs3.4 5.13
+PROGRAM
+
+The ~~-vers~/~ option causes the ~~rxdebug~/~ program to contact the server and query
+for the specified server on a given port, in this case, the file server on port
+7000. The output has some good revision information, but not all servers
+will respond to the ~~-vers~/~ request.
+
+The version level of the Windows NT AFS client is stored in the system
+registry. Using one of the standard registry tools, such as ~~Regedit~/~,
+you should examine the value of the key 
+~~HKEY_LOCAL_MACHINE\Software\TransarcCorporation\AFS Client\PatchLevel~/~.
+The current patch is level 6.
+
+When reporting problems to Transarc, be sure to include this revision
+number in your description. And make sure that you've installed the latest
+versions of the software on all servers in the first place.
+
+Transarc's Web site provides access to their database of resolved trouble
+tickets. For nonemergencies, this is good place to browse 
+issues raised by others. There are a host of mechanisms to jog the AFS
+servers and clients back into line; perusing the on-line troubles of
+others can provide some good clues as to how to go about fixing your
+own AFS issues.
+
+SECTION: SECURITY ISSUES
+
+Kerberos provides a secure algorithm for the authentication of distributed
+systems, but the implementation raises certain security issues. Chapter
+7 described the difference between MIT's file-based Kerberos tickets and
+AFS tokens that are associated with a process authentication group managed
+by the kernel. In general, a malicious user who obtained root on an
+AFS client can borrow file-based credentials and use them, though only
+on that host. PAG-based tokens are harder to borrow, but a dedicated hacker 
+would eventually be able to use those as well.
+
+As long as multiple users are not logged in to a single machine, the
+Kerberos network protocol provides very strong guarantees about process authentication. 
+For this reason, some sites, such as MIT's campus environment, permit
+only a single login at a time on a workstation.
+
+Once a token is obtained, it should be discarded when its use
+is over. PAG-based tokens are, like file-based ones, long lived. 
+Users should ~~unlog~/~ from AFS before exiting, or the logout scripts 
+should include this functionality to erase all tokens at the end of a session. 
+
+On AFS clients, root users can also read all of the data in the
+client cache. Finding the data is more of a problem because the mappings of file name
+to V-file are stored in obscure places in the kernel.
+
+Of course, a root user on a client can do additional damage and more
+subtly, can install Trojan Horse code on the system. These programs
+would look and, to some extent, act like local system or application
+software but would be used to steal passwords or other secure information
+from unwary users. This possibility is one reason why dataless or thinly installed
+AFS clients are suggested; it is much quicker and easier to 
+reinstall the correct local system binaries.
+
+It should be obvious that the AFS servers themselves are systems that,
+once infiltrated, are much more vulnerable to abuse by unauthorized
+superusers. For this reason, allow no BSD-style ~~.rhosts~/~ trust model from clients to servers. And limit the servers 
+to providing AFS file or database service alone, rather than supporting
+other applications such as e-mail or any other network-based service.
+
+Root users on servers have enormous power to do damage. But
+besides arbitrarily shutting down the system or deleting data, root
+can read all ~~vice~/~ partition data. This capability is not surprising because root has always
+had this ability on file servers. But don't forget about it; restrict access to file and database servers as much as possible.
+
+Database servers have little information that is of use to malicious
+roots. The Kerberos database is completely encrypted and is therefore
+hard to crack; all password and authentication exchanges are
+also encrypted. However, a root user on the database servers can
+turn off authentication checking for the cell. Again, restrict
+access to the machine as much as possible. Recall that it is an explicit
+assumption of the Kerberos design that the database servers will be
+in locked rooms, highly secure, and unavailable to any general user
+except through the Kerberos protocol itself.
+
+One piece of data which AFS does permit any user to read is the complete
+list of volume names. Since unauthenticated users are permitted to read
+(and write) data into appropriately permissioned areas of the tree, they
+are allowed to query the VLDB to discover name and location information.
+This permission includes listing the entire set of volumes. The security exposure
+here is that some confidential information may be extracted from the volume names themselves.
+If your cell is in the habit of naming user volumes after the login name of
+the user, this practice provides a way for anyone to collect a list of logins.
+Some sites may deem this inappropriate. It's a simple matter to obfuscate
+the names, at some small inconvenience to administrators: one tactic would
+be to name user volumes after user identification numbers instead.
+
+When an organization is connected to other AFS sites on the Internet, there are obvious
+security issues when users run executables not stored in your local cell.
+AFS clients are normally configured to permit the running of setuid-root programs when these programs are retrieved from the local cell but not from other cells. Such programs
+must be configured to run on a per-cell basis.
+
+With the growth of the Web, there has been much discussion of local
+sandboxes for remote executables. These sandboxes are environments
+wherein access to sensitive system resources - files, the window system,
+network interfaces - is restricted. This mechanism provides a measure of safety
+when users browse arbitrarily and run unknown code. But even when
+browsing, users can download any program, install, and execute it.
+And this is the AFS model: connected sites appear to each other as
+a shared file system.
+
+When executed, any remote program will run under your own credentials. 
+At worst, this means that a bad program from another cell can read 
+or delete any files to which you can read or write. And any network ports that you can access can, therefore, 
+be accessed by the programs you run.
+
+Finally, there is always a potential for denial of service attacks by multiple
+users on the same desktop. AFS can do nothing about one user stealing
+processing cycles from another, but in addition, as the cache data is 
+shared (though not the access rights) between users, one user who
+reads a gigantic stream of data will also adversely affect others' read and write throughput. 
+
+SECTION: SUMMARY
+
+The hodgepodge of debugging tools is another example where the
+long existence of AFS is a help and hindrance. There are so
+many different mechanisms for investigating the internals of the
+system that it can seem hard to know where to start. And some
+pieces seem destined never to change, such as the use of statically
+located log files rather than the more modern network system
+logging facilities or even SNMP.
+
+However, the tools provided do cover most of the issues about which
+cell administrators are concerned. In particular, the ~~scout~/~ and
+~~afsmonitor~/~ programs are available for periodic review of any server
+or client machine. While these programs are not particularly attractive compared
+to current graphical user interfaces, they make the necessary information
+easily available.

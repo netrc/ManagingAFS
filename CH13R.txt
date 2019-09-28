@@ -1,0 +1,1031 @@
+CHAPTER APPENDIX A: - AFS COMMAND SUITE
+
+The AFS command suite has grown over the years so that it currently includes
+about 50 commands and processes. Each command and option is described in the
+AFS manual set in detail. But in this book, some commands and even many
+subcommands have been only briefly noted as a compromise to allow a more
+generous description for the more common administrative and user tasks. This
+appendix lists all files and commands that make up AFS and also shows
+where each is stored in the local or distributed file system. 
+
+This information is based on version 3.4a of Transarc's AFS product.
+
+SECTION: COMMAND PARSING
+
+All of the utility commands use the same command-line argument parser, so
+their behavior is quite predictable. Using the ~~fs~/~ command as an example:
+
+PROGRAM DONE
+	$ <B>fs</B>
+	fs: Type 'fs help' or 'fs help <topic>' for help
+	$ <B>fs help</B>
+	...
+	listacl         list access control list
+	listcells       list configured cells
+	listquota       list volume quota
+	lsmount         list mount point
+	...
+	$ <B>fs help listquota</B>
+	fs listquota: list volume quota 
+	aliases: lq 
+	Usage: fs listquota [-path <dir/file path>+] [-help ] 
+	$ <B>fs listquota -help</B>
+	Usage: fs listquota [-path <dir/file path>+] [-help ] 
+PROGRAM
+
+The single subcommand ~~help~/~ lists all subcommands. Following ~~help~/~ with a
+particular subcommand prints out a simple sentence describing the command's
+purpose. Using ~~-help~/~ as an option to a subcommand displays the complete
+syntax of the command. 
+
+Arguments enclosed by square brackets are optional; otherwise the argument
+is mandatory. When typing a command which has mandatory arguments, you can 
+drop the actual option name as long as the arguments are presented in the
+order displayed. When writing scripts or programs that run AFS commands, you 
+should include the option in full. Not only does this practice produce 
+somewhat self-documenting code, but it allows for possible changing of
+option order in future releases of the system.
+
+In almost all cases, subcommands and option names can be abbreviated to the
+shortest, uniquely identifying prefix: ~~fs listquota~/~ could be typed as ~~fs
+listq~/~ but not ~~fs list~/~ because that term might mean either ~~listquota~/~
+or ~~listacl~/~.
+
+The help output for a subcommand might also display an abbreviation: ~~lsq~/~ is
+an acceptable abbreviation for ~~listquota~/~.
+
+Another standard subcommand is ~~apropos~/~. Running ~~bos apropos key~/~ searches the subcommand help text for the word ~~key~/~ and prints any subcommands for
+which there is a match.
+
+PROGRAM DONE
+	$ <B>fs apropos quota</B>
+	listquota: list volume quota
+	quota: show volume quota usage
+	setquota: set volume quota
+PROGRAM
+
+Transarc provides traditional on-line UNIX man pages for only a selection of
+commonly used commands. Because of the large number of subcommands, the main page lists the
+available subcommands with other pages available for each subcommand, rather than single man page for the entire command. As
+an example, for the ~~fs~/~ command suite, the ~~fs~/~ man page would contain a 
+pointer to subcommands such as ~~listquota~/~; to see ~~listquota~/~ information, you would read the man page for ~~fs_listquota~/~.
+
+In the sections that follow, the most common AFS administration commands
+are listed with all of their subcommands and a brief description of their
+use. After the description, a quick key indicates any special
+permissions needed to run the command:
+
+-- ~~root~/~ - The command must be run as UNIX root.
+
+-- ~~anyuser~/~ - Any user, authenticated or not, may issue the command.
+
+-- ~~authuser~/~ - Only authenticated users may issue the command.
+
+-- ~~R~/~, ~~L~/~, ~~I~/~, ~~D~/~, ~~W~/~, ~~K~/~, ~~A~/~ - Read, list, insert, delete, write, lock,
+or administer rights on a given directory.
+
+-- ~~administrators~/~ - The user must be authenticated as a member of the group
+~~system:administrators~/~.
+
+-- ~~UserList~/~ - The user must be authenticated as an individual or member
+of a group listed in the file ~~/usr/afs/etc/UserList~/~ on the AFS server. Only
+used for the ~~bos~/~ command suite.
+
+-- ~~localauth~/~ - The command can automatically be run under 
+~~system:administrators~/~ privileges if it is run on an AFS server machine 
+as root. 
+
+-- ~~Kerberos ADMIN~/~ - The authenticated principal must have the ADMIN flag
+set in the Kerberos database.
+
+-- group owner - The owner of the protection group entry
+
+-- privacy flag value - Many protection group commands require a specific
+value, encoded as a letter or hyphen, of a given privacy flag. These flag
+values can be displayed with the ~~pts examine~/~ command.
+
+
+SECTION: THE ~~bos~/~ SUITE
+
+The ~~bos~/~ commands control the AFS processes running on the
+servers. They make sure the right jobs are running, restart
+failed jobs, circulate log files, and manage security information on the
+server. Note that many of these commands are provided as a formal mechanism
+to retrieve information without requiring administrators to log in to a
+server.  Table A-1 lists ~~bos~/~ subcommands.
+
+Table A-1		~~bos~/~ Subcommands
+Subcommand		Description			Authorization
+
+-- ~~addhost~/~ - Adds a host name to a server's ~~CellServDB~/~ database. The database
+servers should be restarted so that they notice this change.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~addkey~/~ - Adds an encryption key to a server's ~~KeyFile~/~ database. New
+keys are stored with a specified version number. The highest-numbered key is the one used in normal operation.  All servers
+in a cell should have the same value for their keys.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~adduser~/~ - Adds users to a server's ~~UserList~/~, the list of users permitted
+to issue the ~~bos~/~ command suite. 
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~create~/~ - Adds a new job to a server's basic overseers task list. Jobs
+must be specified by giving a server, a job name, a job type, and a 
+complete path name and argument list.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~delete~/~ - Removes a job from the task list of a server's basic overseer. The job 
+should be stopped before deletion.  
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~exec~/~ - Runs arbitrary jobs on an AFS 
+server. Intended for security-conscious sites that do not permit remote 
+shell execution on trusted servers.  
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~getdate~/~ - Prints out the last modified timestamps for a given
+executable in ~~/usr/afs/bin~/~. This printout is used to check that a server has the most 
+up-to-date version of a server binary.  
+Authorization: ~~anyuser~/~ 
+
+-- ~~getlog~/~ - Displays the contents of a server's log file. The log file 
+name must be specified exactly. Because the file is often large, 
+the output should be redirected to a local temporary file or 
+a file browser program. 
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~getrestart~/~ - Displays the time defined by ~~bos~/~ to automatically restart
+all the AFS server processes on a server and the time set
+to check if new versions of the server binaries have been 
+installed.  Authorization: ~~anyuser~/~
+
+-- ~~install~/~ - Copies executables into a server's ~~/usr/afs/bin~/~ directory
+and rotates the current version into a file named with a
+~~.BAK~/~ extension. This command will not immediately restart the server
+process; instead, the server checks for new versions at the
+specified restart times.  
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~listhosts~/~ - Prints out a server's ~~CellServDB~/~ file listing the set of data 
+server machines configured for the local cell.  
+Authorization: ~~anyuser~/~
+
+-- ~~listkeys~/~ - Prints out information on the server's ~~KeyFile~/~. When server 
+authorization checking is on, as is usual, the output is just a checksum 
+of the key's character string. This value can be compared to the checksum of the key for the AFS Kerberos principals. If authorization checking is turned off, the 
+octal characters making up the key string are displayed.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~listusers~/~ - Displays the set of users authorized to run ~~bos~/~ commands on
+a server as configured in the ~~UserList~/~ file.  
+Authorization: ~~anyuser~/~
+
+-- ~~prune~/~ - Deletes old files from a server machine. These files include any
+server executables in ~~/usr/afs/bin~/~ with a ~~.BAK~/~ or ~~.OLD~/~ extension and any 
+core files in the ~~/usr/afs/logs~/~ directory.  
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~removehost~/~ - Removes a particular machine from a server's ~~CellServDB~/~ file.
+The database servers should be restarted so that they notice the change.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~removekey~/~ - Deletes a key from a server's ~~KeyFile~/~ database. This command should
+be used only to remove obsolete keys from the file.  
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~removeuser~/~ - Removes a user from the ~~UserList~/~ file.  
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~restart~/~ - Shuts down a running server process and restarts it cleanly. This command can 
+be used to restart all processes including the ~~bosserver~/~ coordinator itself.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~salvage~/~ - Runs an AFS salvage process on a server's ~~vice~/~ partitions. This command 
+is used when corruption of a disk is suspected. Verbose output listing 
+the volumes encountered can be specified.  
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~setauth~/~ - Turns on or off authorization checking on a server.  When 
+checking is off, the file ~~/usr/afs/local/NoAuth~/~ is created as a flag for further tasks. Turning 
+off authorization checking is a grave security risk and is usually only done 
+for the installation of the first AFS server or during catastrophic cell outages.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~setcellname~/~ - Sets up a ~~CellServDB~/~ and ~~ThisCell~/~ file on a server.  This
+command is used only during initial installation of first AFS server.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~setrestart~/~ - Configures the times at which a server will restart its
+jobs or the times at which it checks for new binaries.  
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~shutdown~/~ - Shuts down a currently running server process. 
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~start~/~ - Configures a server process to run and starts it up. Any
+future restarts of the server will cause this process to run.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~startup~/~ - Starts a server process running without configuring it
+to run in the future. When the server is restarted in the future, this 
+process will not be automatically restarted.  
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~status~/~ - Displays the status of all jobs that AFS is overseeing. 
+The output includes information on how many times each job has been restarted 
+and whether any core files were produced.  
+Authorization: ~~anyuser~/~
+
+-- ~~stop~/~ - Stops a server process and reconfigures the job to not run in 
+the future.  
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~uninstall~/~ - Backs out of a previous server executable installation by 
+replacing the binary file with its ~~.BAK~/~ version. Should be followed by a 
+~~restart~/~ command.  
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+SECTION: THE ~~fs~/~ SUITE
+
+The ~~fs~/~ suite contains a variety of subcommands. Some are intended for 
+everyday use by all users, and others are AFS administration commands
+requiring membership in the administration group or UNIX root privilege.
+Most are intended to modify the client view of AFS, either the file
+namespace or the local cache manager process. Table A-2 lists the commands in the ~~fs~/~suite.
+
+Table A-2		~~fs~/~ Subcommands
+Subcommand		Description			Authorization
+
+-- ~~checkservers~/~ - Checks connectivity to a cell's file servers. This command
+probes each file server that it has contacted previously to see if it 
+is still responding to AFS requests. Because the probe may take some time (
+to distinguish between servers that are down instead of simply being slow), 
+the command can be run in the background or with the ~~-fast~/~ option, which
+prints only the latest status information.  
+Authorization: ~~anyuser~/~
+
+	The ~~-interval~/~ option resets the interval in seconds between 
+automatic probes of the file servers.  
+Authorization: ~~root~/~
+
+-- ~~checkvolumes~/~ - Instructs the local client's cache manager to invalidate its list 
+of volume names and identification numbers. The result is that any new file 
+data accesses will force the client to issue a fresh query to the database 
+servers.  Authorization: ~~anyuser~/~
+
+-- ~~cleanacl~/~ - Removes obsolete entries from an AFS directory's access control 
+list.  Entries for users or groups which no longer exist are deleted.
+Authorization: ~~A~/~ rights on the directory. Administrators and the directory's owner automatically have this right.
+
+-- ~~copyacl~/~ - Copies an ACL from one directory to another. This function is useful 
+because it is otherwise easy to make small mistakes in ACL editing that 
+result in incorrect permissions.  
+Authorization: ~~L~/~ rights on the source directory. ~~A~/~ rights on the target directory. Administrators and the directory's owner 
+automatically have this right.
+
+-- ~~diskfree~/~ - Displays the name of the volume that stores a named file or directory
+and the amount of disk space used and available for the ~~vice~/~ partition that 
+houses that volume.  
+Authorization: ~~anyuser~/~
+
+-- ~~examine~/~ - Displays information about the volume that stores the named file 
+or directory. The data includes the volume name, the volume identification 
+number, any messages set on the volume by an administrator, the volume quota 
+and current size, and the disk space on the server's vice partition.
+Authorization: ~~anyuser~/~
+
+-- ~~exportafs~/~ - Enables this client to export the AFS file namespace to other 
+machines. Generally, this command allows a client to become an NFS server and allows 
+other non-AFS clients to mount AFS files.  
+Authorization: ~~root~/~
+
+-- ~~flush~/~ - Instructs a client to ignore any cached information about a given file 
+or directory. On the next read access, the data will be reread from the 
+server.  
+Authorization: ~~anyuser~/~
+
+-- ~~flushvolume~/~ - Instructs the client to ignore any cached information about any 
+files or directories stored in a given volume. The volume is specified by 
+a path name.
+Authorization: ~~anyuser~/~
+
+-- ~~getcacheparms~/~ - Prints the size of the client cache and the current amount 
+of cached data being used.  
+Authorization: ~~anyuser~/~
+
+-- ~~getcellstatus~/~ - Shows whether UNIX ~~setuid~/~ programs stored in AFS are honored by this 
+client. Such programs can be honored on a per-cell basis.  
+Authorization: ~~anyuser~/~
+
+-- ~~getserverprefs~/~ - Returns a listing of all file server machines that this
+client has contacted and a number indicating which servers are preferred over 
+others for the same read-only volume.  Lower numerical preferences indicate 
+a stronger preference.  
+Authorization: ~~anyuser~/~
+
+-- ~~listacl~/~ - Prints the access control list associated with given directory.
+Authorization: ~~L~/~ on a directory, or ~~L~/~ and ~~R~/~ on a file.
+
+-- ~~listcells~/~ - Displays the client's in-kernel version of the list of cells 
+and database server machines. The client ~~CellServDB~/~ file holds a static 
+version of cell information; this file is read by the cache manager on startup.
+Authorization: ~~anyuser~/~
+
+-- ~~listquota~/~ - Prints the volume name, volume quota, and amount of storage 
+currently used for the volume that stores the named file or directory.
+Authorization: ~~reader~/~
+
+-- ~~lsmount~/~ - Displays the volume name connected to a given directory name.
+If the volume name is preceded by a ~~#~/~ character, then the directory is a regular volume mount point and the client will access either the read-write or read-only version 
+depending on its current path preference. If the volume name is preceded by a % character,
+then the directory is an explicit link to the read-write version of the volume.
+Authorization: ~~anyuser~/~
+
+-- ~~messages~/~ - Controls whether various cache manager messages are written to 
+the console device and/or the user's controlling terminal.  
+Authorization: ~~root~/~
+
+-- ~~mkmount~/~ - Creates a connection between an AFS directory path name and a 
+given AFS storage volume. This command is used to construct the complete 
+AFS file namespace out of volumes stored on AFS servers. Note that access 
+to data beneath the mount point directory depends on the access control 
+list at the topmost directory in the volume. 
+
+While this operation is referred to as making a volume mount point, the 
+operation does not result in a UNIX-style heavyweight mount; this mount is an 
+AFS-controlled association between a path name and a volume. The connection 
+information is stored in the AFS file system itself; any such changes are 
+immediately visible to all clients.  
+Authorization: ~~I~/~, ~~A~/~ rights on the directory
+
+-- ~~monitor~/~ - Enables information about the client cache manager actions to be 
+written to a separate monitoring computer. This command is useful only when used in 
+conjunction with the free utility ~~console~/~ from Carnegie Mellon University.
+Authorization: ~~anyuser~/~
+
+-- ~~newcell~/~ - Adds a new cell name and list of database servers to a running 
+cache manager or modifies an existing entry.  The cache manager's in-memory 
+version of these entries is distinct from the ~~CellServDB~/~ file. 
+Authorization: ~~root~/~
+
+-- ~~quota~/~ - Reports briefly on the percentage of storage space quota available 
+for a volume housing the specified file or directory.  
+Authorization: ~~reader~/~
+
+-- ~~rmmount~/~ - Removes the connection between an AFS directory and its underlying 
+volume. 
+Authorization: ~~D~/~ privilege in the parent directory
+
+-- ~~setacl~/~ - Sets or modifies an AFS directory access control list.  
+Authorization: ~~A~/~ rights to the directory. The directory's owner 
+and ~~administrators~/~ automatically have this right.
+
+-- ~~setcachesize~/~ - Resets the size of the cache used by the client manager.
+This command does not change the size stored in the file ~~/usr/afs/etc/cacheinfo~/~.
+Authorization: ~~root~/~
+
+-- ~~setcell~/~ - Enables or disables the promotion of user identity through
+the use of a setuid program in a given cell.  
+Authorization: ~~root~/~
+
+-- ~~setquota~/~ - Changes the quota associated with the volume that stores
+a specified file or directory.  
+Authorization: ~~administrators~/~
+
+-- ~~setserverprefs~/~ - Assigns a numerical preference for a given file server 
+or database server. Lower values indicate a more preferred
+server; the value can be thought of as a distance or cost - nearer or cheaper is better.  
+Authorization: ~~root~/~
+
+-- ~~setvol~/~ - Sets various per-volume attributes: the volume
+quota, a message-of-the-day for the volume, and a 
+message displayed when the volume is off-line.  
+Authorization: ~~administrators~/~
+
+-- ~~storebehind~/~ - Reconfigures a client to return from a file ~~close~/~ operation
+before all bytes are written to the server.  
+Authorization: ~~root~/~
+
+-- ~~sysname~/~ - Displays or changes the client's value used when
+interpreting ~~@sys~/~ path names.  
+Authorization: ~~root~/~, to set; ~~anyuser~/~, to display
+
+-- ~~whereis~/~ - Displays the file servers that are currently storing
+the file or directory. Prints a list of file servers the file or directory is available	
+from multiple read-only volumes.  
+Authorization: ~~anyuser~/~ 
+
+-- ~~whichcell~/~ - Shows in which cell a given file or directory is stored.
+Authorization: ~~anyuser~/~ 
+
+-- ~~wscell~/~ - Prints the name of the client's default cell.
+Authorization: ~~anyuser~/~
+
+
+SECTION: THE ~~vos~/~ SUITE
+
+The ~~vos~/~ commands, listed in Table A-3, are primarily used by administrators to manipulate the
+AFS volumes that store the file data and directory listings of the
+file system.
+
+Table A-3		~~vos~/~ Subcommands
+Subcommand		Description			Authorization
+
+-- ~~addsite~/~ - Adds a file server as a potential site for storage
+of read-only versions of a given volume. The volume
+will not be replicated until a release subcommand
+is performed.  Authorization: ~~UserList~/~ on the specified server or ~~localauth~/~
+
+-- ~~backup~/~ - Creates a snapshot volume based on a read-write. The
+backup volume has the same name as the read-write master
+with a ~~.backup~/~ extension added. This volume does not duplicate
+the file data; it merely copies pointers to the original
+volume's data. As such, backup volumes cannot be moved to other disks 
+independently of their read-write master.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~backupsys~/~ - Creates en masse backup volumes for all read-write
+volumes that match a given pattern. The pattern can be a
+simple regular expression for the volume name or a
+given server or partition name.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~changeaddr~/~ - This command is obsolete as of version 3.4 or later.
+Changes the IP address for a server that is in the VLDB. 
+The VLDB maps each volume to a set of servers that store
+that volume. Because the servers are identified by IP address,
+if any servers' addresses need changing, the address must
+be changed in the VLDB via this command. Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~create~/~ - Creates a new read-write volume. This command introduces an entry into 
+the volume location database and makes a volume, initially consisting of 
+just an empty directory, on a given server and partition.  Authorization: 
+~~UserList~/~ or ~~localauth~/~
+
+-- ~~delentry~/~ - Deletes a specific entry from the volume location database.
+The entry can refer to a read-write, read-only, or backup
+volume.  This command does not delete an actual volume on a server's
+disk.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~dump~/~ - Reads all the data in a volume and writes the data out into a 
+portable ASCII format. Either a full dump or all data changed after a 
+specified data can be dumped. Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~examine~/~ - Displays information contained in the volume location database
+and in the volume header on disk.  Authorization: ~~anyuser~/~
+
+-- ~~listpart~/~ - Displays the available ~~vice~/~ partitions on a given server.
+Authorization: ~~anyuser~/~
+
+-- ~~listvldb~/~ - Displays information in the volume location database for
+all or one particular volume. Authorization: ~~anyuser~/~
+
+-- ~~listvol~/~ - Displays information on volumes stored on a server. This
+command does not show any data from the VLDB.  Authorization: ~~anyuser~/~
+
+-- ~~lock~/~ - Locks an entry in the volume location database. Once the entry is locked, no AFS 
+operations can be performed on the volume. Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~move~/~ - Performs all the work necessary to move a volume from one server 
+and partition to another. During the move operation, user access to the 
+volume is still permitted.  AFS ensures that all reads and writes will work 
+during this operation.  Authorization: ~~UserList~/~ on the source and 
+destination server or ~~localauth~/~
+
+-- ~~partinfo~/~ - Displays the storage space currently available on
+the partitions of a given file server.  Authorization: ~~anyuser~/~
+
+-- ~~release~/~ - Duplicates all file data in a master volume to each of
+its read-only replicas.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~remove~/~ - Deletes a given volume from the volume location database
+and erases the data from the disk. Read-write, read-only, or backup volumes 
+can be removed.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~remsite~/~ - Deletes a file server's registration as a volume's replica
+site from the volume location database. This command does not delete
+any data from the server's disk.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~rename~/~ - Changes the name of a read-write volume. Volumes 
+are associated internally with an identification number, so this command automatically changes 
+the names of any read-only and backup volumes.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~restore~/~ - Recreates a volume from data previously stored from a ~~vos dump~/~ 
+operation. The data can be restored into a new volume if desired.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~status~/~ - Shows whether there are active transactions in a volume
+server process. If there are, the output will be of interest only to 
+AFS programmers.  Authorization: ~~anyuser~/~
+
+-- ~~syncserv~/~ - Reads the volume location database and checks each
+entry's presence on disk. If the entry does not exist
+on the specified disk, the command deletes the entry from the VLDB.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~syncvldb~/~ - Scans the disk partitions of all known servers and
+adds to the volume location database any volume entries 
+that are missing.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~unlock~/~ - Unlocks a locked entry in the volume location database.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~unlockvldb~/~ - Deletes all locks held on any entries in the volume location 
+database.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~zap~/~ - Deletes a volume from a server's disk. The cell's volume
+location database is not updated. This command can be used 
+to bring the servers back into synchronization with the
+location information in the VLDB.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+SECTION: THE ~~kas~/~ SUITE
+
+The ~~kas~/~ command suite, described in Table A-4, manages the Kerberos 
+database. Almost all of its commands require that the issuing user be 
+authenticated with the ~~Kerberos ADMIN~/~ flag set; there's no ~~-localauth~/~ option, 
+so even a UNIX superuser on the AFS Kerberos server needs to be authenticated.
+
+Table A-4		~~kas~/~ Subcommands
+Subcommand		Description			Authorization
+
+-- ~~create~/~ - Creates a principal for a user or service in the Kerberos
+authentication database and assigns an initial password.  Authorization: 
+~~Kerberos ADMIN~/~
+
+-- ~~debuginfo~/~ - Useful only to AFS gurus. This command connects with the
+Kerberos server and attempts to perform authentication. It
+prints out copious debugging as it does so, and thus can aid
+debugging.  Authorization: ~~anyuser~/~
+
+-- ~~delete~/~ - Removes a user from the authentication database.
+Authorization: ~~Kerberos ADMIN~/~
+
+-- ~~examine~/~ - Displays the internal information about a principal stored
+in the authentication database.  Authorization: ~~Kerberos ADMIN~/~. 
+Users without the ~~ADMIN~/~ flag may examine only their own entry.
+
+-- ~~forgetticket~/~ - Deletes any tickets stored for the issuing user by the
+server. This command is similar to the ~~unlog~/~ command.  Authorization: ~~anyuser~/~; only the issuer's tickets are deleted.
+
+-- ~~getpassword~/~ - An obsolete command used during the upgrade from AFS version
+2 to 3.0. It displayed the octal value of the encryption key, was similar to 
+the ~~examine~/~ command, and required a specially compiled authentication server.
+
+-- ~~getrandomkey~/~ - Creates a new, random encryption key. Usually used only for testing.  Authorization: ~~anyuser~/~
+
+-- ~~getticket~/~ - Gets a Kerberos ticket for a user similarly to the ~~klog~/~ 
+command. Used primarily for debugging.  Authorization: ~~anyuser~/~
+
+-- ~~interactive~/~ - Runs an interactive, authenticated session with the
+AFS ~~kaserver~/~ process. This command permits just the subcommands to be entered rather than requiring manual entry of individual ~~kas~/~ commands. Authorization: ~~anyuser~/~; subsequent 
+subcommands require more restrictive authentication as required
+
+-- ~~list~/~ - Displays all entries in the database. For all entries, either
+the name only or full information can be printed.  
+Authorization: ~~Kerberos ADMIN~/~
+
+-- ~~listtickets~/~ - Displays all tickets owned by a user. Similar to the
+tokens command.  Authorization: ~~anyuser~/~
+
+-- ~~noauthentication~/~ - Discontinues use of the
+user's authentication credentials. Used only in interactive mode. 
+Authorization: ~~anyuser~/~
+
+-- ~~quit~/~ - Returns to the normal UNIX command prompt. Used only in interactive mode. Authorization: ~~anyuser~/~
+
+-- ~~setfields~/~ - Changes various flags and fields in a user's authentication
+database entry.  Authorization: ~~Kerberos ADMIN~/~
+
+-- ~~setkey~/~ - Sets a principal's key in authentication database. 
+This command is provided as a mechanism to reset a server's key.
+Because a key is an encrypted form of the password string, setting
+a user's key to some value with this subcommand is not useful,
+as there is no mechanism to convert the key to the password
+that would match it.  Authorization: ~~Kerberos ADMIN~/~ to change a server key. 
+
+-- ~~setpassword~/~ - Changes a principal's password. This command is normally used
+by administrators to change server's keys. Users will generally
+use the ~~kpasswd~/~ command to change their own passwords.
+Authorization: ~~Kerberos ADMIN~/~, to change a server key; authenticated
+users can change their own passwords.
+
+-- ~~statistics~/~ - Shows various statistics for a given AFS ~~kaserver~/~ process.
+Authorization: ~~Kerberos ADMIN~/~
+
+-- ~~stringtokey~/~ - Causes the AFS string-to-key function to change a character
+string into its encrypted key form. The resulting key is
+displayed only; it is not stored in any database. Used only for 
+diagnosing problems.  Authorization: ~~anyuser~/~
+
+-- ~~unlock~/~ - Enables authentication for a principal after the account
+was locked out because the maximum number of failed authentication 
+attempts was exceeded.  Authorization: ~~Kerberos ADMIN~/~
+
+SECTION: THE ~~pts~/~ SUITE
+
+The protection database stores information linking an authenticated
+principal to an AFS user account and also user membership in AFS groups.
+
+The privilege for certain commands is complicated because groups
+can delegate some administration to others. Mostly, this delegation depends
+on the group's privacy flags. 
+
+As with the ~~kas~/~ suite, the ~~-localauth~/~ option cannot be used. 
+Table A-5 lists the ~~pts~/~ commands.
+
+Table A-5		~~pts~/~ Subcommands
+Subcommand		Description			Authorization
+
+-- ~~adduser~/~ - Adds a user (or machine) to the given group membership.
+Authorization: See the individual group's ADD privacy flag: ~~-~/~, only group owner or 
+~~administrators~/~ can add; ~~a~/~, any group members; ~~A~/~, anyuser
+
+-- ~~chown~/~ - Transfers a group's ownership to another user or group.
+Authorization: group owner or ~~administrators~/~
+
+-- ~~creategroup~/~ - Creates a new group. Authenticated users can
+create groups only with prefixes named after their login name.  Only 
+~~administrators~/~ can create groups without prefix names. 
+In addition, a user must not have created more groups than the quota permits. 
+Authorization: ~~authuser~/~ or ~~administrators~/~
+
+-- ~~createuser~/~ - Creates a new user (or machine) entry
+Authorization: ~~administrators~/~
+
+-- ~~delete~/~ - Deletes a user, machine, or group from database.
+Deleting users or machine entries requires administrator authorization. Groups can 
+be deleted by their owner. Authorization: owner or ~~administrators~/~
+
+-- ~~examine~/~ - Displays internal information about a protection database entry.
+Authorization: See the entry's STATUS privacy flag. ~~s~/~, group members and 
+~~administrators~/~ may examine this entry; ~~S~/~, ~~anyuser~/~
+
+-- ~~listmax~/~ - Displays the value of the ~~GroupMax~/~ and ~~UserMax~/~ internal
+counters. These counters determine the values for the
+group or user identification numbers that are automatically
+assigned for new entries.  Authorization: ~~anyuser~/~
+
+
+-- ~~listowned~/~ - Displays groups owned by an entry. Both users and groups
+can own AFS protection groups. This command also displays
+those groups that are orphans, that is, owned by users
+or groups that have been deleted.  Authorization: See the entries OWNERSHIP 
+privacy flag: ~~-~/~, user, group owner, and ~~administrators~/~ can list; ~~O~/~, ~~anyuser~/~
+
+-- ~~membership~/~ - Prints out the complete membership of a group or the groups
+in which a user is a member.  Authorization: See the MEMBERSHIP privacy flag:
+~~M~/~, ~~anyuser~/~ can list the membership; ~~m~/~, ~~administrators~/~ or, for groups, group members; ~~-~/~, user, group owner, or ~~administrators~/~
+
+-- ~~removeuser~/~ - Deletes a specific user from a group.
+Authorization: See the REMOVE privacy flag: ~~-~/~, group owner and ~~administrators~/~
+can remove; ~~r~/~, group members and ~~administrators~/~
+
+-- ~~rename~/~ - Updates the name that specifies a given protection 
+group. Because an identification number is used internally on access control 
+lists, changing the name causes the new name to be seen immediately 
+when ACLs are displayed.  Authorization: group owner or ~~administrators~/~. 
+Only ~~administrators~/~ can rename user entries or change a group to 
+a name without a prefix.
+
+-- ~~setfields~/~ - Sets various internal states for group or user entries.
+This command changes the privacy flags and the
+group creation quota.  Authorization: user or group owner or 
+~~administrators~/~. Only ~~administrators~/~ can change group quotas.
+
+-- ~~setmax~/~ - Resets the current value of ~~GroupMax~/~ or ~~UserMax~/~ used to
+automatically assign identification numbers to new groups or users.
+Authorization: ~~administrators~/~
+
+SECTION: THE ~~backup~/~ SUITE
+
+The backup database stores information on the dump levels, collections
+of volumes called volume sets, and a list of all dumps made, the volumes
+contained in the dump, and other data.
+
+Most of the ~~backup~/~ subcommands manipulate this database directly, while the ~~dump~/~ and
+various ~~restore~/~ subcommands perform the actual writing or reading of data to archive
+media. The ~~-localauth~/~ option was added to this command as of AFS version 3.4a. Table A-6 lists the commands.
+
+Table A-6		~~backup~/~ Subcommands
+Subcommand		Description			Authorization
+
+-- ~~adddump~/~ - Adds a new dump level to the abstract dump hierarchy.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~addhost~/~ - Informs the backup system that a new tape coordinator process 
+is available at a specified port number.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~addvolentry~/~ - Adds a new entry to a volume set. The entry is a pattern
+for the server name, ~~vice~/~ partition, and volume name. This
+pattern is expanded into all valid volume names during
+the backup process.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~addvolset~/~ - Creates a new, named volume set in the backup database.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~dbverify~/~ - Performs an integrity check of the on-line ~~backup~/~ database.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~deldump~/~ - Deletes a dump level from the dump.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~deletedump~/~ - Removes the record of a dump from the ~~backup~/~ database.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~delhost~/~ - Removes the pointer to a tape coordinator from the system.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~delvolentry~/~ - Deletes an entry from a named volume set.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~delvolset~/~ - Deletes an entire named volume set from the ~~backup~/~ database.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~diskrestore~/~ - Attempts to restore all the volumes residing on an AFS file
+server partition. An operator is prompted to insert all the tapes 
+on which each volume was dumped.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~dump~/~ - Creates a full or incremental archive of a set of volumes. The
+information about which volumes are dumped at what level is
+stored in the backup database.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~dumpinfo~/~ - Displays information about dumps stored in the ~~backup~/~ database.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~interactive~/~ - Starts an interactive session. Only subcommands and their 
+options need to be entered.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~jobs~/~ - Lists running jobs. Only available in interactive mode.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~kill~/~ - Stops a running or pending dump.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~labeltape~/~ - Writes an identifying label to tape and records the information
+in the backup database.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~listdumps~/~ - Prints the entire abstract dump hierarchy.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~listhosts~/~ - Displays all hosts configured to run a tape coordinator.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~listvolsets~/~ - Shows all volume sets and their volume entry patterns.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~quit~/~ - Exits interactive mode.
+
+-- ~~readlabel~/~ - Reads the label written on a tape and prints it.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~restoredb~/~ - Reads a copy of the backup database from tape.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~savedb~/~ - Stores a copy of the backup database on tape.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~scantape~/~ - Reads archive tapes to reconstruct missing information from
+the backup database.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~setexp~/~ - Assigns the expiration dates for a given dump level
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~status~/~ - Finds out what a given tape coordinator is currently doing.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~volinfo~/~ - Displays all the dumps known to have been made of a volume.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~volrestore~/~ - Determines which archive tape has stored a dump of a volume,
+prompts for it to be inserted in the tape drive, and then
+recreates the volume from that data.  Authorization: ~~UserList~/~ or ~~localauth~/~
+
+-- ~~volsetrestore~/~ - Performs ~~volrestore~/~ operations for a set of volumes.
+Authorization: ~~UserList~/~ or ~~localauth~/~
+
+SECTION: SERVER COMMANDS AND FILES
+
+The following files are most commonly stored on each AFS server's local
+disk. Naturally, the ~~fileserver~/~ process itself must be stored locally so
+that the system can bring up AFS correctly. Other programs are kept local to
+aid in administration or maintenance of the system.
+
+Five subdirectories are located under ~~/usr/afs~/~:
+
+PROGRAM DONE
+	bin	db	local	log	etc
+PROGRAM
+
+The following files reside in ~~/usr/afs/bin~/~:
+
+PROGRAM DONE
+	bos         kas         ntpd        salvager    upserver    vos
+	bosserver   kaserver    ntpdc       tokens      vfsck
+	buserver    klog        pts         tokens.krb  vlserver
+	fileserver  klog.krb    ptserver    udebug      volinfo
+	fs          kpwvalid    runntp      upclient    volserver
+PROGRAM
+
+The following files reside in ~~/usr/afs/etc~/~:
+
+PROGRAM
+	CellServDB KeyFile License ThisCell UserList
+PROGRAM
+
+The following files reside in ~~/usr/afs/local~/~:
+
+PROGRAM DONE
+	BosConfig kaserverauxdb SALVAGE.fs sysid 
+PROGRAM
+
+The following files reside in ~~/usr/afs/logs~/~:
+
+PROGRAM DONE
+	AuthLog BackupLog BosLog FileLog SalvageLog VLLog VolserLog
+PROGRAM
+
+The following files reside in ~~/usr/afs/db~/~:
+
+PROGRAM DONE
+	bdb.DB0 bdb.DBSYS1
+	kaserver.DB0 kaserver.DBSYS1
+	prdb.DB0 prdb.DBSYS1
+	vldb.DB0 vldb.DBSYS1
+PROGRAM
+
+The following files reside in ~~/usr/afs/backup~/~:
+
+PROGRAM DONE
+	tapeconfig TE_<device> TL_<device>
+PROGRAM 
+
+SECTION: CLIENT COMMANDS AND FILES
+
+An AFS client needs much fewer files to get connected to its servers.
+The number of files and directories depends on the exact system architecture.
+There are usually at least two subdirectories under ~~/usr/vice~/~:
+
+~~cache~/~ - In ~~/usr/vice/cache~/~ are usually several hundred or thousand files that store pieces of files being read or written to the server.
+
+~~etc~ - In ~~/usr/vice/etc~/~ are the AFS client executable and three configuration files: ~~afsd~/~, ~~cachinfo~/~, ~~ThisCell~/~, and ~~CellServDB~/~.
+
+SECTION: PROGRAMS FOR ALL SYSTEMS
+
+The entire AFS command suite is generally made available to all systems through the distributed file system itself. Typically, a machine will
+contain a link from ~~/usr/afsws~/~ to the area where these programs are stored,
+somewhere in the local cell. The ~~@sys~/~ path name is a convenient mechanism to
+use to make sure that each system reaches the appropriate set of binaries
+for its particular architecture. Commonly, the link is from ~~/usr/afsws~/~ to
+~~/afs/hq.firm/system/@sys/afsws~/~; Administrators or users would then put
+~~/usr/afsws/bin~/~ into their PATH environment variable.
+
+Table A-7 lists the programs in ~~/usr/afsws/bin~/~.
+
+Table A-7		Title
+Program			Description
+
+PROGRAM DONE
+~~afsmonitor~/~	- Displays statistics about client and server Rx RPC and cache
+~~bos~/~		- Suite of tools to manipulate AFS server jobs
+~~cmdebug~/~		- Debugging tool to display internal state of client cache
+~~compile_et~/~	- compiles a table of external messages
+~~fs~/~		- Suite of utilities to manipulate AFS files and client cache
+~~klog~/~		- Authenticates to AFS
+~~klog.krb~/~	- Same as ~~klog~/~ but uses MIT Kerberos protocol
+~~knfs~/~		- Associates AFS tokens with a specific client for use with NFS
+~~kpasswd~/~		- Changes a Kerberos password
+~~kpwvalid~/~	- Utility to check the strength, length, etc. of new passwords
+~~login~/~		- Replacement login that authenticates with Kerberos
+~~login.krb~/~	- Same as ~~login~/~ but uses MIT Kerberos protocol
+~~pagsh~/~		- Starts a shell in a new process authentication group 
+~~pagsh.krb~/~	- Same as ~~pagsh~/~ but uses MIT Kerberos protocol
+~~pts~/~		- Suite of utilities to manipulate users and groups
+~~rcp~/~		- Uses current credentials when copying files remotely
+~~rsh~/~		- Connects to another AFS client and maintains authentication
+~~rxgen~/~		- Uses interface definition to generate client and server stubs
+~~scout~/~		- Displays file server statistics such as disk space available
+~~sys~/~		- Reports ~~@sys~/~ value
+~~tokens~/~		- Displays current Kerberos credentials
+~~tokens.krb~/~	- Same as ~~tokens~/~ but uses MIT Kerberos protocol
+~~translate_et~/~	- Converts an error message number into text
+~~udebug~/~		- Queries and displas internal state of AFS database processes
+~~unlog~/~		- Deletes current Kerberos credentials
+~~up~/~		- Recursively copies files and directories including ACLs
+~~washtool~/~	- Used to help build AFS
+~~xstat_fs_test~/~	- Tests the statistics gathering tool against a file server
+~~xstat_cm_test~/~	- Tests the statistics gathering tool against a cache manager
+PROGRAM
+
+Table A-8 lists the programs in ~~/usr/afsws/etc~/~.
+
+Table A-8		Title
+Program			Description
+
+PROGRAM DONE
+~~backup~/~		- Suite of tools to manage backup system
+~~butc~/~		- Tape coordinator process that manages archive devices
+~~copyauth~/~	- Copies a ticket to a remote cell
+~~fms~/~		- Determines the space available on an archive device
+~~fstrace~/~		- Starts, stops, and dumps cache manager debugging info
+~~ftpd~/~		- An FTP daemon that performs Kerberos authentication
+~~inetd~/~		- Service daemon that understands Kerberos remote authentication
+~~kas~/~		- Suite of utilities to manipulate the AFS Kerberos database
+~~kdb~/~		- Prints entries logged to the authentication log
+~~kdump~/~		- Dumps internal state of AFS kernel module
+~~kpwvalid~/~	- Checks the strength, length, etc., of new passwords
+~~makepkgfiles~/~	- Used with the package system to set up a client image
+~~ntp~/~		- The network time protocol daemon
+~~ntpdc~/~		- Network time protocol control program
+~~package~/~		- Manages the creation of standard volumes and files
+~~package_test~/~	- Checks for errors in package system files
+~~rxdebug~/~		- Displays statistics of the Rx RPC system
+~~uss~/~		- Creates all volumes, files, credentials for a new user
+~~vldb_convert~/~	- Brings previous release of volume location database up to date
+~~vos~/~		- Suite of tools to manage AFS volumes
+~~vsys~/~		- Low-level command to interface with AFS system calls
+PROGRAM
+
+SECTION: FUNCTIONAL GROUPING
+
+One other way to consider the large number of program files in the system is
+by grouping them according to functionality. Broadly speaking, the programs
+are used either to run server processes, are common administrative commands,
+commands to deal with cell security, replacements for the vendor's operating
+environment, commands to help with debugging, commands for user or client
+administration, commands for product maintenance, or for programming.
+
+The commands commonly stored underneath /afs/@cell/sys/afsws are listed in:
+
+Table A-9
+Function		Subdirectory		Commands
+Server Processes
+
+PROGRAM DONE
+	bin/
+		bosserver buserver fileserver fs kaserver ntpd ntpdc
+		ptserver runntp salvager upclient upserver vlserver volserver
+	etc/
+		butc ntp ntpdc rmtsysd
+PROGRAM
+
+Common Administrative Commands
+
+PROGRAM DONE
+	bin/
+		bos kas pts sys up volinfo vos
+	etc/
+		copyauth kas vos
+PROGRAM
+
+Security Commands
+
+PROGRAM DONE
+	bin/
+		dlog dpass klog klog.krb knfs kpasswd kpwvalid
+		pagsh pagsh.krb tokens tokens.krb unlog
+	etc/
+		kpwvalid kseal
+PROGRAM
+
+Vendor Replacement Commands
+
+PROGRAM DONE
+	bin/
+		login login.krb rcp rsh vfsck
+	etc/
+		inetd inetd.conf ftpd rexecd
+PROGRAM
+
+Debugging Commands
+
+PROGRAM DONE
+	bin/
+		afsmonitor cmdebug scout translate_et udebug
+		xstat_cm_test xstat_fs_test
+	etc/
+		fstrace kdb kdump rxdebug vsys
+PROGRAM
+
+User/Client Administration
+
+PROGRAM DONE
+	etc/
+		backup fms makepkgfiles mpp package package_test uss
+PROGRAM
+
+Product Maintenance
+
+PROGRAM DONE
+	bin/
+		washtool
+	etc/
+		vldb_convert
+PROGRAM
+
+Programming
+
+PROGRAM DONE
+	bin/
+		compile_et rxgen
+PROGRAM

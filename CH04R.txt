@@ -1,0 +1,2629 @@
+CHAPTER 4: AFS VOLUMES AND FILES
+
+Now that we have initialized our cell and one or more AFS server machines,
+we can finally begin the process of creating and managing file data. In AFS,
+all file and directory data is stored in collections called volumes. When
+connected to the AFS namespace, a volume looks just like directory; a process or application can change directories into it and then create new
+files. In a sense, volumes are logical disk partitions and can be attached
+to names in the file system just like disks can. But while they may act like
+a logical partition, they are physical entities in the system. Much of an
+AFS administrator's life will revolve around volume management.
+
+SECTION: VOLUME OPERATIONS
+
+During the initial set up of the AFS servers, the Transarc installation
+process makes sure that we create a first volume named ~~root.afs~/~. There are
+many naming conventions practiced by the AFS community, and having the first
+volume named ~~root.afs~/~ is one of them. Volume names can contain up to 31 characters
+and can be constructed of any combination of lower- or uppercase
+letters, numbers, and the punctuation characters "-", "_", and ".". The only
+other restriction of volume names is that the name cannot be completely
+composed of digits because it would be indistinguishable from a volume
+identification number.
+
+During the operation of certain volume commands, the server processes
+will automatically append certain well-known suffixes, such as ~~.backup~/~,
+or ~~.readonly~/~. Because these processes silently truncate a volume name if it
+gets too long, it is wise to make sure that the names are meaningful and
+22 or fewer characters long (22 characters plus 9 characters for ~~.readonly~/~ 
+makes 31 characters). In fact, the volume creation command will
+refuse to make a volume with a name longer than 22 characters.
+
+To create a volume, use the volume operations command ~~vos~/~; most volume
+management uses this command suite. Remember that almost all management tasks are run
+from an administrator's desktop computer via client programs. These programs
+interact with the remote AFS services as needed and rely on the strong authentication
+provided by Kerberos.
+
+In the command examples below, you'll notice that the shell prompt is ~~$~/~.
+The commands are not run by a UNIX superuser but, in general, by a regular
+UNIX user who has also authenticated with AFS as a member of the system 
+administrator's group. The precise authentication level needed for each 
+command is spelled out in detail in the AFS command reference manuals;  administration authentication is discussed in Chapter 9 and a 
+summary of privileges needed for each command is presented in Appendix A. For now,
+we can quickly get authenticated as an AFS administrator, an identity we 
+created during the cell installation, via ~~klog~/~:
+
+PROGRAM DONE
+	$ <B>klog afsadmin</B>
+	Password:
+PROGRAM
+
+The basic command to create a volume looks like this:
+
+PROGRAM DONE
+	$ <B>vos create -server fs-one -partition /vicepa -volume example.vol</B>
+PROGRAM
+
+Before going any further, let's examine this command-line interface. Almost
+all of Transarc's commands follow a strict usage format. After the name of the 
+command, in this case, ~~vos~/~, a subcommand specifies exactly
+which action is to be performed, in this case ~~create~/~ to make a new volume.
+Most commands accept a ~~help~/~ subcommand, which displays all of the sub-
+commands available along with a brief sentence describing their use. To help find
+exactly which of possibly many subcommands is appropriate, an 
+~~apropos~/~ subcommand searches the descriptive sentences to find 
+matching items.
+
+PROGRAM DONE
+	$ <B>vos apropos new</B>
+	create:  create a new volume
+PROGRAM
+
+After the subcommand, you may need additional options and arguments. You can list the 
+options for a particular subcommand with the ~~help~/~ 
+subcommand.
+
+PROGRAM DONE
+	$ <B>vos help create</B>
+	vos create: create a new volume
+	Usage: vos create -server <machine name> -partition <partition name>
+	-name <volume name> [-maxquota <initial quota (KB)>] [-cell <cell name>]
+	[-noauth ] [-localauth ] [-verbose ] [-help ]
+PROGRAM
+
+For more detailed information on the subcommands, see the on-line UNIX manual pages
+which should have been copied over during installation.
+Rather than collect all the text on all the subcommands
+into a single man page, Transarc has separated each subcommand into its own
+page. The naming convention used to read a page is to join the command and
+subcommand with an underscore, as in ~~man vos_create~/~. 
+
+While these manual pages contain in-depth usage suggestions, the
+command-line help text is the easiest place to find information on what
+operations a command can perform. Because of the internal coding conventions
+followed by Transarc, you can be assured that the output of a ~~help~/~
+subcommand presents exactly what subcommands and options are really
+supported.
+
+Furthermore, the coding conventions allow you to omit option names, such as
+~~-server~/~, if you give the corresponding argument in the same
+order as the options are printed in the help line. For the create subcommand,
+as long as the ~~-server~/~, ~~-partition~/~, and ~~-name~/~ mandatory arguments are 
+provided in that order, the option words themselves can be dropped. Omitting 
+options is how most administrators run AFS commands on the command line.
+However, when writing shell scripts or other programs that use AFS commands, 
+make sure to spell out all options in full just in case Transarc changes 
+the order of options or adds new options that have similar prefixes.
+
+One last abbreviation allows file server partitions to be abbreviated: because
+all partitions must begin with a prefix of ~~/vicep~/~, a partition named ~~/vicepa~/~
+can be abbreviated as ~~vicepa~/~, ~~a~/~, or even ~~1~/~, for the first possible
+volume.
+
+In the following examples, the qualifying options are dropped and the
+partitions are abbreviated; the text will make the meaning of the
+various arguments clear. After all, most of the arguments are only going to be 
+servers, such as ~~fs-one~/~ or ~~db-one~/~, partitions, such as ~~a~/~ or ~~b~/~,
+volume names, or path names.  With this in mind, the above command would then 
+be typed interactively as:
+
+PROGRAM DONE
+	$ <B>vos create fs-one  a  example.vol</B>
+	Volume 536870937 created on partition /vicepa of fs-one
+PROGRAM
+
+After the create subcommand, the arguments are a machine name, partition,
+and the volume name. This machine and partition must refer to an existing
+AFS file server machine installed as described in Chapter 3. 
+
+The response shows that the volume was created and displays the server and 
+partition name as well as the volume identification number. This number is of 
+little interest to general administration and, in this instance, only serves to 
+confirm that AFS has indeed finished the work needed to create the volume.
+
+Information about the volume can be extracted with the following command.
+
+PROGRAM DONE
+	$ <B>vos examine example.vol</B>
+	example.vol                       536870937 RW          2 K  On-line
+    	   fs-one /vicepa 
+    	   RWrite  536870937 ROnly          0 Backup          0 
+    	   MaxQuota       5000 K 
+    	   Creation    Sat Mar 29 09:14:37 1997
+    	   Last Update Sat Mar 29 09:14:37 1997
+    	   0 accesses in the past day (i.e., vnode references)
+	 
+    	   RWrite: 536870937 
+    	   number of sites -> 1
+	      server fs-one partition /vicepa RW Site 
+
+PROGRAM
+
+The output of the volume ~~examine~/~ command describes in a rather verbose
+and seemingly unstructured manner much of the internal bookkeeping
+information for this volume. The first line repeats the volume
+name, ~~example.vol~/~, and reports the identification number, ~~RW~/~, to indicate
+that the volume is a read-write volume, the current size, 2 kilobytes, and
+on-line indicating that the file and volume server are able to process read and write requests.
+
+The next few lines are indented and show more detailed information about
+the volume. The second line prints the server and partition name; the
+third, the volume identification numbers for the read-write master
+volume, as well as placeholders for the currently nonexistent read-only
+replica and backup versions of the volume; the fourth, the maximum quota
+limiting the amount of data stored in the volume; the fifth and sixth
+lines are timestamps stating when the volume was created and last
+updated with data; and the seventh line attempts to show how many times
+during the previous day that file data in the volume was accessed.
+
+The final stanza is really a small table which shows exactly how and
+where this volume is replicated. Because this volume has just been created,
+there is no replication information available: the table reports that
+only the read-write master volume is available.
+
+As more of the AFS command suite is described, you may wonder why certain
+commands insist on including a volume's location information - a specific 
+server and partition name - where other commands do not. In the volume
+creation command, location information is clearly necessary because the
+operation is designed to actually create a real AFS volume on server
+disks. This command manufactures a volume with a physical volume header on a 
+particular server's disk partition and inserts this information into the volume 
+location database, the VLDB.
+
+On the other hand, the volume ~~examine~/~ command needs no location information; 
+the command queries the VLDB of one of the known database servers and prints out the 
+information returned.
+
+Now that the volume is created, it can be connected to any AFS path name with the file services command, ~~fs~/~. It may seem
+odd that the ~~fs~/~ command suite rather than ~~vos~/~ is used to make volume connections into the 
+AFS namespace but no real volume management is taking place.
+The operation just inserts some data into the specified directory structure
+much as the creation of a symbolic link doesn't make a new file but just makes a
+pointer to a file. The command is:
+
+PROGRAM DONE
+	$ <B>fs mkm /afs/example example.vol</B>
+	$ <B>ls /afs</B>
+	example
+	$ <B>fs lsmount /afs/example</B>
+	'/afs/example' is a mount point for volume '#example.vol'
+PROGRAM
+
+Again, you can see that no location information is needed to connect a
+path in the file namespace with a given AFS volume. The entire purpose
+of the AFS system is to make sure that every client desktop sees the
+same file data. AFS fulfills this goal by querying the volume location server to find the
+current home for the volume and reading or writing file data to that
+server. Though the subcommand is ~~mkm~/~, which stands for make mount, in this chapter we use
+the term <I>connection</I> to distinguish the
+common, lightweight, lazily evaluated AFS lookup mechanism from the per-client,
+heavyweight, and relatively static UNIX ~~mount~/~ command.
+
+The exact path name used as the connection is up to you: here the volume name
+is ~~example.vol~/~, but the connection point is ~~example~/~. There's no restriction
+on the name of the connection point: the linkage to the underlying volume
+is hidden inside the visible directory name. And there's no restriction
+on the location of the volume's data; the parent volume ~~root.afs~/~ may
+be stored on one disk while other volumes may be on any other server.
+
+Also, note that the path name, ~~/afs/example~/~, did not exist prior to the 
+~~fs mkm~/~ command being run. In UNIX, when a disk partition is mounted into the file
+namespace, a directory must be created before the mount is made. In AFS,
+making a connection between a path name and a volume creates the path name
+as a byproduct.
+
+(Long-time AFS administrators will worry that these initial examples do not
+follow the namespace conventions of the AFS community. Later in this chapter we'll
+discuss how to create a normal-looking cell; these conventions are important
+when making connections to other cells around the world. But the internals of
+AFS know nothing of the conventions. Right now, let's concentrate on the
+functionality of volumes and connections.)
+
+The command ~~fs lsmount~/~ lists the volume name connected to a path with 
+a somewhat verbose English sentence. This is typical of Transarc's command 
+output; it requires some clever script writing to parse the sentence and 
+extract the relevant information from the command output.
+
+As the connection information is stored in the file system itself, clients 
+contact the appropriate servers as a matter of course when navigating in AFS. 
+And this means that all client workstations see and retrieve data from the 
+new volume when they access the new directory, ~~/afs/example~/~. 
+
+PROGRAM DONE
+	$ <B>ls -ld /afs/example</B>
+	drwxr-xr-x   2 afsadmin staff       2048 Mar 29 09:15 /afs/example
+	$ <B>ls /afs/example</B>
+	$
+PROGRAM
+
+This unexciting demonstration actually shows off the power of AFS. Any AFS 
+client that wishes to examine the data inside this directory must retrieve 
+the data from some remote server. AFS doesn't store the location information 
+in the connection point but rather stores the volume name; when crossing into
+a new volume, each client will ask the volume location database about the 
+volume, find out which file server stores that volume's data, and then query 
+that machine to get the data. Though there happens to be no data in that
+directory - it was created just a few minutes ago - everything that makes
+AFS an enterprisewide distributed file system had to occur to get access
+to this new directory.
+
+Note that there are no maps that must be pushed out, nor do any administrative 
+commands need to be run on remote desktops. AFS clients get to volume data 
+by finding out, on the fly, which volumes constitute the namespace. Once the 
+connection is made, all AFS clients will see the new directory name because 
+AFS servers guarantee to tell a client when new data is available. 
+Because all clients get connected to the local cell through the well-known path, 
+~~/afs~/~, and all changes to the namespace are seen by all clients, 
+therefore only a single file namespace is visible to clients.
+
+This single namespace can be a drawback for some. But it is relatively easy
+to use local client operations (e.g., symbolic links) to generate per-client
+views of parts of the namespace. The great benefit is that whatever special
+purpose paths may be constructed for a particular client, there will still
+be access to the same cellwide namespace visible to all clients. In the
+new world of distributed computing, it is no small blessing to have at least one
+namespace that can be guaranteed available to all clients.
+
+Additionally, this single namespace scales well because it is trivial to extend
+it as broadly or deeply as desired. Volumes can be created on any file
+server that has disk space available, and that volume can then be attached to
+any point in the file tree. This can certainly be managed with NFS
+automounter or NetWare's client maps, but note the efficiency of AFS: the
+single ~~fs mkm~/~ operation is all that is needed to let all clients in the
+cell (or, actually, the Internet) know about and get to the file data.
+
+After you have created a volume, you can run several basic administrative
+commands.
+
+PROGRAM DONE
+	$ <B>vos rename example.vol example.one</B>
+	Renamed volume example.vol to example.one
+	$ <B>vos remove fs-one a example.one</B>
+	Volume 536870937 on partition /vicepa server fs-one deleted
+PROGRAM
+
+Again, note which commands require location (server and partition names)
+information and which do not. The ~~rename~/~ subcommand simply changes
+the name associated with the internally managed volume identification
+number. No change is made to the actual volume on the disk, only to the data
+in the volume location database.
+
+But note, because volume connections are made between an AFS
+path name and a volume name, renaming a volume can cause clients to not
+find file data. A client trying to traverse into ~~/afs/example~/~ will
+look up the home location for the volume named ~~example.vol~/~ - that was the volume name which was connected to the path name; the
+volume location databases will now correctly claim to know nothing about that
+volume. This may be exactly what you desire to happen; otherwise, you've
+just made an administrative mistake.
+
+This example demonstrates an important management principle of AFS. Regarding
+volumes and files, there are three places data is stored to provide
+distributed file services: the VLDB - replicated on multiple servers; the 
+physical volume data - stored on file servers in ~~vice~/~ partitions; the files, 
+directories, and connections to other volumes - real data stored within the 
+volumes themselves.
+
+Different commands operate on different pieces of this system:
+Volume creation makes a real volume on a server and adds that information to
+the location database; the ~~fs mkm~/~ command adds a connection point to
+a volume in an existing directory. Renaming a volume just changes one piece of
+data in the location database without changing any connection information or
+modifying volume headers on disk at all.
+
+The final command in this small example is the deletion of a volume with the ~~remove~/~ subcommand. This command
+will make changes to all of the management databases: the location database
+will be altered by removing the specified volume's name and information and the 
+volume, and, therefore, the volume's files and directories will be deleted 
+from a server and partition. 
+
+Upon successful completion of the ~~vos remove~/~ command, all of the AFS database information 
+will be synchronized, no location information will point 
+from a volume to a specific server, nor will the server still hold that volume's 
+file data. But one piece of information remains - the connection between the
+name ~~/afs/example~/~ and the now-nonexistent volume ~~example.vol~/~. If you 
+try to list the directory now, you'll be quickly told that no
+place in AFS stores the data.
+
+PROGRAM DONE
+	$ <B>ls /afs/example</B>
+	/afs/example: No such device
+PROGRAM
+
+To help guard against connecting to nonexistent volumes, the creation
+of such a connection results in a warning being displayed, though the
+connecting directory is still created.
+
+PROGRAM DONE
+	$ <B>fs mkm /afs/demo demo.vol</B>
+	fs: warning, volume demo.vol does not exist in cell hq.firm
+	$ <B>ls /afs/demo</B>
+	/afs/demo: No such device
+PROGRAM
+
+Many commands can be used to query AFS and each may access a
+different piece of the system to display administrative information
+derived from internal databases, server disks, or volume data.
+Here, three commands query file servers.
+
+PROGRAM DONE
+	$ <B>vos listpart fs-one</B>
+	The partitions on the server are:
+	    /vicepa     /vicepb
+	Total: 3
+	$ <B>vos partinfo fs-one</B>
+	Free space on partition /vicepa: 1029576 K blocks out of total 1031042
+	Free space on partition /vicepb: 1029576 K blocks out of total 1031042
+	$ <B>vos listvol fs-one</B>
+	Total number of volumes on server fs-one partition /vicepa: 1 
+	root.afs                          536870912 RW          5 K On-line
+ 
+	Total volumes onLine 1 ; Total volumes offLine 0 ; Total busy 0
+ 
+	Total number of volumes on server fs-one partition /vicepb: 0 
+ 
+	Total volumes onLine 0 ; Total volumes offLine 0 ; Total busy 0
+PROGRAM
+
+Three commands, ~~listpart~/~, ~~partinfo~/~, and ~~listvol~/~ 
+extract information about a specific server, partition, and volume on
+disk. They do not query the volume location database but get their
+data from a specific file server. 
+
+The ~~listpart~/~ subcommand prints out a
+brief line of volume information for each named partition or (if no
+partition is named) all partitions on a server. 
+
+The ~~partinfo~/~ subcommand prints out an
+even more succinct summary of a server's partition usage. This information is most
+convenient when you are trying to decide which server's partitions have the most
+free space before creating a volume expected to contain a certain number of
+files. 
+
+The ~~listvol~/~ subcommand prints out data gleaned from the volume headers 
+stored on a file server. The ~~volserver~/~ process on each file
+server machine keeps track of data concerning all the volumes stored on
+disk. The complete volume header includes the volume name, with full ~~.readonly~/~ 
+or ~~.backup~/~ extension, the type of the volume, the numeric identification number, 
+any identifiers for related volumes, such as read-only, 
+the current size of the volume in kilobytes, the size quota of the volume, 
+the volume creation date, the date that the volume data was last updated, 
+and the number of times that the volume has been accessed recently. 
+
+SECTION: AN EXAMPLE VOLUME
+
+Let's look at a straightforward example of volume administration and see
+more precisely how files and directories are handled by AFS. The following
+commands will create a new volume, connect it to the file tree, and populate
+it with some data.
+
+PROGRAM DONE
+	$ <B>mkdir /afs/tmp</B>
+	$ <B>vos create fs-one a sample.vol</B>
+	Volume 536870943 created on partition /vicepa of fs-one
+	$ <B>fs mkm /afs/tmp/sample sample.vol</B>
+	$ <B>ls /afs/tmp</B>
+	sample
+PROGRAM 
+
+We start by making a directory underneath ~~/afs~/~. Although we're in the
+AFS file namespace, there's absolutely no reason for every directory
+to be connected to a new volume. As you create your own file tree, you'll 
+find that the topmost levels are often related to new volumes, but there's 
+only social conventions to enforce this layout. 
+
+A new volume is then created and connected to the namespace at the directory 
+~~/afs/tmp/sample~/~. You can enter the directory and create new files 
+and subdirectories as desired.
+
+PROGRAM DONE
+	$ <B>cd /afs/tmp/sample</B>
+	$ <B>date > foo</B>
+	$ <B>date > bar</B>
+	$ <B>mkdir d</B>
+	$ <B>date > d/baz</B>
+	$ <B>ls -lR</B>
+	.:
+	total 4
+	-rw-r--r--   1 afsadmin staff         29 Mar 29 13:00 bar
+	drwxr-xr-x   2 afsadmin staff       2048 Mar 29 13:00 d
+	-rw-r--r--   1 afsadmin staff         29 Mar 29 13:00 foo
+
+	./d:
+	total 0
+	-rw-r--r--   1 afsadmin staff         29 Mar 29 13:00 baz                     
+PROGRAM
+
+Once the volume ~~sample.vol~/~ is connected to the file namespace, navigation in
+the ~~/afs~/~ tree is performed just as any other NFS or local directories are
+traversed, and files are created by using whatever tools fit your purposes. In
+this case, command-line tools are used, but AFS works equally well with any
+graphical browsers or file managers.
+
+(The files created in this example are owned by the user ~~afsadmin~/~, because
+that is the creator's current authentication. This identity is
+used by the AFS ~~fileserver~/~ process as the owner of any file data created
+by the user. Chapter 7 discusses file ownership and permissions in more
+detail.)
+
+All file and directory data - everything visible through normal user-level
+operations - winds up being stored in a volume. During the installation of
+the first file server, you created the first volume, ~~root.afs~/~, which is
+normally assumed to be connected to the AFS namespace at ~~/afs~/~. Where and how
+you create and attach other volumes to the namespace is entirely at your
+discretion. To a certain point, you don't have to make any other volumes;
+all the files and directories under ~~/afs~/~ will simply live in ~~root.afs~/~. But
+by creating more volumes, you break a large set of data into manageable pieces
+and allow the use of other AFS tools, such as per-volume replication.
+
+The only size limit to an AFS volume is the size of the underlying disk
+partition. For many years, most UNIX operating systems limited the
+size of a partition to two gigabytes. Now, many
+mechanisms can be used to manipulate disks with much larger
+partitions and partitions can even be built on top of striped, concatenated, or mirrored
+disks. A ~~vice~/~ partition used for AFS volume storage can use these
+mechanisms or other hardware-based backends for increased reliability or
+performance; Chapter 9 looks into some of the issues involved. But for
+now, all we are concerned about is the standard UNIX file system in which
+the volumes exist.
+
+Whatever the effective limit on volume sizes, most volumes in an average
+cell will be fairly small, on the order of 10 to 100 megabytes. This is
+simply a convenience. It is natural in AFS to have a single volume per user's 
+home directory, per project development area, per software package, and per 
+operating system module. Most cells will contain several hundred, if not 
+thousands of, volumes. Several users or projects can certainly share a volume, 
+which would lead to a much smaller volume population, but because a volume 
+has a storage quota, it is fairer to subdivide shared areas into individual 
+volumes. And with finer-grained subdivisions of the entire organization file 
+namespace, it becomes easier to perform certain management tasks. For example,
+if users each have their own home volume, moving volumes to appropriate servers 
+as users move from department to department becomes a simple operation.
+And having more, smaller volumes makes it possible to redistribute the
+used file space among all file servers, a task that can even be automated.
+
+In practice, the added flexibility gained through thoughtful divisions of
+the file namespace gives AFS much of its power. On the other hand, with
+hundreds of volumes, there may be times when a volume is incorrectly
+administered. The only cure is to adhere to strict naming conventions;
+although there may be thousands of volumes in a large organization, there may
+only be five to ten types of volumes, each having a very regular pattern to
+its name and a well-defined path name to which it is connected.
+
+In the simple example above, two AFS volumes are of concern to us, ~~root.afs~/~ and
+~~sample.vol~/~.  Underneath the ~~/afs~/~ directory, which is stored in the ~~root.afs~/~
+volume, we create a directory ~~tmp~/~. Because new data is being added to a
+volume, any other clients that had accessed ~~/afs~/~ and had cached that
+directory's data will be contacted and told that new data is available.
+Beneath the ~~/afs/tmp~/~ directory, more data is added to the file system, in this
+case, a connection to the volume ~~sample.vol~/~.
+
+In the ~~/afs/tmp/sample~/~ directory, some small files and subdirectories
+are created. These will be stored inside the ~~sample.vol~/~ volume on whichever
+file server happens to be hosting that volume.
+
+Because disk space is cheap but not free, AFS allows an administrator to 
+impose a quota on the number of kilobytes allowable in any given volume. 
+Because all data stores are allocated to a specific volume in
+AFS, the system is able to track total disk space usage on a per-volume
+basis. When created, each volume has a default quota of 5 megabytes. This
+quota can be changed by an administrator as needed.
+
+PROGRAM DONE
+	$ <B>fs listquota /afs/tmp/sample</B>
+	Volume Name            Quota    Used    % Used   Partition
+	sample.vol             5000       7        0%          0%
+	$ <B>fs setquota /afs/tmp/sample 100000</B>
+	$ <B>mkfile 20M /afs/tmp/sample/bigFile</B>
+	$ <B>ls -l /afs/tmp/sample/bigFile</B>
+	-rw-r--r--   1 afsadmin staff    20971520 Mar 29 13:06 /afs/tmp/sample/bigFile
+	$ <B>fs listquota /afs/tmp/sample</B>
+	Volume Name            Quota    Used    % Used   Partition
+	sample.vol            100000   20487       20%          8%  
+PROGRAM
+
+Here, the ~~sample.vol~/~ volume has the default quota of 5,000 kilobytes or almost 
+5 megabytes.  The ~~setquota~/~ subcommand increases the allowable
+quota to 100,000 kilobytes or almost 100 megabytes. (To be precise, you'd have to
+set the quota to 102,400 kilobytes to equal 100 megabytes.)
+If desired, you can use a quota of 0 kilobytes to turn off 
+quota limits on the volume, which means, in practice, that the amount of storage 
+permitted is limited only by the available space on the ~~vice~/~ partition. 
+Next, a standard UNIX utility ~~mkfile~/~ creates a file with a fixed
+size, 20 megabytes. You can see that the volume quota now shows 20 percent usage
+while the partition, at only 8 percent usage, has much more space left.
+
+Quotas are an effective management tool to delegate responsibility for data
+ownership to the users. In many companies, the impression is that disk space
+is an unlimited resource and effectively free. When disk space inevitably
+runs out, an uproar reaches the administration staff which must hunt down
+the largest sets of files, identify their owners, and persuade those owners to delete
+any egregious offenders. In AFS, the use of quotas permits administrators to
+proactively manage disk space: by putting a set of users' volumes on a
+particular partition and assigning each a quota, administrators can know that
+no individual user can use up disk space that belongs to another user. Although one
+user will eventually fill up his home volume with his own data, that
+problem will not stop others from continuing with their work. An
+administrator can help the user delete some data, or increase the quota, or
+- as we'll see later in this chapter - can even move the volume, in toto, to
+another, more spacious, partition.
+
+The ~~quota~/~ subcommand illustrates another odd feature of the AFS command
+set. Certain commands, especially in the ~~fs~/~ command suite, perform operations
+on volumes, and yet the options to the command take a path name as their
+argument. This makes no difference to AFS because only a single
+volume provides storage for any given path name. This implies that 
+the policies you create for naming volumes and path names are very important. There are usually fewer than a dozen 
+kinds of volume names and places where those volume types get connected;
+limiting the number of volume policies makes it easy for administrators to
+remember which volumes are connected to what paths, and vice versa.
+
+With the built-in quotas and accounting for disk space enabled by AFS, it is
+even possible to charge-back users of the file system for services rendered.
+Though such a scheme is heavily dependent on the politics and internal
+economics of an institution, at least the data is easily collectible.
+Of course, for certain uses or certain users, no predefined quota limit
+is preferable: setting a quota to zero allows the volume to grow as large
+as possible according to the underlying partition device drivers.
+
+And just as airlines often book more passengers on a plane flight than there
+are seats available, AFS administrators often allocate larger quotas for all
+the volumes on a given partition than the partition could possibly hold if
+all volumes were filled to capacity. For example, you might create a dozen user volumes, each with a quota of 100 megabytes and all residing on a
+single 1 gigabyte partition, an overbooking of 200 megabytes. As long as
+other disk monitoring tools check for space shortages, this
+overbooking can allow some of these users to reach their quota limit
+without bothering the other users and without causing you to
+recalculate quotas for each set of partitions' volumes.
+
+Figure 4-1 illustrates the result of these commands on
+the server disks. The view is of the internals of the partition in which the
+volumes were created and of the internal links between the volume and its
+files. If you print a directory listing of the ~~vice~/~ partitions, only small
+(76-byte) files will be seen, one for each volume stored in the partition
+and each named after its numerical identification number.
+
+PROGRAM DONE
+	$ <B>cd /vicepa</B>
+	$ <B>ls</B> 
+	V0536870934.vol  V0536870943.vol  lost+found
+	$ <B>ls -l</B>
+	total 20
+	-rw-------   1 root     other         76 Mar 29 08:41 V0536870934.vol
+	-rw-------   1 root     other         76 Mar 29 09:53 V0536870943.vol
+	drwx------   2 root     root        8192 Mar 28 17:40 lost+found
+PROGRAM
+
+The actual files and directories that are stored in an AFS cell cannot be
+seen from a user's view of the partition. Internal to the partition, all of
+the data is stored in the file server's native disk file system format, with
+inodes pointing to directory and file data and additional inodes pointing to 
+access control list information. (The ~~lost+found~/~ directory is a normal
+UNIX file system artifact and is not related to AFS.)
+
+[[Figure 4-1: Internal View of AFS vice Partition]]
+
+Figure 4-1 shows both volumes as named files on the disk partition.
+In each are directories, files, and subdirectories. Not shown are the
+pointers between the file names and the disk blocks storing the file
+data. Notice how the volumes are linked together: the ~~root.afs~/~ volume,
+with volume identification number ~~536870934~/~ has stored inside it a directory entry ~~sample~/~ that
+points to a volume name, ~~sample.vol~/~. This volume, number ~~536870943~/~, 
+doesn't know what its name is in the file system, nor does any database
+in AFS which know. The only connection 
+between the two is that made by the namespace entry sample.
+
+Returning to the disk partition, except for the oddly-named directories 
+and the fact that the volume's file names are not visible in 
+the standard UNIX directory structure, this is a fairly ordinary 
+UNIX file system. As most of these details are hidden from
+users and even administrators, there is little that can be done to
+manipulate AFS files from the outside. Don't forget that the vendor's file system check program,
+~~fsck~/~, needs to be changed (normally during the installation of an AFS server) 
+so that it doesn't corrupt the file system by imagining that the invisible 
+files should be given temporary names and relinked into the ~~lost+found~/~ 
+directory.
+
+Otherwise, ordinary UNIX administration commands can be used as needed
+to examine the ~~vice~/~ partitions, although there is little to be
+done that is not handled by the AFS command suite. For example,
+the ~~vos partinfo~/~ command is almost the same as the standard UNIX ~~df~/~ 
+administration command.
+
+PROGRAM DONE
+        $ <B>rsh fs-one df -k /vicepa</B>
+        Filesystem            kbytes    used   avail capacity  Mounted on
+        /dev/dsk/c0t1d0s4    1145592    1466 1029576     1%    /vicepa
+        $ <B>vos partinfo fs-one a</B>
+	Free space on partition /vicepa: 1029576 K blocks out of total 1031042
+PROGRAM
+
+Note that the total size reported by the ~~partinfo~/~ command is equivalent
+to the ~~used~/~ plus the ~~available~/~ kilobytes reported by the ~~df~/~
+command. The total ~~kbytes~/~ which ~~df~/~ reports includes some extra spare
+space kept internally by the server operating system.
+
+SECTION: BACKUP VOLUMES
+
+The illustration of a volume's internal structure helps to explain what AFS
+means by a <I>backup volume</I>. The adjective backup is a misnomer. While it is tangentially related to the archival process, a <I>backup volume</I> is really
+a read-only snapshot of a volume's contents. Let's run a few more commands
+and then look at the results.
+
+PROGRAM DONE
+	$ <B>vos backup sample.vol</B>
+	Created backup volume for sample.vol
+	$ <B>fs mkm /afs/tmp/sample.bak sample.vol.backup</B>
+	$ <B>ls /afs/tmp/sample /afs/tmp/sample.bak</B>
+	/afs/tmp/sample:
+	bar      bigFile  d        foo
+	 
+	/afs/tmp/sample.bak:
+	bar      bigFile  d        foo
+PROGRAM
+
+The ~~vos backup~/~ command performs several operations: First, it finds the
+location of the named volume and creates a new volume with the same name and
+a suffix of ~~.backup~/~ on the same server and the same partition as the
+original. Rather than copy all of the original volume's file data, the servers copy only pointers 
+to the data. For experienced UNIX administrators, the effect 
+is similar to making a new directory containing hard links to the file data.
+
+This new backup volume, ~~sample.vol.backup~/~, is a first-class volume to AFS. In
+other words, it has a name, a volume identification number, and a physical
+existence on disk. Most commands that accept a volume name can be given a
+backup volume name, and the expected operation will be performed. For example,
+the next command in the above scenario,
+~~fs mkm~/~ mounts the backup volume in the namespace, giving its contents a
+a path name of its own. Just as access to the path name ~~/afs/tmp/sample~/~ will 
+access files in the volume ~~sample.vol~/~, so ~~/afs/tmp/sample.bak~/~ will 
+access files in ~~sample.vol.backup~/~.
+
+Right now, the backup volume points to the original volume data, so 
+listing both paths shows the same data.  Now, see what happens when we 
+access the original volume and make some changes to its files.
+
+PROGRAM DONE
+	$ <B>rm /afs/tmp/sample/bar</B>
+	$ <B>date >  /afs/tmp/sample/newFile</B>
+	$ <B>ls /afs/tmp/sample</B>
+	bigFile  d        foo   newFile
+	$ <B>ls /afs/tmp/sample.bak</B>
+	bar      bigFile  d     foo
+PROGRAM
+
+The first list directory command shows us that the original volume's files have 
+been changed as expected. The second list directory command shows that the backup volume still has pointers to the original data - the deleted file 
+still exists.  Figure 4-2 shows what the internal pointers now look like.
+
+[[Figure 4-2: Internal View of vice Partition with Backup Volume]]
+
+Because the backup command just copies the pointers to the file data and 
+does not copy the file data itself, a backup volume is quite cheap; it takes
+up very little disk space (just enough to hold the copies of the pointers) and 
+it takes very little time to make. Also, while the pointers are being copied, the 
+original volume is locked against any changes by users, so the backup volume 
+consists of a frozen snapshot of a volume, a completely consistent and static 
+view of the volume's contents for a particular moment in time.
+
+This ability to snapshot a volume is why the ~~/afs/tmp/sample.bak~/~ directory
+still contains the file bar, which was deleted from the 
+read-write master after the backup volume was snapped.
+
+Not quite every AFS command can operate on backup volumes as simply
+as with the original. For example, you can use the ~~vos create~/~ command
+to make a volume with a name like ~~tmp.backup~/~ but doing so doesn't make the
+volume a backup volume. And because real backup volumes point to the same data 
+as the original volume, the backup volumes must exist on the same server 
+and partition as the original. Again, this is not unlike a UNIX hard link 
+to a file, which can only exist on the same partition as the original file. 
+(Note that the volume backup command does not have any options to specify 
+a different partition or server.) And, finally, you can see here that the backup 
+volume is read-only:
+
+PROGRAM DONE
+	$ <B>date > /afs/tmp/sample.bak/anotherFile</B>
+	/afs/tmp/sample.bak/anotherFile: cannot create
+	$ <B>rm /afs/tmp/sample.bak/bigFile</B>
+	rm: /afs/tmp/sample.bak/bigFile not removed: Read-only file system
+PROGRAM
+
+These backup volumes are an important feature of AFS and are used regularly to
+provide users with on-line access to a snapshot of their home directory files.
+Users backup volumes can be mounted once in some well-known area, either one
+set aside for all backups or perhaps inside the home directory itself. Every
+night an administrative script can snapshot the volumes which store the
+home directories. Then, during the day, user's can easily retrieve files which
+they have accidentally deleted by simply copying the file from the backup directory. 
+Having user's restore this data themselves can drastically reduce the need for 
+administrator intervention after simple typing mistakes. 
+
+The backup volume is normally considered as part of an administrative package
+with its master read-write volume. The ~~vos examine~/~ command displays
+some information on both. Otherwise, the ~~listvol~/~ subcommand can be used
+to verify the existence of the backup volume.
+
+PROGRAM DONE
+	$ <B>vos examine sample.vol</B>
+	sample.vol                        536870943 RW      20487 K  On-line
+	    fs-one /vicepa 
+	    RWrite  536870943 ROnly          0 Backup  536870945 
+	    MaxQuota     100000 K 
+	    Creation    Sat Mar 29 09:53:50 1997
+	    Last Update Sat Mar 29 10:29:38 1997
+	    1017 accesses in the past day (i.e., vnode references)
+ 
+	    RWrite: 536870943     Backup: 536870945 
+	    number of sites -> 1
+	       server fs-one partition /vicepa RW Site 
+	$ <B>vos listvol fs-one vicepa</B>  
+	Total number of volumes on server fs-one partition /vicepa: 3 
+	root.afs                          536870934 RW          6 K On-line
+	sample.vol                        536870943 RW      20487 K On-line
+	sample.vol.backup                 536870945 BK      20487 K On-line
+ 
+	Total volumes onLine 2 ; Total volumes offLine 0 ; Total busy 0
+PROGRAM
+
+In the ~~examine~/~ subcommand output, you can see that the backup volume
+identification number, in line three, has been filled in. (As a matter 
+of fact, the backup and read-only volume identification numbers are preallocated so that
+every newly created read-write volume is assigned a number three more than the last.)
+In the ~~listvol~/~ view of the volume headers on the file server's partition,
+you can see that the read-write volume ~~sample.vol~/~ holds 20 megabytes of data,
+and it appears as though the backup volume ~~sample.vol.backup~/~ holds another
+20 megabytes. Actually, the backup volume points to the
+same 20 megabytes as the read-write master.
+
+In AFS, the term <I>clone volume</I> is often used interchangeably with backup
+volume. More properly, a clone volume is the internal name used for a volume
+composed of pointers to another volume's data. As we'll see when we examine
+how to move a volume from server to server, these internal clone volumes are
+used occasionally by AFS when it needs to make a snapshot of a volume for its
+own use.
+
+Backup volumes can be used to provide users with access to a
+snapshot of their home directory files and also to create a stable image from
+which to perform archiving for other group or development volumes.
+In both of these cases, administrators often need to make backup volumes 
+for a large set of volumes. The ~~vos backupsys~/~ command can be used 
+with an argument that is a regular expression
+used to match one or more volumes in the system. For example, if we had
+ten users with their own home directory contained in their own volume
+and named, as is customary, with a prefix of ~~user~/~, then backup
+volumes for all users can be created with:
+
+PROGRAM DONE
+	$ <B>vos backupsys user</B>
+	done
+	Total volumes backed up: 10; failed to backup: 0
+PROGRAM
+
+This one command will search the volume database to find all read-write volumes
+having names with the given prefix and will then proceed to
+make backup volumes for all of them. Even with a large number of
+matching volumes, making backups for the volumes will take a very short time and consume very little disk space. Many sites make
+backup volumes of all volumes in the system; even if all backup volumes
+are not made available in the file system all the time, it is somewhat
+easier to create all of them than worry about the exact regular
+expression needed for a particular subset. 
+
+The ~~backupsys~/~ subcommand is often added as a ~~bos cron~/~ job or even a 
+UNIX ~~cron~/~ job so that backup volumes are made every midnight. There is 
+only one backup volume for each read-write, so every time this command 
+runs, only a snapshot of the current files in a volume is saved. If you
+delete a file on Monday, the backup volume made on Sunday night will still
+be holding onto that file data. But on Monday night, the new version of the
+backup volume will be a snapshot of the current contents of the volume
+files; because the file in question has been deleted, the new backup volume skips
+over it, and the deleted file is finally, truly, deleted.
+
+The drawback to backup volumes is that while they do not take up much space
+(they are just copies of pointers to file data), they do make it more
+difficult to delete space. For instance, given the above example, backup
+volumes of all user volumes are made every midnight. If for some reason a large
+file, perhaps a process core file, in someone's home directory needs to be deleted
+to free up disk space on the volume's partition, you might try simply
+deleting the core file. Yet the
+backup volume would still retain a pointer to the file, and therefore the
+operating system (which is still managing the partition's file system) would
+not release the file's space. Because the backup volume is read-only, you cannot
+remove the file there. How then to remove the file? The solution is simple: make a new backup
+volume. This solution works because the previous backup volume's pointers to data will
+now be zeroed out, causing the last link to our hypothetical core file to be
+dropped and the data to be cleaned out.
+
+Data kept in a backup volume is not counted against a user's quota. If
+during the day, a user creates a lot of data and fills up her volume, all
+of that data will be caught in the nightly backup snapshot. On the next day,
+if much of the home directory data is deleted, the user can proceed to
+create a whole volume's worth of new data. Effectively, the user has access
+to the backup volume's quota of (read-only) data and the master
+volume's quota. This feature can be exploited by savvy users, but given a
+realistic scenario with regular volume snapshots taking place every night,
+can cause little damage.
+
+Backup volumes are yet another instance where AFS provides functionality
+that simultaneously makes administrators' lives easier and more complicated.
+Backup volumes can reduce requests for archive file restoration, but explicit
+management policies must be implemented and advertised to make the feature
+useful.
+
+SECTION: MOVING VOLUMES
+
+There is one AFS volume operation that, all by itself, makes the entire system 
+worthwhile. When shown how to move a volume from one 
+server's disk to another server on-line and transparently to active users of the volume, administrators are overjoyed. With such an effect, this operation 
+deserves to be described in some detail. The command line is simple enough.
+
+PROGRAM DONE
+	$ <B>vos move sample.vol fs-one a fs-two a</B>
+	WARNING : Deleting the backup volume 536870945 on the source ... done
+	Volume 536870943 moved from fs-one /vicepa to fs-two /vicepa 
+PROGRAM
+
+Naturally, a command that is going to move a volume needs location
+information; in this case, it needs arguments describing exactly where the
+named volume exists now and the server and partition to which it will be
+moved. But that's it: the volume and all of its contained files and 
+directories have been moved from one AFS file server to another. Because AFS
+clients get access to files by querying the databases for volume locations
+and then querying the appropriate server, all clients will still be able
+to find the new location of this volume's data as a matter of course.
+
+Note that because backup volumes are really only containers of pointers to
+the read-write volume data, when we moved the read-write volume data,
+the backup volume would have pointed to invalid areas of the partition.
+In this situation, the ~~vos move~/~ operation deletes the old backup volume.
+If necessary, you should create a new backup volume at the
+read-write volume's new home.
+
+As mentioned, clients have no trouble finding AFS files no matter which 
+server the files are stored on. But even better, clients can access this
+volume even while it is being moved.  To make this example interesting, 
+let's initiate, on another AFS client, some processes that access the volume 
+while we run the ~~vos move~/~ command.
+
+PROGRAM DONE
+	$ <B>cd /afs/tmp/sample</B>
+	$ <B>while true</B>
+	> <B>do</B>
+	> <B>date > foo</B>
+	> <B>cat foo</B>
+	> <B>done</B>
+PROGRAM
+
+This trivial shell command will loop forever as fast as the date can be
+written to the AFS file system and then read and printed on the terminal
+display. Now that something is accessing the system, let's imagine
+that the file server needs to be rebooted because a disk is added, or that 
+the user will be moving to a different building, or that
+the current disk is getting a little too full. Whatever the reason, the volume
+must be moved to a different server while a user is accessing the volume's file
+data. During the move, the shell command will print something like the following 
+on the display:
+
+PROGRAM DONE
+	...
+	Sat Mar 29 10:50:42 EST 1997
+	Sat Mar 29 10:50:42 EST 1997
+	Sat Mar 29 10:50:43 EST 1997
+	afs: Waiting for busy volume 536870943 (sample.vol) in cell hq.firm
+ 
+	Sat Mar 29 10:50:58 EST 1997
+	Sat Mar 29 10:50:58 EST 1997
+	...
+PROGRAM
+
+Although there is a service delay during a few moments of volume transfer, the 
+delay is actually quite small, irrespective of the volume's size. More 
+importantly, note that the read and write operations returned successfully 
+- no errors were reported by the commands. Though one of the 
+write requests hung for a moment, all file services continued to function 
+correctly throughout the volume movement.
+
+The internal machinery to make all of this happen is not too difficult to 
+understand. It simply makes use of all the volume techniques we've seen 
+up to now:
+
+1. The volume is locked during the creation of a clone volume.
+This clone is distinct from any backup volume and because it takes but
+a fraction of a second to create, the cloning causes hardly any interruption.
+
+2. A volume is created at the destination site and a check
+is made to make sure that enough space exists for the move.
+
+3. The clone of the original volume is then dumped and restored into
+the destination site. 
+
+The reason for dumping the clone rather than the
+original is that the original volume might be somewhat large. Without the clone, we would have to lock the original volume during the entire data move operation.
+By making a clone and copying it over, we can copy over the bulk of the volume's data in the background while a user continues to access the volume.
+
+4. Once copied over, the clone volume has served it purpose and is
+deleted.
+
+5. Because the copy operation will certainly take a certain amount of
+time, the system must now copy over any new data which may have been written
+to the original volume. It locks the original volume and copies over any
+incremental changes to the destination site. 
+
+Although the copy
+of the clone might take a certain amount of time, it is expected that 
+few changes will be made to the original volume during the copy and
+therefore copying the incremental changes will take a small amount of
+time. It is during this final stage of the move operation that the
+volume will become busy for a brief period and so a small delay might
+be seen by the user.
+
+6. Once all changes have been made to the destination site, the new
+volume is brought on-line, the original volume is put off-line, the
+volume location database is updated, and the volume state is unlocked.
+
+From now on, any future access to the volume will be
+sent to the new destination site. In our example, the write operation
+finishes successfully by writing to file server ~~fs-two~/~, and the shell command
+loop continues.
+
+7. Finally, the AFS system deletes the original volume along with
+any original backup that may have existed.
+
+In our example, an AFS client happens to be writing and reading file
+data from the volume as it is being moved. At the beginning, the
+~~vos move~/~ operation is performing some administrative set up and
+copying over a clone of the volume. During this time, the client sees
+no change to the volume's availability. However, when the incremental 
+changes are being copied over, one store operation will hang because
+the volume server on the source file server has set the volume state to 
+busy. 
+
+The client sees that the volume is busy and will retry the store
+request every twenty seconds. Eventually, when the move operation
+finishes, the client's store request to the source file server will
+fail because the volume is no longer stored there. The client will immediately
+query the volume location database for the new location of the volume
+and will send the storage request to the destination file server. Although
+the user sees the write operation hang for a brief moment, the key
+is that the operation succeeds - the shell command that is writing some data to a
+file returns without error.
+
+There is one step in the process that occurs before any movement of data
+takes place; that step ensures that sufficient space is available on the destination
+server for the volume move to succeed.  In earlier versions of AFS, this
+check was not performed, and the move operation would fail and would have
+to back out of its transactions. Now, the check is done first and takes
+care of the problem in most situations; however, during the move operation,
+a user could be creating large files on the destination site and 
+thereby still cause an out-of-space error.
+
+Though the ~~vos move~/~ command is robust and powerful, it does have to
+perform a complex series of operations to complete its job. You might want to use the ~~-verbose~/~ option to watch the move operation; if any
+problems crop up, you will have a better idea of what state the
+file server is left in.
+
+PROGRAM DONE
+	$ <B>vos move tmp.bar fs-one b fs-two a   -verbose</B>
+	Starting transaction  on source volume 536870964 ... done
+	Cloning source volume 536870964 ... done
+	Ending the transaction on the source volume 536870964 ... done
+	Starting transaction on the cloned volume 536871006 ... done
+	Creating the destination volume 536870964 ... done
+	Dumping from clone 536871006 on source to volume 536870964 on destination ... done
+	Doing the incremental dump from source to destination for volume 536870964 ...  done
+	Deleting old volume 536870964 on source ... done
+	Starting transaction on the cloned volume 536871006 ... done
+	Deleting the clone 536871006 ... done
+	Volume 536870964 moved from fs-one /vicepb to fs-two /vicepa 
+PROGRAM
+
+The ~~vos move~/~ command vividly demonstrates the specific design goal of AFS: a
+distributed file system that can be efficiently managed. Although AFS was
+engineered at a university, it is no academic exercise. The ~~vos move~/~
+command is a crucial tool needed by administrators as they manage disk
+farms and servers. Without it, operators are forced to wait for off-hours
+before performing necessary work, and users must put up with constant service
+outages. With this command, centralized control of large-scale computing
+populations becomes almost pleasurable. 
+
+SECTION: THE VOLUME LOCATION DATABASE
+
+The volume location database is clearly the heart of AFS. The ~~vlserver~/~
+process on the database servers manages a file holding the names, locations,
+and miscellaneous statistics about all the volumes in the system. As we've
+seen, there are a few kinds of volumes used in AFS, but all types of volumes
+are based on an original volume, the read-write master. From that read-write
+volume there may be a backup volume or even multiple read-only replicas.
+
+A few ~~vos~/~ commands are available to read information out of the volume
+location database directly. The ~~listvldb~/~ subcommand prints out all location
+data stored by the system.
+
+PROGRAM DONE
+	$ <B>vos listvldb</B>
+ 
+	root.afs 
+	    RWrite: 536870912 
+	    number of sites -> 1
+	       server fs-one partition /vicepa RW Site 
+ 
+	sample.vol 
+	    RWrite: 536870943 
+	    number of sites -> 1
+	       server fs-two partition /vicepa RW Site 
+
+	Total entries: 2
+PROGRAM
+
+Each entry is based on the read-write master volume. Only the name of the
+read-write is stored; the read-only and backup volumes have well-known
+suffixes (~~.readonly~/~ and ~~.backup~/~) automatically appended.
+Along with the volume name, each volume has its own numeric identifier.
+These identifiers are used internally to tag a particular volume,
+but most AFS commands also permit their use as arguments in place of the more memorable volume
+name. Note that each type of volume has its own number, which is usually
+assigned consecutively; if the read-write is volume N, the read-only
+is N+1, and the backup volume is N+2. As we'll see shortly, multiple read-only
+volumes share the same numeric identifier just as they share the same name.
+
+The database also holds a counter of how many total sites are
+storing this volume's data; for each site, the exact file server name,
+~~vice~/~ partition, type of volume, and volume status are recorded. (If you're
+wondering where the backup volume for ~~sample.vol~/~ went, it was deleted
+as a consequence of the volume move operation.)
+
+Finally, a lock is available for each volume and maintained by the VLDB server. 
+As various operations are taking place, the volume is 
+locked so that other commands cannot intervene and corrupt the database.
+
+The ~~listvldb~/~ command does not query the file server system that is actually
+storing the data. You can see that this command shows no information about 
+the size of the volume or its quota. The only data in the database is the name
+of the servers for the read-write and any read-only versions of the volume.
+You can append arguments to list volume location database information about a
+single volume, all volumes on a server, or all volumes on a server's
+partitions. 
+
+Whereas a ~~listvldb~/~ command queries only the volume location database, the
+~~vos examine~/~ command queries both that database and the volume server, 
+~~volserver~/~, on the file server machine that is storing the read-write
+master. These queries are one reason that an ~~examine~/~ command takes slightly longer
+to run than other informational commands.
+
+Because the AFS volume location database is distinct from the physical
+volumes residing on disks in the ~~vice~/~ partitions, the two
+can get out of synchronization. If certain ~~vos~/~ operations are interrupted (perhaps
+due to a crash or network failure), it may be that the location database 
+thinks that volumes exist in certain places but that the disks themselves 
+contain different sets of volumes.
+
+Most of the time, the volume location database will point to the correct
+set of file servers and partitions. Sometimes, the database may have 
+incorrect entries, suggesting that a volume is on a particular server when it
+is not, or missing entries, when a volume is available from a server but
+is not listed in the database.
+
+There are two mechanisms to manually fix either problem: you can use ~~vos delentry~/~ to delete a single entry from the database, and ~~vos zap~/~ to delete a
+volume from a disk. Neither command will change the other's data as it performs
+its deletion: ~~delentry~/~ will not delete a volume and ~~zap~/~ will not delete
+a database entry. When performing this direct surgery on AFS, don't forget 
+that changes to the location database are simple modifications
+to some pointers, whereas using ~~zap~/~ to delete a volume from disk will 
+remove real data from the disk. The former can be corrected, the latter 
+not without restoring data from an archive tape, if any.
+ 
+Here is an example of a mismatch between a disk partition and the location
+database.
+
+PROGRAM DONE
+	$ <B>vos listvldb -server fs-two</B>  
+	VLDB entries for server fs-two  
+ 
+	sample.vol 
+    	    RWrite: 536870943
+    	    number of sites -> 1
+               server fs-two partition /vicepa RW Site 
+
+	another.vol
+    	    RWrite: 536871001
+    	    number of sites -> 1
+               server fs-two partition /vicepa RW Site 
+
+	Total entries: 2
+
+	$ <B>vos listvol fs-two a</B>
+	Total number of volumes on server fs-two partition /vicepa: 1 
+	sample.vol                        536870943 RW      20487 K On-line
+ 
+	Total volumes onLine 2 ; Total volumes offLine 0 ; Total busy 0
+PROGRAM
+
+You can see that, according to the location database, the read-write volume ~~another.vol~/~ in partition
+~~/vicepa~/~ on server ~~fs-two~/~ is not actually stored on the disk itself. Before fixing this problem, it
+would be wise to check into how this happened; it's possible a volume move
+operation was interrupted or a disk partition was restored abnormally. AFS
+does not have any mechanism for regularly auditing the system to determine
+if such an out-of-synchronization situation exists. You'll want to write a
+few scripts to check the ~~listvol~/~ output against the ~~listvldb~/~ report. However
+the circumstance is discovered, it must be fixed. One solution will be to
+simply delete the location data.
+
+PROGRAM DONE
+	$ <B>vos delentry fs-two a another.vol</B>
+	$ <B>vos listvldb</B>
+	VLDB entries for server fs-two  
+ 
+	sample.vol 
+    	    RWrite: 536870943
+    	    number of sites -> 1
+               server fs-two partition /vicepa RW Site 
+
+	Total entries: 1
+PROGRAM
+
+The ~~vos~/~ suite includes two general purpose synchronization commands,
+~~syncserv~/~ and ~~syncvldb~/~, that automatically perform certain fixes of mismatches. Take a moment to memorize which command does what because their purposes are easily confused: 
+
+-- ~~vos syncvldb~/~  - Scans the server ~~vice~/~ partitions and adds to 
+the location database any volumes that are found on disk but not 
+in the database. 
+
+-- ~~vos syncserv~/~ - Reads the location database and checks the disk 
+partitions for the existence of the volume. If the volume is not found
+on the indicated server, the entry will be deleted from the database.
+
+These two operations are relatively safe in that neither will delete any irreplaceable
+file data from the disks themselves - they will only add or delete
+entries from the location database. In the worst case, only data in backup volumes 
+may be deleted. If ~~syncvldb~/~ finds two
+backup volumes for a single read-write volume, it deletes one of the
+backup volumes. Similarly, if ~~syncserv~/~ finds that a backup volume is not on the
+same server and partition as the read-write, it deletes the orphan backup volume. But
+if two copies of a read-write volume are found, ~~syncvldb~/~ does not choose
+one for deletion but simply prints out an error message; you'll have to
+manually choose which one to ~~zap~/~.
+
+During most of these volume server operations, an entry in the database will
+be locked. If one of these commands is interrupted, this lock may remain. Subsequent commands that attempt to operate on the same volume will return
+with an error. When this situation happens, you can unlock the volume with
+~~vos unlock~/~; all volume entries in the database can be
+unlocked en masse with ~~vos unlockvldb~/~. 
+
+Unfortunately, there's no way to tell the difference between a volume that
+is locked because of a problem with a ~~vos~/~ operation and one locked because
+another administrator is running a valid though lengthy ~~vos~/~ operation. With
+fewer active AFS administrators needed for a given site, it may be easier to
+distinguish between these possibilities. Otherwise, if the volume is small,
+you can be assured that no volume operation would take a long time; if the
+volume is still locked after half an hour, you might assume the lock has been
+orphaned. If the volume is particularly large, you might want to wait
+longer.
+
+On the other hand, you can use ~~vos lock~/~ to deliberately lock a volume to 
+prevent volume operations from occurring. You can list information on 
+all locked volumes with the ~~vos listvldb -locked~/~ option.
+
+The most common reason for the appearance of locked volumes is that a ~~vos~/~
+operation was interrupted during execution. This interruption can result in volumes
+remaining locked in the database, clones made during move operations
+left lying around on server partitions, or the location database
+getting out of synchronization with volumes on the  partition. 
+Depending on the scenario, you may have to synchronize the databases or 
+~~zap~/~ some volumes to restore order to AFS.
+
+SECTION: REPLICATION
+
+An AFS client spends its days asking the
+location database where a volume lives and then getting file data from the specified server.
+To provide automatic fail over from inaccessible servers, AFS enables you
+to create read-only copies of entire volumes. When a client reads data from a replicated volume, the location
+information returned to the client includes the names of all file servers storing read-only copies. If a client receives no response from one of the replica's servers,
+it will simply ask the next server in its list until it finds an available system.
+
+Read-only replicas are not a substitute for disk mirroring or RAID systems.
+Instead, replicas provide alternate physical locations for copies of a given
+read-write volume so that the volume's data can continue to be available despite server or 
+network outages. Normally, only those read-write volumes with infrequently 
+changing data, such as system binaries, vendor packages, applications, 
+development products, or just the top-level directories of volume connections,
+will be placed in volumes that are replicated. 
+
+All replicas of a read-write volume are read-only snapshots in much the
+same manner that backup volumes are snapshots. One difference is that
+backup volumes can exist only on the same disk partition as their master;
+replicas, on the other hand, can be stored on file servers anywhere in the cell.
+
+One administrative advantage to these read-only replicas is that they
+are all guaranteed to be the same. When an administrator has finished
+polishing the contents of a read-write, the read-only copies can be
+explicitly updated. From then on, any changes to the master are written only 
+to the master; it requires an explicit administrative command to re-release
+the changes to the replicas. And because the replicas are read-only, it is
+impossible to make changes to any one replica. Thus, AFS file replication
+integrates administration of client fail over with the task of making the
+fail over copies available.
+
+To replicate a volume, you must first register the locations with the 
+location database, then explicitly generate the copies. 
+As an example, let's make sure that the topmost volume in our cell, ~~root.afs~/~, 
+is maximally replicated.
+
+PROGRAM DONE
+	$ <B>vos addsite fs-one a root.afs</B>
+	Added replication site fs-one /vicepa for volume root.afs
+	$ <B>vos addsite fs-two a root.afs</B>
+	Added replication site fs-two /vicepa for volume root.afs
+	$ <B>vos listvldb root.afs</B>
+	root.afs 
+	    RWrite: 536870912 
+	    number of sites -> 3
+	       server fs-one partition /vicepa RW Site 
+	       server fs-one partition /vicepa RO Site 
+	       server fs-two partition /vicepa RO Site 
+PROGRAM
+
+The ~~vos addsite~/~ commands register the locations for the read-only replicas
+of the volume ~~root.afs~/~. As with the volume creation command, its arguments 
+are a fileserver name, a ~~vice~/~ partition, and a volume name. 
+This registration need be done only once, whenever a
+new replication sites is added. The ~~listvldb~/~ command lists the contents
+of the location database for the ~~root.afs~/~ volume; it shows that the replica 
+sites have been registered. Note that there is no indication of the read-only 
+volume identification number because the data has not been copied over yet.
+
+Once you've administered where a volume's data should be replicated,
+you can update all of the replica sites with current copies of the volume
+date with the ~~release~/~ subcommand. This command performs the actual data 
+copy from the read-write master volume to all the registered read-only copies. 
+The ~~release~/~ command accesses the VLDB to find out which file servers have been assigned
+copies of the volume, contacts each file server machine, and checks the 
+volume's directories and files to bring the replicas up to date.
+
+PROGRAM DONE
+	$ <B>vos release root.afs</B>
+	$ <B>vos listvldb root.afs</B>
+	root.afs 
+    	    RWrite: 536870912     ROnly: 536870913 
+    	    number of sites -> 3
+	       server fs-one partition /vicepa RW Site 
+	       server fs-one partition /vicepa RO Site 
+	       server fs-two partition /vicepa RO Site 
+	$ <B>vos listvol fs-one a</B>
+	Total number of volumes on server fs-one partition /vicepa: 2 
+	root.afs                          536870912 RW          9 K On-line
+	root.afs.readonly                 536870913 RO          9 K On-line
+	 
+	Total volumes onLine 2 ; Total volumes offLine 0 ; Total busy 0
+	$ <B>vos listvol fs-two a</B>  
+	Total number of volumes on server fs-two partition /vicepa: 2 
+	root.afs.readonly                 536870913 RO          9 K On-line
+	sample.vol                        536870943 RW      20487 K On-line
+	 
+	Total volumes onLine 2 ; Total volumes offLine 0 ; Total busy 0
+PROGRAM
+
+Now, the location database shows that the read-only volumes have been populated, and
+the ~~vos listvol~/~ command, displaying volumes that physically exist on disk,
+lists the two new read-only volumes. 
+
+Note: For efficiency, the entire volume is not transmitted during each release;
+only changed files and directories are transmitted.  Since version 3.4a, release 
+operations are performed in parallel, so that incremental
+changes in up to five read-only copies can be updated simultaneously. 
+
+Now, when accessing the path ~~/afs~/~, a client workstation will access the
+volume location database, discover that the directory contents are stored 
+in the volume ~~root.afs~/~, and realize that ~~root.afs~/~ can be accessed through 
+its replica volumes on either file server ~~fs-one~/~ or ~~fs-two~/~. Knowing that
+all read-only copies of a single read-write master are the same, the client
+is free to retrieve a volume's file or directory data from any accessible
+replica.
+
+In fact, broadly reliable access has been available only with
+AFS version 3.4a: prior to this version, if the read-write version was
+unavailable, read-only versions were unavailable. Now, clients will search for any
+read-only volumes no matter what the condition is of the read-write master.
+
+If a client workstation reads data from one file server which is storing a read-only volume and fails to get a reply, it 
+falls back to the next site on its list. Only when this list of read-only volumes is exhausted will
+the client report an error. 
+
+It may seem odd that the client will not make
+one last attempt to get the data from the read-write. To understand why, let's 
+assume we have a volume full of an application's binary programs and that volume is 
+replicated on two sites. If those two sites are unavailable, it seems 
+reasonable to want the client to try to get the program data from the 
+read-write. But recall that the replicas were created via an explicit release operation 
+executed at an arbitrary time, e.g., when an administrator had decided that the 
+master volume's data was ready for replication.  After release, the 
+read-write volume may very well have been edited with new versions of
+programs. AFS guarantees that all replica volumes are file-for-file and
+byte-for-byte duplicates of each other so clients can successfully
+fail over at any time during the reading of any information from one read-
+only to another. As the read-write is not guaranteed to be a duplicate, no
+fail over from read-only to read-write is permitted.
+
+It's easy to force a failure and watch clients fail over. On a client,
+listing the ~~/afs~/~ directory requires reading data from one of the read-only 
+versions of the ~~root.afs~/~ volume:
+
+PROGRAM DONE
+	$ <B>ls /afs</B>
+	tmp
+	$ <B>vos listvldb root.afs</B>
+
+	root.afs 
+	    RWrite: 536870912     ROnly: 536870913 
+	    number of sites -> 3
+	       server fs-one partition /vicepa RW Site 
+	       server fs-one partition /vicepa RO Site 
+	       server fs-two partition /vicepa RO Site 
+PROGRAM
+
+As long as either ~~fs-one~/~ or ~~fs-two~/~ is available, access to data in the
+volume will succeed. We can use a ~~bos~/~ command to shut down the servers
+on ~~fs-one~/~ (the command is described in more detail in Chapter 9). Once
+~~fs-one~/~ is not running any AFS server processes, reading from the
+directory might produce a fail over event.
+
+PROGRAM DONE
+	$ <B>ls /afs</B>
+        tmp
+PROGRAM
+
+Of course, since we just read and cached the directory data in the
+previous example, it is still available. Using cached data may not seem
+like a fail over scenario, but it is a valuable mechanism by which a client
+is able to continue working without worrying about servers, disks, and
+networks.
+
+If some other user were to change the contents of this directory, our
+client would be called back and told that the cached data was out of date.
+But we can also force the data to be flushed from our cache with an ~~fs~/~ 
+subcommand. The next listing of the directory will then have to be 
+directed to an available server.
+
+PROGRAM DONE
+	$ <B>fs flush /afs</B>
+	$ <B>ls /afs</B>
+	afs: Lost contact with file server 192.168.3.21 in cell hq.firm (all multi-homed ip addresses down for the server)
+	tmp
+PROGRAM
+
+Once the cache is flushed, the next read request takes some time to return. During this 
+time, the client's kernel was waiting for a response from ~~fs-one~/~; after 
+about one minute, the request timed out, and the client then checked to 
+see if the volume's data was available from any other server. As the volume 
+is known to have read-only copies on ~~fs-one~/~ and ~~fs-two~/~, the client requested 
+the same data from ~~fs-two~/~. Though a somewhat forbidding message is printed on the terminal note that the list directory command has returned successfully. (As you can see, the client actually tried to 
+access any other network interfaces available on the server; multihomed 
+servers are described in Chapter 9).
+
+Now that the client knows that ~~fs-one~/~ is unavailable, it does not request
+any other read-only volumes' data from that server but sends further requests to other sites. 
+Later, when contact with ~~fs-one~/~ is reestablished, 
+the client records this fact and uses ~~fs-one~/~ as needed. 
+
+This fail over works well for replicated data. Nonreplicated data,
+such as a user's home directory, is subject to the availability of
+the single server in which the data is stored. Here, the ~~/afs/tmp/sample~/~ 
+directory is based on a nonreplicated volume, ~~sample.vol~/~. With
+the sole server down, there's no way at this point to retrieve the data.
+
+PROGRAM DONE
+	$ <B>ls /afs/tmp/sample</B>
+	afs: Lost contact with file server 192.168.5.22 in cell hq.firm (all multi-homed ip addresses down for the server)
+	/afs/tmp: Connection timed out
+PROGRAM
+
+The "Connection timed out" message indicates a serious error with the 
+client reading or writing data to AFS. 
+
+In general, the best practice is to replicate a volume as much as possible.
+Unfortunately, replication is limited to 11 copies for any
+read-write master. This is not a terrible inconvenience because a single 
+read-only copy should be able to support several hundred clients (thanks to
+aggressive client caching). So, 11 replicas should support many thousand
+clients without even beginning to burden a cell with overloaded
+servers. If, however, because of network topologies or other concerns, particularly
+large cells need more than 11 read-only volumes, you can
+use a simple administrative hack of manually copying the
+master read-write data into multiple slave read-writes; each of the slave
+read-writes could then have its own 11 replicas.
+
+To save storage space, an important optimization is performed for a read-only
+replica registered for the same server and partition as the read-write master.
+In this case, the co-located replica will be implemented via a clone volume, similar
+to a backup volume. This particular replica will therefore take up 
+practically no space. This is the conventional practice for read-only volumes: the 
+first registered replica is at the same site as the master; the others, full
+copies of the read-write volume data, are scattered around other file servers 
+as dictated by the client workstation access patterns.
+
+Volume replication also provides some measure of transaction control. When a volume
+is released to several replication sites, each site will either wind up
+with completely consistent data for the new volume or it will have the
+previous version of the volume. (Unfortunately, there's no transactional
+guarantee that all of the replicas will be updated or rolled back to the 
+previous version.) 
+
+When replication begins, the volume location database
+marks each read-only version of the volume as being the
+"Old Release"; the read-write version is set to "New Release," because it holds
+the version of the volume data which will be copied to all the read-only volumes.
+
+A temporary clone of the read-write volume is then made (similar to the
+temporary clone used during the ~~vos move~/~ operation) and this release
+clone is then distributed to all read-only volume sites. As each read-only
+is updated successfully, it is marked as having the "New Release."
+
+When all of the read-only sites have successfully completed the release
+and all have the "New Release" flag set, then all flags are cleared.
+Therefore, no release flags
+are normally seen when the volume location database is examined. But if errors occur during the volume release operation,
+you should check on the success of the release with ~~vos examine~/~.
+
+PROGRAM DONE
+	$ <B>vos release root.afs</B>
+	Failed to start a transaction on the RO volume 3
+	Possible communication failure
+	The volume 536870912 could not be released to the following 1 sites:
+                           	fs-two /vicepa
+	VOLSER: release could not be completed
+	Error in vos release command. VOLSER: release could not be completed
+	$ <B>vos listvldb root.afs</B>
+	root.afs 
+    	    RWrite: 536870912     ROnly: 536870913     RClone: 536870913 
+    	    number of sites -> 3
+               server fs-one partition /vicepa RW Site  -- New release
+               server fs-one partition /vicepa RO Site  -- New release
+               server fs-two partition /vicepa RO Site  -- Old release
+PROGRAM
+
+In this example, the ~~fileserver~/~ process on ~~fs-two~/~ was temporarily
+stopped during the replication to simulate a crash.  Note the results in the site definition 
+block, the line-by-line detail for each version of the volume in the 
+cell. Following some of the lines, the words "New release" or "Old release" 
+indicate that the release operation failed at some point and that 
+certain servers have the new version of the volume and other servers the previous version.
+
+The usual reasons for partially completed replication are server failure,
+network failure, corrupt disk partitions, or AFS server process failures. 
+You must use other techniques to determine which problem caused
+the failure: ~~bos status~/~ to see if the servers are available, ~~ping~/~ to
+check the network connectivity, etc.  Once fixed, a subsequent ~~vos release~/~ 
+will update the replica sites that failed previously. When no
+"New release" or "Old release" flags are set in the volume location database,
+you can be assured that all read-only volumes contain the exact same
+set of files.
+
+Note that AFS replication does not solve all replication needs.
+Read-write volumes, whether they're masters for read-only copies or just
+users' home volumes, have no built-in data mirroring of their own. It might
+be wise to store read-write volumes on RAID or other highly reliable storage
+for increased availability.
+
+SECTION: CLIENT PATH PREFERENCES
+
+In a conventional AFS namespace, clients will exhibit a built-in prejudice
+to retrieve file data from any available read-only volumes. When given the 
+option of fetching a file from the read-write master or any one of several 
+read-only replicas, clients will generally choose to read from a replica.
+
+This built-in bias makes sense because when reading data, a client would like
+to hedge its bets, so that if the current volume becomes inaccessible, it
+will have no problem asking any other available replica for data. Servers,
+too, understand that files in read-only volumes change less frequently than
+other files and, rather than establish callback guarantees on a file-by-file
+basis, the server establishes a callback for the read-only volume as a
+whole. Then, when the read-write master is released to the replicas, any client
+that has cached a file from a replica will get a short message from the server saying that
+the cached copy is invalid. This technique dramatically shortens the list of files
+that a server needs to track.
+
+This read-only path preference depends on the exact layout of your AFS namespace.
+For the moment, let's assume that the prejudice for retrieving file data from read-only volumes is attempted
+every time a client encounters a new volume in the AFS namespace. After 
+reaching a volume connection at some directory name, a client requests the
+locations for the read-write and any read-only volumes. If any read-only volumes
+are listed, the client will read the file data from one of them.
+
+By convention, every AFS cell has a volume named ~~root.afs~/~ connected to ~~/afs~/~; ours
+was created during the set up of our cell. Invariably, administrators will
+want to replicate this volume. Right from the start, a client will be
+reading data from one of the read-only volumes of ~~root.afs~/~. In our simple file tree described
+previously, the next connection point encountered, ~~/afs/tmp/sample~/~, pointed to
+a volume with no read-only replicas, so files had to be read from the 
+read-write. Because this is a read-write volume, we have been able to write
+data into the directory.
+
+A subtle but important aspect of the namespace has been glossed
+over here. Because of the bias toward getting data from read-only
+volumes, an AFS client when changing directory to ~~/afs/tmp~/~, will be in a
+read-only portion of the namespace. How then was the connection to the
+volume ~~sample.vol~/~ made at ~~/afs/tmp/sample~/~? Any writes, including making
+volume connections, should have returned a permission-denied error.
+
+The answer is obviously that the volume connection had to be created in the read-write version of the ~~root.afs~/~ volume. During the
+initial set up of the cell, there were no read-only volumes, so the connection could
+have been done at that time. And, in fact, this scenario describes how the original cell's
+volumes are connected during installation. The ~~root.afs~/~ volume is
+replicated only after the first few volumes are set up.
+
+But once a volume is replicated, a client will get data from the read-only.
+The question is now, how are subsequent changes made to the topmost volume? One
+answer is to simply make a new volume connection in some writeable directory
+and to specify the ~~-rw~/~ option to force clients to read and write data 
+from the read-write volume.
+
+PROGRAM DONE
+	$ <B>cd /afs/tmp/sample</B>
+	$ <B>fs mkm root-afs  root.afs  -rw</B>
+	$ <B>fs lsmount root-afs</B>
+	'root-afs' is a mount point for '%root.afs'
+PROGRAM
+
+Here, we've made an explicit read-write volume connection in a writeable
+directory by using the ~~-rw~/~ option to the ~~fs mkm~/~ command. The ~~lsmount~/~ command output isn't too verbose about this fact:
+read-write connections are denoted by the prefix ~~%~/~ in the output, whereas
+general mount points, as default connections are formally called, have the prefix ~~#~/~. 
+This is a simple idiom to read but tedious to automate. Someday, Transarc 
+may supply more informative output or, even better, appropriate command return codes. 
+For now, though, we're stuck with parsing the character string of the command output.
+After the connection is verified, we can change into this new directory and
+write a new file into the read-write master volume. 
+
+PROGRAM DONE
+	$ <B>cd root-afs</B>
+	$ <B>date > newFile</B>
+	$ <B>ls</B>
+	newFile  tmp
+	$ <B>ls /afs</B>
+	tmp
+PROGRAM
+
+As the two directory listings show, while the read-write volume contains
+the new file data, the read-only copies of ~~root.afs~/~ don't yet have the new 
+data - read-only volumes are physically separate copies of read-write. 
+This behavior allows an administrator to test changes to the read-write master before 
+releasing the new version of the volume to the world. 
+
+PROGRAM DONE
+	$ <B>vos release root.afs</B>
+	Released volume root.afs successfully
+	$ <B>ls /afs</B>
+	newFile  tmp
+PROGRAM
+
+When the volume is 
+released, the changes are copied over to each read-only replica; clients 
+that have previously retrieved data from the volume are called back and 
+told that their data is out of date. The next time they go to read that data, 
+as in the final directory listing in the example above, the latest 
+version of the volume's data is retrieved.
+
+Now we have two techniques for making changes to data in read-only,
+replicated volumes. The first technique works only before a volume is ever
+replicated. The second technique always works, but takes some additional
+administrative steps to do right. To finish the example, the explicit
+read-write connection would be removed after the administrative operation
+is complete. Alternatively, you could simply follow every general 
+volume connection command with an explicit read-write connection
+somewhere else in the namespace and leave it there for long-term
+administration.
+
+In day-to-day usage, most administrators will use a third technique to make
+changes to replicated volumes: manipulating the built-in bias an AFS client
+has for getting data from either the read-write or a read-only volume. As
+any AFS client traverses a given path name, each directory element is
+examined; at each level, the client must choose whether to retrieve underlying
+data from one of the multiple read-only volumes or from the single read-write
+volume. Whenever a client is faced with a choice, the client will retrieve
+data from either of these types of volumes depending on the current bias.
+
+The rules are simple and sensible: clients begin by desiring to retrieve
+all data from read-only volumes, if available, because these volumes are known 
+to be replicated and therefore highly available.
+
+This read-only bias remains valid until the examination of the path turns up
+a volume that is not replicated. Once a directory level that
+has no read-only volume supporting it is crossed, the client bias is switched. If any
+further directories are entered, the data is retrieved from the read-write master no matter how much the volume is replicated.
+
+In the normal course of events, the ~~root.afs~/~ volume attached to ~~/afs~/~ will be
+replicated, as will several of the subdirectories. Therefore, as any new
+volume connection is traversed, as long as the volume is replicated,
+data is retrieved from one of the available read-only volumes.
+
+In the example above, therefore there was no need to add the option ~~-rw~/~ to
+the volume connection command; it could simply have been:
+
+PROGRAM DONE
+	$ <B>fs mkm /afs/tmp/sample/root-afs  root.afs</B>
+	$ <B>fs lsmount root-afs</B>
+	'root-afs' is a mount point for '#root.afs'
+	$ <B>rm /afs/tmp/sample/root-afs/newFile</B>
+PROGRAM
+
+In Figure 4-3, the path name ~~/afs/tmp/sample/root-afs~/~ is analyzed element
+by element, and the bias at each level is described. At the top, a client
+begins by looking for read-only replicas, and the volume under ~~/afs~/~, ~~root.afs~/~,
+has replicas available. So, when fetching the directory contents, the
+data is directed to any of the available replicas, with a fail over
+if necessary.
+
+[[Figure 4-3: Path Preferences: ~~/afs/tmp/sample/root-afs~/~]]
+
+The ~~/afs/tmp~/~ path is not a mount point but a simple directory still in
+the ~~root.afs~/~ volume; its contents are fetched from one of the
+replicas as well. Because this directory level is fetched from a read-only
+volume, no new files or directories can be created under this path name.
+
+The next path element, ~~/afs/tmp/sample~/~, is supported by an unreplicated
+volume, ~~sample.vol~/~. Because no read-only versions are available, the
+client must fetch the data from the read-write. This data is cached just 
+as all data fetched from AFS is cached. But now, the client knows, so to 
+speak, that it is reading data from a more vulnerable area of the file system,
+an area not backed up by multiple replicas. So, for the
+remainder of the path, all data fetches will go to each volume's read-write
+master. This is called a <I>read-write path</I>: any path names under this will
+implicitly refer to data in read-write volumes.  Underneath ~~/afs/tmp/sample~/~, the ~~/afs/tmp/sample/root-afs~/~ directory points to the replicated ~~root.afs~/~ 
+volume but because we are now on a read-write path, we will fetch its contents 
+from the read-write version of the volume.
+
+We can use the ~~fs examine~/~ command to find out which volume is being
+accessed at any AFS path. The command allows us to easily demonstrate which
+elements of the path shown above are in read-only versus read-write paths.
+
+PROGRAM DONE
+	$ <B>fs examine /afs</B>
+	Volume status for vid = 536870913 named root.afs.readonly
+	$ <B>fs examine /afs/tmp</B>
+	Volume status for vid = 536870913 named root.afs.readonly
+	$ <B>fs examine /afs/tmp/sample</B>
+	Volume status for vid = 536870943 named sample.vol
+	$ <B>fs examine /afs/tmp/sample/root-afs</B>
+	Volume status for vid = 536870912 named root.afs
+PROGRAM
+
+Administrators must be aware of which files are on read-write paths and
+which will access the read-only replicas. While maintaining this mapping appears to be a burden,
+it is easy to layout top-level directories to help out. The simplest mechanism
+is to create the following volume connection.
+
+PROGRAM DONE
+	$ <B>fs mkm /afs/.rw root.afs  -rw</B>
+	$ <B>vos release root.afs</B>
+	$ <B>ls /afs</B>
+	tmp/
+	$ <B>ls /afs/.rw</B>
+	tmp/
+PROGRAM
+
+Both ~~/afs~/~ and ~~/afs/.rw~/~ are connections to the same volume, ~~root.afs~/~. 
+The former is a general connection, which means it will use a read-only volume if 
+available, whereas the latter is a hardcoded read-write path. This scheme ensures 
+that a read-write path will always be available to any volume anywhere in the
+tree. Access to ~~/afs/.rw~/~ will permit reading or writing data to the 
+~~root.afs~/~ master volume.
+
+In Figure 4-4, the path ~~/afs/.rw/tmp/sample~/~ is analyzed.
+
+[[Figure 4-4: Path Preferences: ~~/afs/.rw/tmp/sample~/~]]
+
+Here, the ~~/afs~/~ directory entries are retrieved from a read-only as before. But 
+the next element, ~~/afs/.rw~/~, is an explicit mount point to the read-write
+version of a volume. As such, even though this volume is replicated,
+the contents of the directory are fetched from the read-write master.
+And from now on, we're on a read-write path: each path element will
+be fetched from the read-write master volume that is storing its data. 
+
+When we reach ~~/afs/.rw/tmp~/~, the directory contents will be fetched from the 
+read-write version of its volume, ~~root.afs~/~. In the previous figure, the
+~~/afs/tmp~/~ directory was still located on a read-only path; with the
+use of the explicit read-write mount point at ~~/afs/.rw~/~, we're able
+to switch a client over from read-only to read-write bias.  Since ~~/afs/.rw/tmp~/~
+is on a read-write path, files or directories may be created here
+(as long as other file permissions permit).
+
+Again, the ~~fs examine~/~ command confirms this bias.
+
+PROGRAM DONE
+	$ <B>fs examine /afs</B>
+	Volume status for vid = 536870913 named root.afs.readonly
+	$ <B>fs examine /afs/.rw</B>
+	Volume status for vid = 536870912 named root.afs
+	$ <B>fs examine /afs/.rw/tmp</B>
+	Volume status for vid = 536870912 named root.afs
+PROGRAM
+
+No more examples are needed because path preferences do not keep
+switching back and forth. The only rule is that clients start off
+preferring to fetch data from read-only volumes. Once the client encounters
+either an explicit read-write volume connection or a volume that
+has only a read-write existence, then the client will prefer to fetch
+data from the read-write volume no matter how many replicas may be available.
+Once a client switches to a read-write preference, there's no way to switch back
+to a read-only preference - there's no such thing as an explicit read-only
+mount point.
+
+To check your understanding, think about what would happen
+if the ~~root.afs~/~ volume were not replicated. In that case, ~~/afs~/~ would
+have to be resolved by the read-write version because no
+read-only volumes are available. But this puts us on a read-write path immediately.
+This bias means that every AFS path name will cause data to be fetched
+from its read-write volume even if all other volumes are replicated. Once
+you are on a read-write path, it is difficult to get off. When designing your
+cell's path names and supporting volumes, make sure that
+any connection made to a replicated volume will be accessible via a
+path composed of general mount points, each of which points to a replicated volume. 
+And this includes the topmost volume, ~~root.afs~/~.
+
+Don't forget: the description of a path or volume as read-only or read-write refers
+only to the volume access itself. Final permissions depend on the user's
+authentication credentials and the access control list associated with a
+given directory. Through a reasonable use of access controls, only
+administration staff will be able to actually write or remove files from the
+topmost areas of the AFS namespace.
+
+You may be wondering if there's a potential problem with two connections
+to the same volume: both ~~/afs~/~ and ~~/afs/.rw~/~ are pointing to ~~root.afs~/~.
+Multiple mount points don't present a problem for AFS. Each path in the AFS
+namespace is supported by a single volume. Additional paths to the same
+volume simply provide multiple names for the same data.  No matter
+which path is given, the client will use the same file identification number
+to access a file or directory. The only problem is in keeping straight
+a mental picture of the file namespace. The more paths with different
+names that lead to the same set of data, the more confusing will
+access become. This is even more of a problem when circularities
+exist in the path names, that is, when child directories contain connections to
+volumes higher up in their path. Again, AFS is being asked for
+file data only one directory element at a time, so it will never be confused.
+Humans, on the other hand, can quickly grow dizzy with such connections.
+
+The ~~/afs/.rw~/~ connection is just such a circularity, but owing to its
+top-level location and well-known purpose - providing a clearly read-write
+path to the entire AFS namespace - it is sufficiently self-explanatory.
+A few conventions such as this will make administration easier by
+reducing other arbitrary and poorly communicated practices.
+
+Once some simple conventions are in place for naming paths and volumes,
+using the file system quickly becomes second nature. Until then, if
+you encounter a permission-denied error when writing to a seemingly
+accessible directory or, conversely, when permitted to write to what should
+be a read-only area, consider examining the full path name of the given
+directory. Only when each path name element is supported with a replicated
+volume will the last directory refer to read-only storage.
+
+The proliferation of volumes can lead to several simple errors. After adding a new 
+volume connection to a replicated area of your cell, you might replicate and release 
+the new volume but forget to re-release the parent volume, that is, re-release the 
+volume that is storing the new volume connection. AFS has no built-in 
+understanding of which volumes contain connections or mounts to a given volume. 
+We may refer to a parent volume but only you will know which volumes need to be 
+released when connections to new volumes are added.
+
+Other times, when several new third-party software packages have been added,
+many volumes will need to be released. When you're in a hurry, it's easy to forget
+to release all the changes. When you don't see what you expect to see in any
+given volume, take a step back and make an explicit check with the data in the 
+master volumes, by carefully examining the read-write path. In AFS, you can
+depend on the fact that all clients see the exact same file data and path names
+all the time; but all the data and paths in the read-write area will always be
+completely consistent, whereas certain replicated volumes may be released while
+others may not be. If you are confused by apparent discrepancies, make sure all 
+the master read-write volumes have the correct data and then release all of the
+associated read-only volumes.
+
+A common question is whether it is possible to replicate a user's home
+directory volume. Given that any volume can be replicated, the fundamental
+answer is yes. But because a user's files are usually being written
+quite often (e.g., when reading and writing mail), ~~vos release~/~
+operations would have to be performed often just to keep the replica volume
+up to date. And with the built-in client prejudice for getting data from the
+read-only version of a volume, a user's home volume would have to be connected
+to its path name with the read-write flag. With a large number of users 
+operating in a cell, all of this specialized administration may be too great a burden. 
+However, when certain volumes are especially important,
+there is no reason not to replicate them. Imagine a volume to which critical
+data is being written. There is no facility in AFS for mirroring writes to
+remote disks. Read-only volumes placed at a few locations around an
+enterprise with releases happening once an hour, for example, could provide a
+useful safety net. It might be wise, for instance, to provide such on-line
+archives for home directories of senior managers and other friends. During certain 
+outages, you could 
+restore the data from the read-only much more quickly than recovering it from
+tape.
+
+SECTION: CONVENTIONAL NAMESPACES
+
+Figure 4-5 illustrates a typical cell of the AFS namespace and shows how the volumes
+that store the data are conventionally connected. In this section, we'll perform
+administration on our example cell to bring it in line with these practices.
+(The rest of the cell, volume, and directory examples in this book will use 
+this conventional namespace rather than the somewhat contrived paths we've seen 
+so far.)
+
+[[Figure 4-5: Top-Level Namespace Showing Volume Connections]]
+
+The root of the AFS namespace is at the directory ~~/afs~/~ which is connected 
+to the volume ~~root.afs~/~. When we look at client
+administration in more detail, we'll see that there is no explicit ~~fs mkm~/~
+command which makes this connection; rather, it is the AFS client daemon
+itself which has this linkage hardcoded. And this root volume connection 
+is predefined to be a general mount point, which means that the current
+client prejudices for read-only or read-write access apply. Because there
+are ~~root.afs.readonly~/~ replicas available and we've not yet encountered 
+a read-write mount point, read-only access is the bias.
+
+The next directory level of a typical namespace consists of connections to the
+local cell, other cells in the enterprise, and cells at other organizations.
+Perhaps because of the file system's origins in the academic world and the
+generally free information flow in the Internet community, it is common to
+connect to many other sites and to publicize your own site to others.
+But this is only suggested practice; many sites connect only to their local
+cell or cells. In this cell, our hypothetical organization, HQ, Inc., will store
+its file data underneath the directory ~~/afs/hq.firm~/~ which is a mount point
+to the local volume ~~root.cell~/~; the directory ~~/afs/transarc.com~/~ will
+connect to the volume ~~root.cell~/~ at Transarc's cell.
+
+Indeed, the directories under ~~/afs~/~ will invariably be connections only
+to volumes named ~~root.cell~/~, one of which will belong to the local cell,
+with the others belonging to remote cells. The existence of a volume named
+~~root.cell~/~ at all cells, under which the rest of a site's files and directories
+are located, is an important convention of the AFS namespace. (Indeed, the 
+Transarc documentation claims that this name is required.)
+
+We'll clean up our top-level by creating our own cell's standard ~~root.cell~/~
+volume and connecting it underneath ~~/afs~/~. To make the connection, we'll
+of course, need to use a read-write path to ensure that we can write into
+the ~~root.afs~/~ volume.
+
+PROGRAM DONE
+	$ <B>cd /afs/.rw</B>
+	$ <B>vos create fs-one a root.cell</B>
+        Volume 536870918 created on partition /vicepa of fs-one
+	$ <B>fs mkm hq.firm root.cell</B>
+	$ <B>ls</B>
+	hq.firm     tmp
+PROGRAM
+
+We'll also get rid of the subdirectories in ~~tmp~/~ by using the ~~fs rmmount~/~ 
+command to remove the connection between the directory names and their volumes.
+Then we'll check that all we can see is the single connection to our local cell
+and release these changes to the ~~root.afs~/~ replicas.
+
+PROGRAM
+	$ <B>fs rmmount tmp/sample</B>
+	$ <B>fs rmmount tmp/sample.bak</B>
+	$ <B>rmdir tmp</B>
+	$ <B>vos release root.afs</B>
+	$ <B>ls /afs</B>
+	hq.firm
+PROGRAM
+
+While performing this administration, notice how easy it is to effect changes 
+to the enterprisewide distributed file system. By using the read-write path,
+administrators can clean up, restructure, or fix other problems in the read-write 
+volume, examine the changes, and then release them to all users in one operation. 
+And these administrative operations can be performed on any client of our cell
+because all clients see the same namespace including any read-write paths.
+
+Up to now, we've used the directory ~~/afs/.rw~/~ as the well-known entry-point
+to an obviously read-write path. But the usual AFS convention is to create a 
+read-write path named after the local cell with a ~~.~/~ prefix. We can easily
+change our namespace to follow this practice, check the new paths, and then
+release the improvements.
+
+PROGRAM
+	$ <B>cd /afs/.rw</B>
+	$ <B>fs mkm .hq.firm root.cell -rw</B>
+	$ <B>fs rmm .rw</B>
+	$ <B>ls -a</B>
+	.hq.firm    hq.firm
+	$ <B>fs lsmount .hq.firm</B>
+	'.hq.firm' is a mount point for '%root.cell'
+	$ <B>fs lsmount hq.firm</B>
+	'hq.firm' is a mount point for '#root.cell'
+	$ <B>vos release root.afs</B>
+	$ <B>ls -a /afs</B>
+	.hq.firm    hq.firm
+PROGRAM
+
+We're now left with just two connections to our local cell: a regular mount point
+~~/afs/hq.firm~/~ offering reliable access to replicated data (once
+we have created replicas for ~~root.cell~/~) and a strictly 
+read-write mount point ~~/afs/.hq.firm~/~to provide a consistent path to all master volumes.
+
+In our tidied-up namespace, underneath ~~/afs/hq.firm~/~ we will install three
+main subtrees, ~~system~/~, ~~tmp~/~, and ~~user~/~, which are connected 
+to the volumes ~~cell.sys~/~, ~~cell.tmp~/~, and ~~cell.user~/~ 
+respectively. These three volumes will undoubtedly be replicated as much as are 
+~~root.afs~/~ and ~~root.cell~/~, to ensure the most reliable access to a 
+cell's namespace. The ~~system~/~ subtree is a place to store binaries for 
+hardware vendor's operating system releases. The ~~tmp~/~ directory will
+be used for random administration and ~~user~/~ will be used to collect 
+our organization's home directories.
+
+While so far each directory level in our conventional namespace has its own volume
+connection, this is not necessary at all: these three
+path names could be simple directories in the ~~root.cell~/~ volume. One reason 
+against making these directories is that changes to the topmost levels of the 
+namespace are somewhat rare, whereas changes to the tmp and user (and lower) 
+levels will occur frequently. As making changes requires editing a volume's 
+contents and releasing the changes, most administrators would rather work in 
+smaller and more discrete volumes to limit the time needed to propagate the 
+changes and to reduce any potential problems. Thus, the upper levels of 
+the ~~/afs~/~ namespace usually represent small and individual volumes, and 
+the lower levels, such as user homes or application development areas, are leaf
+volumes containing several dozen megabytes or more of files and directories. 
+
+First, we'll create the necessary second-level volumes.
+
+PROGRAM DONE
+	$ <B>vos create fs-one a cell.user</B>
+	Volume 536870954 created on partition /vicepa of fs-one
+	$ <B>vos create fs-one a cell.tmp</B>
+	Volume 536870957 created on partition /vicepa of fs-one
+	$ <B>vos create fs-one a cell.sys</B>  
+	Volume 536870960 created on partition /vicepa of fs-one
+PROGRAM
+
+Then, we'll add volume connections to them underneath our
+local cell. As you see, we use the ~~/afs/.hq.firm~/~ path to make sure
+we are writing into the read-write version of the ~~root.cell~/~ volume.
+
+PROGRAM DONE
+	$ <B>fs mkm /afs/.hq.firm/user cell.user</B>
+	$ <B>fs mkm /afs/.hq.firm/tmp cell.tmp</B>
+	$ <B>fs mkm /afs/.hq.firm/system cell.sys</B>    
+PROGRAM
+
+Finally, we'll add replication sites for our local cell's top volume
+and release to the world the changes just made. Client machines are
+guaranteed to be called back when changes are released to read-only
+volumes, so we can immediately see the new version of ~~/afs/hq.firm~/~
+on every client in the cell:
+
+PROGRAM DONE
+	$ <B>vos addsite fs-one a root.cell</B>
+	Added replication site fs-one /vicepa for volume root.cell
+	$ <B>vos addsite fs-two a root.cell</B>  
+	Added replication site fs-two /vicepa for volume root.cell
+	$ <B>vos release root.cell</B>          
+	Released volume root.cell successfully
+	$ <B>ls /afs/hq.firm</B>
+	tmp  sys    user
+PROGRAM
+
+As soon as any significant data is added to the ~~system~/~, ~~tmp~/~, or ~~user~/~
+directories, those volumes should be replicated and released just like the
+~~root.cell~/~ volume. Usually, your cell's most important
+top-level volumes will be replicated across the same set of servers. It's easy
+to pick one file server, perhaps the first one installed, as the master
+server, on which the read-write copies of volumes are stored, and then
+replicate the volumes to all of the other file servers in the cell.
+While we don't show the individual steps here, you can assume that 
+the ~~cell.sys~/~, ~~cell.tmp~/~, and ~~cell.user~/~ volumes are similarly
+replicated.
+
+When individual user volumes need to be constructed, similar operations are
+required, except that replication of home directories is usually not
+performed. Many more details, such as authentication and ownership,
+are also important, but as far as the volume management goes, the steps are:
+
+PROGRAM DONE
+	$ <B>vos create fs-one b user.zed</B>
+	Volume 536870964 created on partition /vicepb of fs-one
+	$ <B>fs mkm /afs/.hq.firm/user/zed user.zed</B>
+	$ <B>vos release cell.user</B>
+	Released volume cell.user successfully
+	$ <B>ls /afs/hq.firm/user</B>
+	zed
+PROGRAM
+
+See Figure 4-6 for a visual depiction of this cell layout.
+
+[[Figure 4-6: The Local Namespace and Volume Connections]]
+
+This arrangement of names, volumes, and replication allows us to have a highly available and efficient file storage system with relatively 
+inexpensive hardware. Given several AFS file servers, we can easily 
+replicate the read-only volumes onto all of the servers for the highest 
+reliability. Individuals' home volumes can be added anywhere space
+is available and moved around as needs dictate without burdensome administration or interruption
+to users.
+
+Additionally, some of the servers could be arranged so that only read-only 
+volumes are stored there. If a server contains only data that is replicated 
+elsewhere, there is no need for it to be built with expensive RAID disk 
+subsystems or clustered hardware technology. The requirement 
+for reliable data availability is handled transparently by the AFS client; 
+each client knows where all of a replica's available read-only volumes are stored and will 
+fail over on their own from non-answering servers to other servers. The capital 
+overhead and administrative costs of hardware-based solutions can be 
+concentrated on the servers that house the read-write volumes.
+
+Now that our local cell looks correct, we'll add in a connection to a remote
+cell. Making intercell connections is very simple. First,
+make sure that a client has the foreign cell's database servers listed in
+its file ~~/usr/vice/etc/CellServDB~/~. All access to AFS 
+file data must first be resolved by discovering a volume's location through
+a query to a cell's database server; the ~~CellServDB~/~ file lists the 
+database servers for each cell to which you desire to communicate. The 
+connections to the remote cell are conventionally made just underneath ~~/afs~/~
+and right next to our own local cell all within the ~~root.afs~/~ volume.
+
+You may notice that we no longer have read-write access to this volume in our 
+cell, but we can easily make a temporary mount to perform the administration.
+Note that here, we're using a read-write path to place us in a guaranteed 
+writeable area of the ~~root.afs~/~ volume. Once there, we create our 
+intercell mount point.
+
+PROGRAM DONE
+	$ <B>fs mkm /afs/.hq.firm/tmp/root-afs root.afs</B>
+	$ <B>cd /afs/.hq.firm/tmp/root-afs</B>
+	$ <B>fs mkm transarc.com root.cell -cell transarc.com</B>
+	$ <B>fs lsmount transarc.com</B>
+	'transarc.com' is a mount point for 'transarc.com#root.cell'
+PROGRAM
+
+All that is added to the regular ~~fs mkm~/~ command is the cell name. Again,
+the ~~lsmount~/~ output must be visually parsed to determine that we have an 
+intercell general mount point: a ~~#~/~ character delimits
+the volume and cell name. The temporary read-write mount is removed,
+changes are then released to all read-only copies, and access to Transarc's 
+cell is available. Our cell's namespace now looks like that in Figure 4-5.
+
+PROGRAM DONE
+	$ <B>cd /afs</B>
+	$ <B>fm rmm /afs/hq.firm/tmp/root-afs-rw</B>
+	$ <B>vos release root.afs</B>
+	$ <B>ls /afs</B>
+	hq.firm      transarc.com
+PROGRAM
+
+You might note that no one asked Transarc for permission to access their file tree. 
+No permission is needed because Transarc's AFS files are completely protected by
+the Kerberos mutual authentication protocol. It is understood that Transarc can
+reject access to any user, at any directory level of their tree, and they may 
+well have done that at the top of the ~~root.cell~/~ volume. The 
+connection point does not guarantee that any data requests will be authorized, 
+only that a local AFS client will be able to look up the relevant servers
+(via the ~~CellServDB~/~ database) and ask for data.
+
+With the connection to Transarc, accesses to ~~/afs/transarc.com~/~ will 
+request data from the volume location servers at that site and from there 
+request file data from the file servers. Because Transarc permits a certain 
+amount of public access, we're then able to see some directories and files 
+from across the Internet. We don't need to perform any additional connections 
+to Transarc's volume data; their administrators have already stored those 
+connections in their ~~root.cell~/~ volume. When our desktop machine reads 
+that remote directory data, it will see the volume mount points and show 
+them to us as subdirectories.
+
+PROGRAM DONE
+	$ <B>ls /afs/transarc.com</B>
+	group  home  public  sys
+PROGRAM
+
+This seemingly open access to other people's cells is remarkable for two
+reasons. First, the internal transport protocol used by AFS has been
+specifically designed to work well on wide-area networks to the point that
+accessing files on the
+Internet from across the country or even around the world becomes a commonplace activity. Granted, file retrieval times
+depends on just how well connected a site is, but the protocol is efficient
+and (mostly) successful. The list of organizations, companies, universities, 
+and government institutions which participate in this namespace is quite 
+long.
+
+The second point to be made about this open availability is that it is
+subject to the strict access controls obeyed by AFS. With the strong
+authentication guarantees of the Kerberos system, file access can be
+permitted or denied with complete confidence. In fact, if a site purchases a
+source license to the AFS system, once the source is installed, symbolic links
+point from the purchaser's copy back into Transarc's home cell and
+namespace, enabling the purchaser to obtain source updates via the wide-area
+file system itself. And the only access control is that provided by Transarc's 
+own AFS Kerberos implementation, an amazing example of having faith in
+your product.
+
+Of course, your cell's ~~root.afs~/~ and the connections to other cells which it 
+contains are under your complete control. No two cells are likely to have 
+exactly the same connections underneath ~~/afs~/~.  You may choose to include 
+connections to as many or few remote cells as you see fit. Once your cell is 
+stable, you can mail the appropriate stanza of your ~~CellServDB~/~ file to the 
+~~info-afs~/~ mailing list. From there, many sites will see the data and connect 
+your cell's ~~root.cell~/~ volume into their tree. At the same time, Transarc will 
+collect and make available the cumulative set of ~~CellServDB~/~ entries. 
+
+If you've made your cell visible to the outside world, it is difficult to
+make it invisible. Although AFS access controls are an effective and extremely 
+strong mechanism to thwart unauthorized access to data, once a cell's database 
+servers are known to others, they will at least be able to access public areas 
+of your cell. Moving the servers to new IP addresses or denying access to the 
+AFS IP ports with a firewall is the only effective way to be sure of cutting 
+off all outsiders. 
+
+If you have multiple cells in your own organization, you must follow a similar publishing
+practice and add connections to the ~~root.cell~/~ volumes of the other
+cells to each cell's ~~root.afs~/~ volume. Each client will need to have
+complete entries for all cells in their ~~CellServDB~/~ file for the lookups
+to these intercell mount points to succeed. The use of the static ~~CellServDB~/~ 
+file makes client administration cumbersome when adding remote cell access, but 
+until recently there has been no generally recognized solution to global directory 
+services. At the least, all that must be updated are the few database servers in 
+a cell, and these rarely change. 
+
+Let's take a closer look at how the intercell and local cell connections are
+resolved. Note that our local cell's entry point, ~~/afs/hq.firm~/~, was not 
+created with a ~~-cell~/~ argument. Just as a UNIX workstation has well-known 
+disk mount points under which all files are internally known only by
+their inode number, so too in AFS, a volume connection point is dereferenced
+with respect to the current cell. The topmost volume, ~~root.afs~/~, is searched
+for in the local cell as determined by the value contained in the file
+~~/usr/afs/etc/ThisCell~/~. All non-intercell connections under ~~/afs~/~ will be
+assumed to reside in this local cell. When the path name ~~/afs/transarc.com~/~ 
+is traversed, it is easily identified as belonging to a remote cell, so that 
+~~root.cell~/~ volume will be searched for in Transarc's cell; any further volumes 
+encountered in that subtree will then be assumed to be in that cell until 
+another intercell connection is crossed.
+
+One last point: traversing intercell connections can reset client preferences 
+back to read-only paths. Normally, a client's preference for read-only data starts 
+from the (usually replicated) ~~/afs~/~ path; this can switch to a read-write 
+bias when a read-write mount or a non-replicated volume is encountered and from
+then on the client will alway prefer to read or write any more data on the path
+to the master volumes. But when crossing over from one cell
+to another, a client will check the mount point for replicated volumes and if
+any are available, as there would be for Transarc's ~~root.cell~/~ volume, the
+client will return to it's read-only bias.
+
+
+SECTION: DELETING VOLUMES
+
+Now that we've considered how to create an AFS file system by connecting 
+volumes, let's consider how to delete data and volumes. The
+connection point is as easy to tear down as it is to put up.
+
+PROGRAM DONE
+	$ <B>ls /afs/hq.firm/user</B>
+	zed
+	$ <B>fs lsmount /afs/hq.firm/user/zed</B>
+	'/afs/hq.firm/user/zed' is a mount point for '#user.zed'
+	$ <B>fs rmmount /afs/.hq.firm/user/zed</B>
+	$ <B>vos release cell.user</B>
+	$ <B>ls /afs/hq.firm/user</B>
+	$
+PROGRAM
+
+The ~~rmmount~/~ subcommand takes a path name; if the path name is a volume 
+connection, the name is deleted. In this example, the change takes place in 
+the ~~/afs/hq.firm/user~/~ directory, which is backed by the ~~cell.user~/~ volume. Because 
+this volume is replicated, we use the ~~/afs/.hq.firm~/~ path to ensure that we're 
+following a path which uses read-write volumes so that the deletion will
+be permitted. Once the changes are made to the read-write master, we must release 
+the changes to the replicas so that all clients will see that zed's home 
+directory has been disconnected.
+
+The ~~rmmount~/~ subcommand does not destroy any real data; it deletes only the 
+user-visible connection to the files and directories stored in the volume. In
+some respects, this effect is similar to a UNIX-style ~~unmount~/~ command. As long as
+no other connections to the volume exist, no one will be able to access the
+home directory's files.
+
+To truly delete the data, run ~~vos remove~/~.
+
+PROGRAM DONE
+	$ <B>vos listvldb user.zed</B>
+	user.zed 
+    	    RWrite: 536870964 
+    	    number of sites -> 1
+               server fs-one partition /vicepb RW Site 
+	$ <B>vos remove fs-one b user.zed</B>
+	Volume 536870964 on partition /vicepb server fs-one deleted
+	$ <B>vos listvldb user.zed</B>
+	VLDB: no such entry
+PROGRAM
+
+The operation to delete a volume requires that the specific file server and
+~~vice~/~ partition be named as well. This is not much of an issue when dealing
+with a read-write volume because it exists in only one place in the cell; but the
+same command can be used to delete read-only volumes, in which case the specific
+server and partition must be listed to differentiate which one of the
+replicas is to be deleted.
+
+As is to be expected from UNIX, this delete operation really deletes the
+data. There is no built-in trash-can available from which the data can be retrieved.
+To ensure against premature deletion, you may want to stage volumes to be
+deleted. You do this staging by removing the volume connection points and then
+renaming the volume by adding a suffix, say, ~~user.bob.X~/~. (The suffix
+can't be too long because the volume name length is restricted). At the end of
+the week, you could retrieve all the volume names in the system, select
+those that match the suffix, perhaps archive them up to tape, and then
+delete them.
+
+Note that the ~~remove~/~ operation performs two deletions:
+the first deletion removes all the file data contained in the volume on the
+specified disk partition. The second deletion removes the volume's location
+information from the VLDB.  As always, when dealing with volume operations,
+you should always have in mind the changes that are being made to real
+volumes on disk and the changes that must sometimes be made to the volume
+location database. Naturally, the volume remove operation must be reflected in both places.
+
+Deleting a backup or read-only volume requires a little more explanation. Because backup volumes are
+implemented as clones that simply point to the same data as the master
+read-write, when a read-write is removed, the backup (if it exists) is
+automatically deleted.
+
+It is possible to delete only the backup volume from the disk and the VLDB
+by specifying the exact name and location. We can quickly create and delete
+a backup volume and use the ~~listvldb~/~ subcommand to see the appearance
+and disappearance of the backup.
+
+PROGRAM DONE
+	$ <B>vos backup user.rob</B>          
+	Created backup volume for user.rob 
+	$ <B>vos listvldb user.rob</B>
+	user.rob 
+    	    RWrite: 536870967     Backup: 536870969 
+    	    number of sites -> 1
+       	       server fs-one partition /vicepa RW Site 
+	$ <B>vos remove fs-one a user.rob.backup</B>
+	Volume 536870969 on partition /vicepa server fs-one deleted
+	$ <B>vos listvldb user.rob</B>               
+	user.rob 
+    	    RWrite: 536870967 
+    	    number of sites -> 1
+       	       server fs-one partition /vicepa RW Site 
+PROGRAM
+
+Deleting a read-only volume is a similar operation. You'll recall, though, that
+creation of a read-only involves two steps, adding the bookkeeping
+information to the VLDB followed by releasing the read-write to the replicas. 
+When given a read-only volume name and site as arguments, ~~vos remove~/~
+will delete both a read-only volume and the site information in the database. 
+For example:
+
+PROGRAM DONE
+	$ <B>vos listvldb cell.sys</B> 
+	cell.sys 
+	    RWrite: 536870960     ROnly: 536870961 
+	    number of sites -> 3
+	       server fs-one partition /vicepa RW Site 
+	       server fs-one partition /vicepa RO Site 
+	       server fs-two partition /vicepa RO Site 
+	$ <B>vos remove fs-two a cell.sys.readonly</B>
+	Volume 536870961 on partition /vicepa server fs-two deleted
+	$ <B>vos listvldb cell.sys</B>               
+	cell.sys 
+	    RWrite: 536870960     ROnly: 536870961 
+	    number of sites -> 2
+	       server fs-one partition /vicepa RW Site 
+	       server fs-one partition /vicepa RO Site 
+PROGRAM
+
+To change only the site information kept by the VLDB, use the ~~remsite~/~ subcommand.
+
+PROGRAM DONE
+	$ <B>vos examine cell.sys</B>
+	cell.sys 
+	    RWrite: 536870960     ROnly: 536870961 
+	    number of sites -> 2
+	       server fs-one partition /vicepa RW Site 
+	       server fs-one partition /vicepa RO Site 
+	$ <B>vos remsite fs-one a cell.sys</B>
+	Deleting the replication site for volume 536870960 ...Removed replication site fs-one /vicepa for volume cell.sys
+	$ <B>vos listvldb cell.sys</B>         
+	cell.sys 
+	    RWrite: 536870960 
+	    number of sites -> 1
+	       server fs-one partition /vicepa RW Site 
+PROGRAM
+
+Just as ~~addsite~/~, ~~remsite~/~ modifies only the information in the volume location
+database and does not affect the data on disk. The ~~listvldb~/~ operation
+we've been using for many command examples shows just the information in the 
+VLDB. When you run a ~~listvol~/~ command to see which volumes are really on disk,
+you can see that the ~~cell.sys.readonly~/~ volume still exists, so we'll have to
+use the ~~zap~/~ subcommand to reclaim the disk space. Note that ~~zap~/~ can be
+used to delete any volume, read-write, read-only, or backup, but in the
+last two cases, the complete volume name must be given.
+
+PROGRAM DONE
+	$ <B>vos listvol fs-one a</B>
+	Total number of volumes on server fs-one partition /vicepa: 11 
+	cell.sys                          536870960 RW          2 K On-line
+	cell.sys.readonly                 536870961 RO          2 K On-line
+	...
+	$ <B>vos zap fs-one a cell.sys.readonly</B>
+	Warning: Entry for volume number 536870961 exists in VLDB (but we're zapping it anyway!)
+	Volume 536870961 deleted
+	$ <B>vos listvol fs-one a</B>
+	Total number of volumes on server fs-one partition /vicepa: 10 
+	cell.sys                          536870960 RW          2 K On-line
+	...
+PROGRAM
+
+Rather than use ~~remsite~/~ and ~~zap~/~, use the ~~remove~/~ subcommand, giving it
+the read-write volume name and the read-only location, and all the right work
+is done. Using ~~remsite~/~ without keeping track of the on-disk read-only volumes is
+one way that the disks can get out of synchronization with the VLDB.
+
+
+SECTION: QUERYING THE DATABASES
+
+The ~~vos status~/~ command returns information about the ~~volserver~/~ process
+on a file server machine. Most of the time, the ~~volserver~/~ is simply
+waiting for something to do and so it will respond with "No active 
+transactions." If it is performing an operation or is stuck on some job,
+it responds with:
+
+PROGRAM DONE
+	$ <B>vos status fs-one</B>
+	Total transactions: 1
+	--------------------------------------
+	transaction: 146  created: Sat Mar 29 14:18:16 1997
+	volume: 536870970  partition: /vicepa  procedure: SetFlags
+	--------------------------------------
+PROGRAM
+
+The ~~volserver~/~ process responds with, for each active transaction, the 
+time it started,
+the volume number, partition, and procedure that it was performing.
+During volume dumps and restores, a line may be displayed showing the
+number of bytes written or read.
+
+There are a number of ways to determine which volume is the container
+for a particular file; many commands in the ~~fs~/~ command suite will
+return with this information. While many of these commands are available
+for users to get information, the ~~fs examine~/~ command is designed for
+administrative use.
+
+PROGRAM DONE
+	$ <B>fs examine /afs/hq.firm</B>               
+	Volume status for vid = 536870919 named root.cell.readonly
+	Current disk quota is 5000
+	Current blocks used are 5
+	The partition has 977059 blocks available out of 1031042
+PROGRAM
+
+This command queries the volume server to get information from the
+volume's header in the ~~vice~/~ partition.
+
+Each volume's header on disk includes a status flag that is maintained
+by the ~~volserver~/~ process on the file server machine. It can be one of:
+
+-- On-line - The volume is accessible.
+
+-- Off-line - The volume is not accessible, possibly due to other 
+problems discovered by the ~~volserver~/~.
+
+-- Needs salvage - The ~~volserver~/~ has detected internal corruption of
+this volume. (Salvaging is discussed in Chapter 9.)
+
+To see this flag and other information about the volume, use the
+~~-extended~/~ option to the ~~vos examine~/~ command. The status flag is displayed at the end of the first line of output followed by a large amount of additional information.
+
+PROGRAM DONE
+	$ <B>vos examine root.afs -extended</B>
+	root.afs                          536870912 RW          7 K used 3 files On-line
+	    fs-one /vicepa 
+	    RWrite  536870912 ROnly  536870913 Backup  536870914 
+	    MaxQuota       5000 K 
+	    Creation    Tue Aug 13 12:01:09 1996
+	    Last Update Sat Mar 29 12:32:32 1997
+	    77 accesses in the past day (i.e., vnode references)
+	 
+	                      Raw Read/Write Stats
+	          |-------------------------------------------|
+	          |    Same Network     |    Diff Network     |
+	          |----------|----------|----------|----------|
+	          |  Total   |   Auth   |   Total  |   Auth   |
+	          |----------|----------|----------|----------|
+	Reads     |        8 |        8 |        0 |        0 |
+	Writes    |       33 |       33 |        0 |        0 |
+	          |-------------------------------------------|
+	 
+	                   Writes Affecting Authorship
+	          |-------------------------------------------|
+	          |   File Authorship   | Directory Authorship|
+	          |----------|----------|----------|----------|
+	          |   Same   |   Diff   |    Same  |   Diff   |
+	          |----------|----------|----------|----------|
+	0-60 sec  |        3 |        0 |        7 |        0 |
+	1-10 min  |        0 |        0 |        7 |        0 |
+	10min-1hr |        0 |        0 |        3 |        0 |
+	1hr-1day  |        0 |        0 |        2 |        0 |
+	1day-1wk  |        0 |        0 |        0 |        0 |
+	> 1wk     |        0 |        0 |        1 |        0 |
+	          |-------------------------------------------|
+	 
+	    RWrite: 536870912     ROnly: 536870913 
+	    number of sites -> 3
+	       server fs-one partition /vicepa RW Site 
+	       server fs-one partition /vicepa RO Site 
+	       server fs-two partition /vicepa RO Site 
+PROGRAM
+
+The number of accesses in the past day reflects the number of times that
+a client has retrieved data from the volume since midnight. Of course,
+these are accesses that are not satisfied by the client cache. When a
+volume is moved, this number is reset to zero.
+
+The next two sections of the ~~-extended~/~ output attempt to categorize today's data access further.
+The raw read and write statistics are simply the number of data fetches
+and stores against files located in this volume. The number of reads and 
+writes are further broken down into the number of requests that came from
+the same network as the server and those that came from a different network.
+(The server uses the class of its network interface to determine whether
+a request comes from a different network.) The final breakdown is the number
+of protocol requests that were sent by authenticated users versus the 
+total number, which includes requests sent by unauthenticated users.
+
+The section entitled "Writes Affecting Authorship" tracks the number of
+actual changes to data stored in the volume. These statistics are broken
+down by the relative time at which the changes were stored,
+by changes to file data versus directory entries, and finally,
+by changes made by the owner of the data (the Same person) or by
+users who are not the owner (a "Diff" or different person).
+
+With this information, you can make some potentially interesting observations
+about the users and desktops accessing your volume data. If you're trying
+to speed up file access and decrease network contention by placing certain 
+volumes on servers attached to the same network as a set of clients,
+the raw statistics will tell you whether your effort is successful. You could
+also audit volumes regularly and move those that have not been accessed in the
+last week to different servers, keeping front-line servers
+more focused on a smaller set of rapidly changing volumes.
+
+SECTION: SUGGESTED PRACTICES
+
+Volumes lie architecturally somewhere between client-visible path names and
+server disk partitions. This layer of indirection is where most
+administration takes place and where standard conventions are best
+followed. As volumes can be seen only through the AFS command-line
+interface, it is critical that their existence be organized. Don't allow
+volumes to be created arbitrarily, with seemingly random names and
+connection points. Because organizations need to store only a few kinds of
+data - home directories, applications, development areas, operating system
+binaries - only a few naming conventions are needed. Given that only 22 characters are available for the entire name, such conventions are even more
+strongly suggested.
+
+The easiest convention to remember is based on standard prefixes. We've seen
+~~user.~/~ as a prefix to a login name for the name of a home volume. Others
+might include ~~sys.~/~ for system binaries, ~~dev.~/~ for development areas, ~~group.~/~
+for organizational units, etc. Each of the generated volume names will
+also have an implicit place in the file system namespace: e.g., ~~user.name~/~ would be connected to ~~/afs/hq.firm/user/name~/~.
+
+Some sites use additional prefixes or suffixes to indicate backup policies
+or other administrative behavior. In general, this is a simple way to
+make AFS administration systematic. But with the 22-character 
+limit on volume names, additional special naming practices have a high price.
+
+The general answer to this problem is to construct a database of volume
+control information outside of the standard AFS command suite. In the
+database, you can store a variety of information without the need to abuse
+the limited resource of volume names. The database can keep track of backup
+schedules, replication policies, volume ownership, among other information.
+In particular, you can use a database field to mark volumes that are to be
+deleted.
+
+Other policies could include storing certain subsets of volumes on certain
+file servers. The home directories of a particular department might best be
+kept on a set of servers that are housed near (in a network topology
+sense) their users. The names of users in a department and the location of
+file servers is the kind of data which can be stored only outside of the AFS
+databases in a system of your own devising.
+
+The inherent flaw with this type of database is that it is not maintained by
+the AFS system itself. Just as the volume location database may become
+unsynchronized with respect to the volumes on ~~vice~/~ partitions, an external
+volume database may not accurately reflect the existing state of affairs.
+Only regular auditing of both systems will ensure their usefulness.
+
+When establishing replication policies, make sure that all necessary
+volumes are replicated. Because replication is used to make file data highly
+available, you'll have to use your volume and path name conventions to
+guarantee that the file's volume and all of its parent volumes are
+replicated. If the parent volume isn't replicated (and its parents, etc., all
+the way back to ~~root.afs~/~) then small outages of the file server may prevent access
+to that file's volume no matter how many replicas exist for it.
+
+Also, remember that volume connections are stored only in the file system
+itself. Neither the volume nor the volume location database tracks where the
+connection to the volume is made. A corollary of this is that multiple connections can be
+made to a volume. For instance, a home volume could be connected to
+~~/afs/hq.firm/home/alice~/~ as well as ~~/afs/hq.firm/sales/personnel/alice~/~.
+Generally, multiple connections are deprecated by administrators because they 
+want to know that they can stop all accesses to a volume's data by removing a 
+single connection point.  But multiple connections can be
+useful; for example, when performing a quick inspection of a volume's
+contents, you can connect to it in your home directory. Or, better, when
+writing automatic administration scripts, you can use a temporary directory 
+to perform additional connections to volumes.
+
+Again, note that the only permission needed to make a volume connection is the 
+permission to write into the specified path name. Any AFS volume can be mounted in
+your home directory, for instance, even the CEO's home directory. But getting 
+to the data in that volume means passing through the access control list at 
+the root of the volume; if that ACL locks out all navigation, no one can get
+in. But if it allows reading and writing, so be it.
+
+Because no database contains the list of volume connections (except
+the data in the file system itself), there's no way of guaranteeing that
+multiple paths to a volume don't exist. One way to
+audit this situation is to run ~~salvager~/~ regularly in verbose mode; the output in
+the ~~salvager~/~ log file displays discovered paths to volumes.
+
+One last suggested practice is not to slavishly follow convention but to
+experiment, preferably in a small test cell, and use the tools of AFS to 
+develop policies that make your organization work better. For example, 
+the volume names ~~root.afs~/~ and ~~root.cell~/~ are purely conventional.
+You should feel free to construct an AFS namespace that suits your
+requirements. There's nothing wrong with not having other cell's namespaces
+visible directly under ~~/afs~/~ nor does there have to be a ~~/afs~/~ at all. As
+we'll see when we examine client configuration in the next chapter, the
+client cache manager must be told which top-level volume should be assumed
+to be mounted at which UNIX directory. While ~~/afs~/~ and ~~root.afs~/~ are
+well-known defaults, you may prefer another entry point. With a little bit of
+hacking, you can usually provide the best of both worlds. Though AFS
+encourages the use of single, global namespaces, certain organizations, such
+as financial institutions, require that different desktops not be able to
+access certain directory areas. Normally, that means either using group
+entries on ACLs or multiple AFS cells. But per-desktop root volumes are
+another possibility.
+
+SECTION: SUMMARY
+
+How many volumes will you wind up with? Some sites use AFS only for 
+production binary delivery and can get by with a few dozen. Others have
+volumes for all users, all development projects, and each version of
+software packages, easily leading to several thousand volumes. AFS can
+manage this scale with just a few servers; the database
+processes certainly have no problem with this number.
+
+These volume management operations are the bread-and-butter of AFS 
+administration. Rather than perform tasks on servers and manually push 
+around location maps, AFS uses volume operations. The collection of operations - creation, 
+making connections to the namespace, movement, and backups - provides 
+enterprises with precisely the set of tools needed to manage file data.
+
+As should be clear by now, AFS's designers were not interested in providing
+the atomic elements of distributed file services. Rather than developing
+commands that manipulate fundamental units of file service, they were trying
+to solve their own real-world problems of controlling a centralized storage
+system. Contrast the CMU designers with, for example, the designers of the X Window
+Systemª, who provided only the most fundamental items of a graphical library.
+Their motto was "mechanism, not policy," and it took years until elements
+such as scrollbars were standardized with the Motif¨ library.
+
+In the case of CMU and Transarc, this philosophy is practically reversed: the
+tools provided give us policies first, such as only a single namespace or a
+single backup volume. There is no way to access items like clone
+volumes for arbitrary commands; we are given only the commands that
+implement policies such as moving a volume or creating a single backup.
+
+In this chapter, the term connection was used when describing the
+process of stitching together volumes and directory names to create
+a file namespace.  This terminology was chosen because some people have been
+confused by the traditional use of "mount" to mean an operation
+that a client performs.  It should be clear by now that volume connections
+are not mounted by clients nor is the information stored in a separate
+database. The connections are in the file system itself and are, therefore, 
+subject to the same caching and guaranteed consistency semantics of all 
+other AFS file data, that is, all clients see all files, and all connections, 
+all the time. 
+
+Now that we've studied the process of volume connections, we'll revert, for 
+the rest of the book to the normal AFS usage and refer to 
+volume mounts, read-write or general mount points, and the like.
+ÿ

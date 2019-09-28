@@ -1,0 +1,25 @@
+#!/ubs/mach/bin/perl5
+
+
+$progText=0; #assume off
+
+while (<>) {
+	s///g;
+	s/^'/\\'/;
+	if ($progText) {
+		s/\\/\\\\\\\\/g;
+	} else {
+		s/\\/\\\\/g;
+	}
+	if (/^PROGRAM/ && $progText==0) {
+		$progText=1;
+		next;
+	}
+	if (/^PROGRAM/ && $progText==1) {
+		$progText=0;
+		next;
+	}
+	if ($progText eq 0) {
+		print "$_";
+	}
+}

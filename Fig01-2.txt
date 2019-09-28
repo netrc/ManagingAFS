@@ -1,0 +1,92 @@
+
+AFS Cell Name			Organization
+
+transarc.com		# Transarc Corporation
+palo_alto.hpl.hp.com	# HP Palo Alto
+sleeper.nsa.hp.com     	# HP Cupertino
+stars.reston.unisys.com	# Paramax (Unisys), Reston, Va.
+vfl.paramax.com		# Paramax (Unisys), Paoli Research Center
+ibm.uk			# IBM UK, AIX Systems Support Centre
+afs.hursley.ibm.com	# IBM Hursley, UK 
+zurich.ibm.ch		# IBM, Zurich 
+ctp.se.ibm.com		# IBM, Chalmers, Sweden
+stars.com		# STARS Technology Center, Ballston, Va.
+telos.com		# Telos Systems Group, Chantilly, Va.
+isl.ntt.jp		# NTT Information and Communication Systems Labs.
+gr.osf.org		# OSF Research Institute, Grenoble
+ri.osf.org		# OSF Research Institute
+
+wu-wien.ac.at		# University of Economics, Vienna, Austria
+cern.ch			# European Laboratory for Particle Physics, Geneva
+ethz.ch			# Federal Institute of Technology, Zurich
+urz.uni-heidelberg.de	# Universitaet Heidelberg
+uni-hohenheim.de	# University of Hohenheim
+desy.de			# Deutsches Elektronen-Synchrotron
+lrz-muenchen.de		# Leibniz-Rechenzentrum Muenchen Germany
+mpa-garching.mpg.de	# Max-Planck-Institut fuer Astrophysik
+ipp-garching.mpg.de	# Max-Planck-Institut Institut fuer Plasmaphysik
+uni-freiburg.de		# Albert-Ludwigs-Universitat Freiburg
+rhrk.uni-kl.de		# Rechenzentrum University of Kaiserslautern
+rrz.uni-koeln.de	# University of Cologne, Computing Center
+urz.uni-magdeburg.de	# Otto-von-Guericke-Universitaet, Magdeburg
+rus.uni-stuttgart.de	# Rechenzentrum University of Stuttgart
+caspur.it		# CASPUR Inter-University Computing Consortium, Rome
+le.caspur.it		# Universita' di Lecce, Italia
+infn.it			# Istituto Nazionale di Fisica Nucleare, Italia
+cc.keio.ac.jp		# Keio University, Science and Technology Center
+sfc.keio.ac.jp		# Keio University, Japan
+postech.ac.kr		# Pohang Universtiy of Science
+nada.kth.se		# Royal Institute of Technology, Sweden
+rl.ac.uk		# Rutherford Appleton Lab, England
+pegasus.cranfield.ac.uk	# Cranfield University
+
+cs.arizona.edu		# University of Arizona, Computer Science Dept.
+bu.edu			# Boston University
+gg.caltech.edu		# Caltech Computer Graphics Group
+cmu.edu			# Carnegie Mellon University
+andrew.cmu.edu		# Carnegie Mellon University, Campus
+ce.cmu.edu		# Carnegie Mellon University, Civil Eng. Dept.
+theory.cornell.edu	# Cornell University Theory Center
+graphics.cornell.edu	# Cornell University Program of Computer Graphics
+msc.cornell.edu		# Cornell University Materials Science Center
+northstar.dartmouth.edu	# Dartmouth College, Project Northstar
+afs1.scri.fsu.edu	# Florida State Univeristy, Supercomputer Institute
+iastate.edu		# Iowa State University
+athena.mit.edu		# Massachusetts Institute of Technology, Athena
+media-lab.mit.edu	# MIT, Media Lab cell
+net.mit.edu		# MIT, Network Group cell
+nd.edu			# University of Notre Dame
+pitt.edu		# University of Pittsburgh
+psu.edu			# Penn State
+rpi.edu			# Rensselaer Polytechnic Institute
+dsg.stanford.edu	# Stanford University, Distributed Systems Group
+ir.stanford.edu		# Stanford University
+ece.ucdavis.edu		# University of California, Davis campus
+spc.uchicago.edu	# University of Chicago, Social Sciences
+ncsa.uiuc.edu		# University of Illinois
+wam.umd.edu		# University of Maryland Network WAM Project
+glue.umd.edu		# University of Maryland, Project Glue
+umich.edu		# University of Michigan, Campus
+citi.umich.edu		# University of Michigan, IFS Development
+lsa.umich.edu		# University of Michigan, LSA College
+math.lsa.umich.edu	# University of Michigan, LSA College, Math Cell
+cs.unc.edu		# University of North Carolina at Chapel Hill
+utah.edu		# University of Utah Information Tech. Service
+cs.washington.edu	# University of Washington Comp Sci Department
+wisc.edu		# Univ. of Wisconsin-Madison, Campus
+
+anl.gov			# Argonne National Laboratory
+bnl.gov			# Brookhaven National Laboratory
+fnal.gov		# Fermi National Acclerator Laboratory
+ssc.gov			# Superconducting Supercollider Lab
+hep.net			# US High Energy Physics Information cell
+cmf.nrl.navy.mil	# Naval Research Laboratory
+nrlfs1.nrl.navy.mil	# Naval Research Laboratory
+nersc.gov		# National Energy Research Supercomputer Center
+alw.nih.gov		# National Institutes of Health
+nrel.gov		# National Renewable Energy Laboratory
+pppl.gov		# Princeton Plasma Physics Laboratory
+psc.edu			# Pittsburgh Supercomputing Center
+
+
+Figure 1-2: A Selection of Publically Accessible AFS Cells

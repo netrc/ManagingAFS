@@ -1,0 +1,1000 @@
+
+###############################################################################
+###############################################################################
+Preface
+
+The simplicity of this database, which attaches to a hierarchical namespace
+simple bytestreams, is surely its greatest strength. The explosive growth of
+the Internet and the Web has not eliminated the need for file storage, but it
+has, perhaps, demonstrated that one popular marketing slogan is right
+after all, 'The network is the computer'.
+ 
+I take that to mean that a single computer, unconnected to any other,
+is inherently unuseful. At the least, connectivity is provided through
+card punches, visual output devices, or printers, by which data
+must be personally moved between people or computers. The power of
+the computer takes on new dimensions when data accessibility of
+many systems can be accessed by many systems as easily as by one.
+The benefit of mainframes was the ability to support shared data between
+hundreds of users. Now that those users are distributed there must be new
+new mechanisms for distribution of data.
+ 
+While I've worked on a variety of projects in computing over the last
+decade or so, there may be an important connection between them.
+After graduating from college, my first job was working at a small
+software shop in Ann Arbor, Michigan, enhancing a terminal emulation
+product that made file transfers between UNIX servers and PCs a snap.
+Later, at a University research lab, I explored window system interfaces
+and had to keep a handful of UNIX workstations well-connected via NFS.
+At that time, University management was casting about for some
+compelling reasons to keep alive the campus mainframes, the answer
+was a major project to use the large I/O and scalability of the
+legacy machines as the backend to a new, supposedly superior, distributed
+file system.
+ 
+At that time, I didn't see what the fuss was about; disks were becoming
+incredibly cheap and it wasn't that big a deal to install, format, and
+mount some megabytes somewhere in the file tree. If we were to spend
+millions of dollars working up a new file system, why not
+just fix up the old one? Nevertheless, I joined a team of eager researchers
+and began investigating and using AFS.
+ 
+Then after working with AFS for several years, I moved to New York and began
+working at one of the larger investment banks. People asked me how I liked
+the city after living in a college town. Frankly, the change was
+a breeze compared to returning to the daily grind of living with NFS.
+Files were copied from server to server and from client to client with
+continual manual intervention, no two servers ever served the same files, and
+there was no failover.
+
+Whether this was due to poor administration or inevitable problems with NFS
+is open to debate. The purpose of this book is certainly not to engage in
+mindless criticism but to demonstrate the strengths and weaknesses of
+another distributed file system. Comparisons to NFS are made primarily
+because of the familiarity of that system. I hope these comparisons expose
+the differing design choices of each system rather than start a flame war.
+ 
+Besides UNIX and NFS, another predominant distributed file system is NetWare
+for the PC platform. My own background is in UNIX software, so many of the
+examples and explanations are based on UNIX workstations, but I'll also try
+and describe some of these similarities and differences and how AFS can be
+used to support PC workgroups.
+ 
+
+###############################################################################
+###############################################################################
+Chapter 1 - AFS In Perspective
+
+Other applications 
+        complex read / write interaction needs more sophisticated
+        signalling or locking anyway. Filesystem is best for dealing
+        with discrete object not intermingling writes etc. Use a
+        messaging, transactional, asynchronous system for such things.
+
+Sun's Scott McNealy has said that storing file data on your computer's local
+disk is like stuffing money in your mattress. You may feel safer and more
+content, but overall you're missing significantly higher security and
+profitability and the community at large is unable to take advantage of
+economies of scale. AFS goes even further than this by insisting on an
+integrated architecture for the distributed name space, security, and
+administration.
+ 
+
+      a filesystem costs money - admin, backup, space!!!;
+        d.f.s. potentially more admin and backup problems(whether AFS, NFS, DFS)
+        does this solve a problem that you can just throw money at?
+        can't just throw disks at the problem
+                - disks arent cheap: controllers, servers, RAID
+                - centralized org for the good stuff
+                - no more 'who has the data' games
+                - no more 'my files are different'; what version?
+        McNealy - storing filedata on your computer's local disk is like
+        stuffing money in your mattress. Better to put in a d.f.s.
+                - backup
+                - economies of scale
+ 
+        it's just cheaper. But because it's not exactly UNIX - authentication
+        - its different.
+ 
+CHAPTER 1: OVERVIEW
+
+When administrators, managers, or users of computers ask what they need to know
+about AFS, a decent response is that they need to know as much about
+AFS as they do about NFS or NetWare. After all, if their knowledge is
+limited to knowing that files are stored somewhere on the network and
+you simply have to open certain directories or folders to access widely
+shared files, that's about all you need to know about AFS: it's just another
+distributed filesystem.
+
+Administrators, however, who know that NFS works via a 'mount' request on a
+client that attaches a specific directory on a remote computer to a
+directory name on a local desktop, will want to learn about server setup,
+caching, authentication, replication, and, especially, volumes. AFS
+supports distributed file services in ways very different than NFS or Netware.
+To understand why, it will be instructive to understand what each systems'
+designers were attempting to accomplish. And for that, we'll need to remember 
+a little history.
+
+SECTION: UNIX WORKSTATIONS
+
+Out of these pieces, Sun put together their network file system, NFS.
+Notably, their protocol for file sharing does not include any guarantees for
+consistency, enterprise-wide naming, reliable access to data, or caching.
+Over the years, where additional functionality could have been added to a
+vendor's own NFS version, time and again, ports to new hardware
+have been judged on their interoperability with Sun's deliberately simple
+version.
+
+Another central tenet of the design was 'statelessness'; concern over how 
+a central server could recover from inevitable crashes, caused the designers 
+to eliminate any information, or state, that a server might maintain about its 
+clients. In this regard, the NFS server process responds to each request from
+any client as if it had never heard from the client before nor expects to hear
+from it again.  This consideration had considerable effect on the protocol, 
+simplifying both server and client implementations, and permitting a complete 
+system to be built that was easy for small-scale sites to manage.
+
+As distributed computing has matured, it's become clear that that it is 
+quite difficult to exactly match the design goals of a local system
+with one spread out over many computers and networks.  By jettisoning 
+specific goals, like consistency and replication, Sun was able 
+to create a small-scale distributed file system that could be released as an
+open standard available to every vendor. While technical comparisons of 
+distributed file systems are an academic exercise, there's no doubt that 
+NFS is a tremendous market success. It's difficult to imagine another 
+distributed computing technology, besides UNIX itself, which has proven 
+to be so flexible and adaptable.
+
+SECTION: CARNEGIE-MELLON UNIVERSITY
+
+The NFS protocol was not designed with any of this taken into account. So as
+to keep the protocol and code simple, the designers decided that each request
+for file data would (in theory) be sent across the wire to the server and
+the result returned. In day to day operations, the best example of this is
+a Perl script - every time a Perl script is run on a workstation, the client
+needs to open and read the Perl program itself. This requires transmitting
+hundreds of kilobytes of data from server to client for each shell script,
+an event that will happen hundreds of times each day for each of the
+ten thousand computers on the CMU campus. Given that the bytes that
+make up the Perl program will practically never change (perhaps only
+a couple of times a year), it seems unreasonable to have to go through
+the expense of re-reading them many times each day. If they
+are cached, not only do clients not have to perform a network transaction,
+but the network becomes less loaded, and the server doesn't have to re-transmit
+the same bytes over and over again to all clients.
+
+Caching in NFS is purely a client-level optimization and, though present
+in most every implementation, not a part of the system protocol. When 
+requests are satisfied by an NFS server, a client will silently re-use the
+data (if found in its relatively small cache) for subsequent requests within
+a certain timespan. This timespan is typically three seconds for file data
+and 30 seconds for directory information. The NFS protocol itself knows
+nothing about this optimization - clients simply assume that users won't
+care about inconsistent data during the short period of the timespan and for
+the most part no one does. When the time limit expires, a client will check
+the timestamp of the file or directory with the server to see if any data
+has changed, and if so, the new data is retrieved. Then, given the quite
+small memory caches used by the clients, the data, even when cached, quickly
+is overwritten by other more recently used files.
+
+Clearly, this caching convention has proven successful. But the price is
+scalability. When a client's small file access timespan expires, a protocol
+request must be sent over the wire to the server which must accept, process,
+and return the answer. This constant protocol traffic and repeated
+transmission of file data puts a high load on the network and server such
+that a few dozen clients can swamp a system. These creeping inefficiencies
+are the source of the oft-repeated criticism that NFS does not scale. It is,
+of course, possible to support thousands of desktops with NFS - but the
+costs grow more steeply than they should. 
+
+================
+To address this issue quantitatively, a test was developed to measure the
+system performance. Rather than simply focus on micro-benchmarks of a single
+client's read or write performance, the Andrew benchmark simulates a series
+of read and write operations and is run on multiple clients simultaneously.
+The lower the load on the server and the quicker that a client can complete
+the benchmark, the greater the ratio of clients to servers that can be
+supported. 
+
+[[citation xxx]]
+
+Chief amongst these choices was the decision to create virtual containers
+for collections of files. Many pieces of local filesystems are treated
+this way: in UNIX, physical partitions of the disk drive are individual
+containers attached at various points in the name space; on PCs, individual
+disks are connected to drive letters. With AFS, administrators can create
+volumes, software containers which act like virtual partitions and which can
+be connected together, constrained in size, replicated, moved between servers, 
+and archived as needed. This level of indirection between files and disks
+provides a significant opportunity for more efficiently managing
+large amounts of data.
+
+SECTION: BENEFITS OF AFS
+
+
+SECTION: NFS REDUX
+
+
+
+In the past few years, Sun has produced a number of enhancements to
+the NFS system. Nothing presented here should be taken as a criticism
+of Sun or NFS; their technology is useful, flexible, and certainly
+solves many problems faced by millions of customers. But again and
+again, their design point is not the efficient support of large enterprises
+but the successful implementation of simple protocols for small
+scale workgroups that can afford the resources to administer their
+own filesystem.
+
+In particular, the 'automount' daemon and its public domain relative
+'amd' are very useful at providing a widely-available name space. But
+the claims of reliable access to files are true only at mount time; there's
+no dynamic failover. And the name space construction is typically very
+shallow and flat: most software ends up in '/u'. Nor are there any
+integrated tools to manage the file data, name space, and location
+information.
+
+The latest releases of Solaris include 'cachefs' a mechanism for client
+side caching of files and NFS version 3, which includes support for
+TCP/IP connections, offering potentially faster access and better WAN
+connectivity. 'cachefs' is noteworthy because it works on top of almost
+any filesystem including NFS, of course, but also HSFS, the CD-ROM filesystem,
+thereby providing faster access to that slow media. But 'cachefs' is not
+well designed for data written often such as a user's home directory where
+caching can be as effective as for read-only data like system binaries.
+And 'cachefs' has not been ported to a wide variety of systems yet.
+
+Among the common ways to get around NFS scaling and reliability problems
+is the use of special purpose hardware which only runs the NFS server
+protocol, so-called appliances, or hard-wired clusters of servers which
+can automatically take over for a failed sibling. Both of these examples
+are expensive hardware solutions for design issues intentionally dropped
+from the NFS protocol. Not only is the expense of these systems problematic
+but once an appliance has outlived its useful life, there's nothing else
+for the machine to do for it doesn't run any standard operating system.
+
+There's no denying that NFS is the best NFS around. And as far as it goes,
+it is functional and extremely useful. But it is not the only distributed
+file system available. If the previous paragraphs' criticisms seem unduly
+harsh, they are not meant to be. Many other computer science researchers
+have described a similar set of issues and a variety of other solutions. In
+particular, the statelessness of NFS has been debated at length and
+alternatives suggested, in addition to the CMU product, which result in
+better consistency guarantees and client and server performance
+improvements.
+
+Surely, this debate will continue. The brief overview presented here is merely 
+to point up the differences, remind us of the particular design goals of NFS, 
+and shed some light on how other systems with other designs achieved different 
+goals.  One way we can see that available remote file protocols are not
+powerful enough, is to see how many applications have developed their own
+data distribution mechanisms. Many software development tools, both
+commercial and public, have written their own internal file copying network
+layer. Even the Web's protocol, HTTP, is primarily concerned with reading
+file data across the network; if a satisfactory, wide-area network file access
+protocol were available, applications like these would not have had to build
+their own. 
+
+======
+
+also stores shared libraries, dynamic link libraries
+
+y2000 no public statement - really a 2038; all times are stored as UNIX 
+
+
+	applications invent their own distributed data protocol.
+	If a d.f.s. were available - with efficiency etc - things would
+	be better. CVS as an example.
+
+	similar to DNS. A client-side file (often /etc/hosts) can be kept
+	up to date and copied around. But the file gets too big; and the
+	changes happen too fast. DNS provides a mechanism for clients to
+	query the info when they need it. Much easier administration.
+	Everyone sees the same thing.
+	Clients don't care - as long as it works. Having every client
+	get its own copy of the file sounds like an easy solution but
+	it doesnt scale. And sooner or later, everything has to scale.
+	(dns cache on server)
+
+	Note the consistency mechanism though: a configurable time-to-live 
+	value tells a client (server?how long to trust a a response. 
+	AFS provides proactive indications of changed data only
+	when it has really changed.
+
+
+	my performance results
+		only 6 clients, NFS v2  20% server load, 33% of NW traffic
+		AFS only one-fifth the server load
+		one-third the network traffic
+
+
+
+Web influence - new apps and data available via web. Fine. 
+The sooner the better. But otherwise and until then, all existing
+apps can work with dfs.
+
+
+
+CHAPTER 10?
+NFS cache in memory; stays in memory; attributes go stale based on
+timer. When they are stale, and the file is read again, the client will
+just refetch the attributes; if there's no change, then the cached data
+is used. During time delay, can be out-of-sync
+And this is an inherently small memory cache. Research shows
+that you need about 70MB to really get good caching effects.
+
+CHAPTER 10 Benchmarks?
+ 
+Over the years, the almost universally available NFS system has spawned a
+variety of hardware-based protocol accelerators. To gauge the
+effectiveness of these and other improvements, an NFS-specific synthetic
+benchmark was developed. First known as 'nhfstones', the SPEC organization has
+refined this into the SFS benchmark which consists of the 097.LADDIS program.
+This provides NFS implementers with detailed performance data about each
+of the protocol's operations under a wide variety of loads. The results report
+the number of operations completed per second at a particular latency, e.g.,
+100 operations per second at a 30 milliseconds response.
+ 
+Even more than most benchmarks, using these results is problematic;
+not only will your mileage vary, but the information doesn't immediately
+correlate to any useful policy, such as number of users per server.
+Over time, as you continue to use NFS at your site, you'll begin to see
+how the values relate to your environment. But more importantly, the benchmark
+allows NFS implementors to find out where they are doing a good or bad job
+when porting to new operating systems or hardware.
+ 
+On the other hand, with AFS, there is no widely accepted benchmark. At best,
+thoughput of a standard workload, such as the SPEC organization's SDET, is
+suggested as a bottom-line metric, as long as the measure addresses the
+relevant working characteristics of users and applications - characteristics
+such as the preponderance of reads over writes. When taking into account
+real uses of distributed files, the interaction of caches and protocols
+on groups of users simultaneously accessing data becomes difficult to predict.
+Ad hoc comparisons and the Andrew and SDET benchmarks have demonstrated the
+benefit of AFS's optimizations, but no systematic method has been developed
+to help site know if one hardware platform or another will provide better
+performance.
+
+       a filesystem costs money - admin, backup, space!!!;
+        d.f.s. potentially more admin and backup problems(whether AFS, NFS, DFS)
+        does this solve a problem that you can just throw money at?
+        can't just throw disks at the problem
+                - disks arent cheap: controllers, servers, RAID
+                - centralized org for the good stuff
+                - no more 'who has the data' games
+                - no more 'my files are different'; what version?
+        McNealy - storing filedata on your computer's local disk is like
+        stuffing money in your mattress. Better to put in a d.f.s.
+                - backup
+                - economies of scale
+ 
+        it's just cheaper. But because it's not exactly UNIX - authentication
+        - its different.
+ 
+        applications invent their own distributed data protocol.
+        If a d.f.s. were available - with efficiency etc - things would
+        be better. CVS as an example.
+ 
+        similar to DNS. A client-side file (often /etc/hosts) can be kept
+        up to date and copied around. But the file gets too big; and the
+        changes happen too fast. DNS provides a mechanism for clients to
+        query the info when they need it. Much easier administration.
+        Everyone sees the same thing.
+        Clients don't care - as long as it works. Having every client
+        get its own copy of the file sounds like an easy solution but
+        it doesnt scale. And sooner or later, everything has to scale.
+        (dns cache on server)
+ 
+        Note the consistency mechanism though: a configurable time-to-live
+        value tells a client (server?how long to trust a a response.
+        AFS provides proactive indications of changed data only
+        when it has really changed.
+ 
+relying on UFS or Berkeley UNIX semantics will be somewhat frustrated;
+legacy frustration. But you can always use AFS for pieces of your
+filesystem and other fs's for other parts.
+ 
+Web influence - new apps and data available via web. Fine.
+The sooner the better. But otherwise and until then, all existing
+apps can work with dfs.
+ 
+###############################################################################
+###############################################################################
+Chapter 2 - The AFS Protocol
+ 
+###############################################################################
+###############################################################################
+Chapter 3 - Setting up an AFS Cell
+
+distinction between conventions/defaults and architecture
+ 
+        afs is portmapper, mount, etc
+        Integrated system - no portmapper, inetd.conf. no services.
+        Many processes, but managed together.
+ 
+        Kerberos is used for authentication - 56-bit DES encryption
+        is used to secure the authentication protocol and seal the
+        credentials. As this is not used to encrypt data, it is
+        permitted to use this implementation internationally. DES
+        is optionally used to encrypt server configuration data
+        as it is automatically copied from system to system, but
+        this is turned off in the international edition.
+ 
+next to pict of /afs; under /afs are not servers but enterprises - all their fil
+e data
+ 
+tape coordinator - a client machine
+ 
+        DB machines
+        CellServDB - rather than broadcast. As there will be only
+        a few AFS database servers, its almost guaranteed that you
+        won't be able to broadcast across networks to find your servers.
+ 
+ 
+There is one side-effect of the Ubik protocol which affects the installation
+process. Because the election winner is the lowest-addressed database
+server, it helps to ensure that this is the first server installed. If not,
+then during later installations of other servers, the databases will
+engage in new elections with new winners. There's nothing particularly
+wrong with this, but it will tend to slow down the later installations
+while the elections are proceeding.
+
+
+
+###############################################################################
+###############################################################################
+Chapter 4 - Managing Volumes
+
+       vos examine -extended, network definitions
+        lws: ignore: how do vol stats work on a multi-homed client?
+        lws: same/diff network based on class A/B/C; a-a, b-b, c-c,
+
+        comment - volume ID, AFS file "inodes"; FID <-> inode, see debug
+
+        Look back at the cloud - we know that there are volumes, servers, and
+        partitions involved; but what's been created is a virtual name space
+        with real data.
+
+        vice  headers?
+        offline messages - stored in header
+        write: offline messages, message of the day - fs setvol
+        PROGRAM - offline messages
+        $ fs setvol -off "Hello"
+        $ fs examine asdf
+        PROGRAM
+
+       lws: besides symlink, the other thing that makes a mount point
+        special mode bits and dot at end
+        write: why can't fs lsm use '.' put in 4
+
+        rw->ro cycles changes
+                don't forget when adding a new volume which is
+                replicated, you'll most likely have to also release
+                the parent as that will be replicated too. EG,
+                if you add a new area 'web' under /afs/hq.com,
+                don't forget to re-release the root.cell volume
+                which holds the directories under /afs/hq.com.
+ 
+?lws: old exec, new release, crashes right? but old exec file blocks still there
+.
+        -f flag
+        lws: vos release doesn't delete old files in 3.4a?
+                N*releases, N*oldfiles
+        lws- 3.5 fixed; vos rel -f or salvage
+ 
+        When a release occurs, any files in the replicas that no longer
+        exist in the read-write master are deleted, but not all the data
+        is reallocated. To ensure that no fragments are taking up unused
+        space, perform a force.
+ 
+        The release sub-command has a -f option to force the release of the
+        entire volume. This simply means that no special incremental,
+        file-by-file checks are made, but instead that the entire volume
+        is re-created at each read-only site. Generally, the non-forcible
+        update will perform correctly. Forcing a release can be done if
+        problems are suspected.
+ 
+        release also sends callback to clients who've cached data from
+        that volume. Before 3.4, clients had to wait for the normal
+        half-hour timeout. Or use the fs flush commands.
+        lws: note, fs checkv is really for no RO callbacks
+ 
+        Quotas - you can make quota at creation time. Be nice to set
+mount point and ACL
+ 
+        most vos operations are self-correcting - vos figures out what
+        you're trying to do and if interrupted by network or RPC
+        failure, can be run again. THey'll find out what's left to do
+        and do it
+ 
+o        all volumes are equal - root.afs, root.cell just conventional
+        their implementation is just another volume
+ 
+
+be careful with top-most levels because any bad admin
+will affect the cell. work in the read-writes until you're sure
+everything works. Or work in a test cell. Or work new volumes;
+they can be dumped and restored into the real volumes.
+ 
+maximum number of volumes per partition
+edit: chap4 - version number inc'd when cloned (as for backups)
+ 
+###############################################################################
+###############################################################################
+Chapter 5 - Managing the Desktop
+
+        afs_lookup has it's own DNLC,
+
+check: read requests can fail with EIO??
+check: crash during close-writing
+check: after crash, why can't client on reboot see all written data,
+check: know it wasn't closed, and just re-send the data
+
+write: Can't properly parse host line xxx.xx.xx.xx in configuration file /usr/
+vice/etc/CellServDB
+ 
+
+###############################################################################
+###############################################################################
+Chapter 6 - Administering Users
+
+##cut# kdb - prints out auth log entries
+      kas debuginfo - skip it only helpful if you know the
+                internals (useful?)
+ 
+      deleted a bunch of stuff on uss
+
+# ls /usr/afs/local/kaserverauxdb
+
+       lock'd account means too many incorrect passwords.
+        If you need to unlock all accounts at once, you can stop
+        all kaservers, delete all kaauxdb's on all servers, and then
+        restart kaserver.
+
+       kas debuginfo - skip it only helpful if you know the internals (useful?)
+
+        write: problems with rcmds and cron;
+        write: possible to run both kaserver and krbd
+        write: multiple tickets, see chap 9large
+        write: Kerberos 5, DCE?
+ 
+        ( a user named smith.jr who needs an admin instance 'smith.jr.admin'
+        would be parsed incorrectly by the kerberos code)
+
+        putting /etc/passwd into kaserver - need to give people new password
+        and keep in sync
+
+write: kas forgetticket - why useful
+ 
+ 
+
+###############################################################################
+###############################################################################
+Chapter 7 - Using AFS
+
+tickets - only usable on that machine. Some Kerberos
+sites deny multiple logins to systems for this reason.
+ 
+pts groups exactly which punctuation?
+
+no good way to list groups
+	just loop through 1 to `pts listmax`
+		and try to `pts examine $n`
+
+cron
+a partial replacement for cron, khat, has been developed 
+by the University of Michigan.
+
+mmap - HPUX 9 no
+ 
+iwrite: Can't properly parse host line xxx.xx.xx.xx in configuration file /usr/
+vice/etc/CellServDB
+
+write: The name may be displayed if the client has previously cached the name.
+
+close()
+                best new code will
+                        write() repeatedly
+                        fsync and repeat on errors
+                        close - but still need to check close
+check: distrib process don't know about any flags (LOCK_SH, LOCK_EX, LOCK_NB)
+ 
+check: "Deadlock avoidance does not work in AFS.
+The fcntl() lock calls that can result in deadlock do not return EDEADLK"
+- Solaris doesn't have EDEADLK
+ 
+write: programming issues - hidden calls (fprintf)
+open(2) O_APPEND only for same host
+
+###############################################################################
+###############################################################################
+Chapter 8 - Archiving Data
+
+##cut# check: overwriting dump: names must match or all dumps must be expired
+##cut# write: what??6.7.1 for multiple tapes for a dump set In noautoquery mode
+##cut# check: automating dumps and admin guide: 6.7
+##cut# edit: explain backup script operation names
+##punt# FILE=YES script config is bizarre;      ********
+##punt# write: see script examples in release notes, page 43
+##cut# todo:   PROGRAM - auto dump to file
+
+
+##cut#  DUMP/RESTORE ideas
+##cut#Another situation where volume dumps make sense is when an
+##cut#organization needs to maintain multiple cells. Because no command
+##cut#in the AFS suite is written to understand multiple cells, you can
+##cut#use separate dump and restores to copy one volume in a central cell
+##cut#to volumes in another cell. There
+##cut#Also for a manual hierarchy of volumes ; if you need more than
+##cut#eleven readonlyes, you can simulate 12-23 with a volume and do
+##cut#a manual dump/restore from A to Aprime, then release both
+##cut# DATABASE ARCHIVING
+##cut# check:perhaps shutdown all but a minority of read-onlys so no new quorum?
+##cut# check:The only trick is to ensure that no other sites will take over sync
+##cut# check: might you have to delete the ro db site databases
+##cut#  todo: PROGRAM - incremental vos restore
+##cut####       check: CommVault backup????
+
+
+
+###############################################################################
+###############################################################################
+Chapter 9 - More Administration
+
+normal kas: create, delete, examine, interactive, list, setpassword, unlock
+server maint: setkey stringtokey getrandomkey
+unused kas: debuginfo, forgetticket, getpassword, getticket listtickets, statistics,
+
+KeyFile
+c-s mutual auth explanation - sys adm 10-2
+note that the explanation implies that after the key is set, no one
+needs to use it (type it); only the encrypted version in KeyFile is needed
+to check against K db
+
+fsck not replaced: how to fix
+size of callback table
+size of callback table
+of vld per volume, ka per user, pts per group
+
+VLLog cores!!
+ric: no, they all do only the sync vlserver logs stuff??- its UBIKified
+need VLLog output
+ 
+edit: BosLog
+Sun Mar 30 04:00:48 1997: Server directory access is not okay
+ 
+/usr/afs/local - unreadble to non-root
+        BosConfig, SALVAGE.fs, kaserverauxdb, salvage.lock, sysid
+ 
+write: foreign mmounts in other cells don't shwo up in showmount salvager
+write: log files no syslog!!
+ 
+      multi-processing isn't used in AFS server code, but accesses to
+file data on disk will wait for the hard drive request to return; even
+though the file server is [[[single-threaded]]
+
+        SECTION: MACINTOSH
+ 
+write: mac issues
+
+ 
+check: file servers multihomeyness
+        if interfaces have names, fs setserverprefs can be used to direct
+        client requests going to the desired interface on a server.
+        But, no control on which interface is used to return protocol packet.
+        There's an enhancement request in to use same interface request
+        came in on.
+ 
+check: database servers multihomeyness
+check: clients multihomeyness
+
+
+write: three files to ensure consistent: /usr/afs/etc/CellServDB, KeyFile, Use
+rList
+ 
+        vice partitions - newfs: # inodes, 10% extra not needed cause
+        it's root writing anyway
+ 
+        size of partition - RAID/ODS other journal file systems, you
+        can have logical parititions spanning devices arbitrarily.
+        Not really necessary as volume management supercedes much
+        regular disk tasks. May as well stick to physical disk size
+        when you can or the limit of UFS.
+ 
+
+write: different clients point to different root.afs - in chap 9large
+
+ 
+ 
+SECTION: INTERNATIONAL ISSUES
+ 
+ 
+internationalization (chap 2?)
+                8 bit character file names -yes-
+                8-bit files and directories.
+                AFS uses ASCII for volume names, (?) server names,
+                ufs names partitions
+ 
+write: upserver/upclient - performs encryption for files.
+This is unavailable at non-US sites export restrictions.
+ 
+Don't set up upserver/upclient for /usr/afs/etc.  Normally, this helps
+administrators to keep all their servers control files up to date. But
+AFS encrypts these files during propogation from the system control machine.
+Because this encryption is forbidden, international sites can't use this
+feature. Instead, such sites must manually edit (usually through the
+appropriate bos command) each file and ensure that they are kept synchronized.
+ 
+Some members of the United States Government are still under the impression
+that the imposition of export controls on encryption is a strategic
+benefit to the U.S. and that there is a minimal affect on lost sales,
+lower productivity, etc.
+ 
+harangue: Here is a specific case where these export controls cause a ] ]
+ 
+As seen by the use of foreign corporations to get around these export
+restrictions, the restrictions are nothing more than a jobs program
+for programmers outside of the United States.
+ 
+
+3-rd party apps license mgmt
+
+       SECTION: PCs
+ 
+write: NFS
+write: Samba
+write: Windows 3.x/95
+write: Windows NT
+
+       edit: next graph
+                (installing new files in RO vols and releaseing==crash)
+                (mentioned in 6)
+        SECTION: ADMINISTRATION OF SOFTWARE
+        Regarding distributing new software. In a read-write volume, if I
+        copy a new binary, cp hw netnews, people running old version will
+        crash.  If there's a RO, people running old version will be using
+        RO version; no RW changes affect them.  When you release RO; they'll
+        crash. Still need to mv to .o ld.
+ 
+
+ 
+
+###############################################################################
+###############################################################################
+Chapter 10 - Working through Problems
+
+check: !!see contrib area for other tools to fix database problems.
+
+lws: what does this mean? "can't update non-sync site"
+if you specify server "kpasswd -server xx" and it's not , it'll fail"
+ 
+edit: this tidbit about pts updates should go where
+ 
+Unfortunately, the built-in database transfer mechanism is a bit
+time-consuming. You may see the following message when running accessing the
+database during the transfer:
+ 
+lws: check with TRACS
+PROGRAM - temp hang for db?
+        temporary hang while the database is being fetched upon restart
+PROGRAM
+ 
+lws old news
+check: how does this work with the fs monitor command
+check: Andrew Toolkit console program
+ 
+check:  other scout options
+check: kdump options; -kobj kernel-object info
+ 
+check: how to get tools
+
+networks
+        check UDP statistics
+ 
+        solaris
+        $ netstat -s
+UDP
+        udpInDatagrams      =41932123   udpInErrors         =     0
+        udpOutDatagrams     =44627738
+        udpInCksumErrs      =     0     udpInOverflows      =   0
+ 
+        a large number of udpInOverflows can indicate that your
+        fileserver is too busy with disk waits or other operations
+        to service the UDP input buffer. If possible, increase the
+        size of the buffer,.
+ 
+lws: dumps PAGS, kdump (as root) can be used to compromise tokens
+check: protocol can't be spoofed, sniffed(?)
+
+lws: dumps PAGS, kdump (as root) can be used to compromise tokens
+check: protocol can't be spoofed, sniffed(?)
+
+crash during
+check: During replication
+check: During fileset creation
+edit: add sentences about read-only volume callbacks to chap 1, 2, 5
+ 
+
+lws: During vos move; if servers crash
+one vol may exist in old location and one may half exist in new location
+vos (client) will try and clean up; i
+salvager may clean; or it will be orphan
+
+
+
+###############################################################################
+###############################################################################
+Chapter 11 - Large-Scale Management
+
+ 
+SECTION: CASE STUDY - INTEL
+ 
+SECTION: CASE STUDY - SHELL OIL
+ 
+SECTION: CASE STUDY - IBM
+
+
+SECTION: CASE STUDY - UNIVERSITY OF MICHIGAN 
+
+charge-backs 92
+People expect it to work, used by everything
+(15,000 suspended for non-payment)
+(Mail project used only single letter and had perf problems)
+umich.edu cell also, engin.umich.edu also, other cells
+New groups must be uniqname 
+group:members created as a suggestion
+
+The University of Michigan's web servers serve about a million different
+files.  With a minimum configuration - 150 MHz Ross Hypersparc
+SPARCStation 20s, 150 megabytes AFS cache, and 192 megabytes of RAM -
+one server can handle roughly a million requests per day, including
+peaks of 1,000 requests and 17 megabytes transferred per minute.
+The bottleneck in this scenario is the connectivity to the Internet.
+
+
+
+        SECTION: CELLSERVDB
+ 
+write: this section needs writing
+When creating either a single- or a multi-cell enterprise, one file
+that will need some constant attention is the CellServDB file.
+file on each client
+Problem is not just central management of the data but how will clients
+find the data as needed.
+ 
+store master in well known location
+either in AFS; copy new file over nightly
+or available with rcp
+ 
+This is not a real-time, callback-style consistency . What we want is
+the ability to update a central database and then for all clients to
+use that data as needed. They don't.
+ 
+Keep data in some other database, and generate each night: sybase or NIS
+ 
+Or Keep in DNS.  RFC1183 desribes the format of a Resource Record designed for A
+FS
+configuration.  In versions (4.9.2 or later) of the publicly available BIND impl
+ementation
+of the Domain Name system, you can add AFSDB records to your DNS data. This help
+s to
+solve the database problem but still doesn't address the issue of how
+clients use the data. Some sites have modified their afsd cache manager
+so that it queries the DNS system  for the cell information; but you still
+have to have clients reinitialize that data when it changes.
+ 
+(type is 18)
+ 
+AFSDB records for our cell would look like:
+ 
+PROGRAM DONE
+        name            addr-class      type    sub-type        server
+        hq.com          IN              AFSDB   1               db-one.hq.com
+        hq.com          IN              AFSDB   1               db-two.hq.com
+        hq.com          IN              AFSDB   1               db-three.hq.com
+PROGRAM
+ 
+The sub-type 1 classifies this record as pointing to a standard AFS database
+server. Sub-type 2 happens to be used to point to DCE servers; this is used
+when using DNS as a global directory system to link multiple DCE cells
+together.
+
+
+
+ 
+ 
+        SECTION: DATALESS CLIENTS
+ 
+write: this section need writing
+Large scale sites want cookie cutter desktops.
+Any user can put anything they want onto their desktop, but only
+AFS is guaranteed to be ubiquitous and backed up. And only AFS has the
+production binaries.
+ 
+Therefore, dataless client, make the desktop as thin as possible.
+ 
+Dataless Client - more info; Solaris example /usr/local /usr /etc/init.d
+ 
+why dataless works; symlinks local, reliable access, cached
+mgmt of local disk can be done through automatic caching
+ 
+While the strategy of fully dataless clients is compelling, there are a few
+practical realities that must be taken care of. Even with few files copied
+onto our client, there are still a few that have been copied: the kernel,
+the system boot scripts, the AFS daemon and configuration files. Just in
+case there are critical problems with the dataless client it would be wise
+to also install copies of a few common AFS commands. This adds to the
+administrative overhead of client configuration, but the number of such
+files is still very few and hardly increases the installation time; when new
+versions are available, rather than copy new versions over, it could be
+easier to simply re-install the entire client. Among the candidates for
+inclusion on the client are: fs, klog, tokens, bos. These utilities can help
+diagnose and begin to correct most careless client administration mistakes
+without the need to copy over the entire AFS command suite.
+ 
+dataless AFS servers makes some sense. Of course, the AFS binaries must be
+local, but there's no need to throw other files such as windowing software
+on the file servers. The set of software which is installed must be
+carefully chosen. Be careful of any homegrown software which depends on
+installed files in /afs; servers should be self-reliant.
+ 
+###############################################################################
+###############################################################################
+Chapter 12 - An AFS Project
+
+Though AFS has been pictured as a cloud, it certainly doesn't feel
+ephemeral to users. Administrative changes to the name space or data is
+sensed by all users immediately - so be careful to not change the
+higher-level directories or other name too often. Its best to slowly
+work your way from /afs on down, soliciting input from users,
+developers, and administrators, and gradually setting more and more
+policies on file and volume names and locations in stone. The morale is,
+though central administration makes modifying the system easy, changes
+should be made infrequently. Large organizations will at some point,
+realize that changes will be almost impossible to make, as too much
+infrastructure and production code depends on a certain view of the name
+space. Not too worry though, new views can be constructed with multiple
+mount-points or symbolic links; but the legacy names will live on.
+ 
+f not management, its skunk works. there's no in between
+skunk works means that you work in a small group for a single boss.
+You'll be able to use AFS to solve your problems your way and get
+recognition for it. But you'll have problems interfacing with other
+admin groups.
+
+he transition
+between
+C and C++. While providing certain features of undeniable benefit, there's a
+certain lack of completeness and integration for which we all end up paying
+extra. While certain of C++'s features have clear advantages over their
+predecessor, some others end up as odds and ends which tend to break far too
+easily in obscure ways
+
+ 
+        Futures - disconnected AFS
+        local cache always readable; writes logged and
+        replayed when reconnected
+ 
+write: disconnected support - CITI AFS with no server mods, Coda
+
+NFS
+URL nfs://server/path  path always relative
+public filehandle "0" or zero-length handle avoids mount protocol;
+causes whole pathname lookup
+symlinks evaluated on the server; if the link points to a file, return the
+file's handle; if the symlink points to an URL, return the URL.
+
+Version four might include security model negotiation between client and
+server, Unicode support, integrated file locked, and better cross platform
+support.
+
+
+###############################################################################
+###############################################################################
+Appendix A - Command Summary
+
+###############################################################################
+###############################################################################
+Bibliography
+
+###############################################################################
+###############################################################################

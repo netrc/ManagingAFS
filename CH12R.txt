@@ -1,0 +1,842 @@
+CHAPTER 12 : IMPLEMENTING AFS
+
+After so many chapters on administering, using, and debugging AFS, you may
+have forgotten the reasons for looking into this distributed file system
+in the first place. Certainly, few managers will purchase the
+system without making a clear business case for the system. And once the decision is made, any prudent engineer or administrator will take the necessary steps to ensure
+the success of the system. After all, the whole point of your 
+enterprise is not to use the most technically interesting tools but to
+produce some product or service. Demonstrating the positive effect that
+AFS will have on your business is not easy as the benefits are often
+seen only at medium to large implementation scales. Based on several sites
+experience with bringing in AFS, here are some suggestions as to how
+to make that case.
+
+SECTION: THE BUSINESS CASE
+
+The first place to look when investigating AFS is the successes it has had
+at other organizations. Transarc, of course, tells many success stories in its
+regular marketing literature. Most importantly, these stories
+are based on real enterprises with good administration staffs that simply
+can't keep up with their file storage problems with the usually available
+tools.
+
+The published data shows that AFS has permitted a given organization to
+support 5 to 10 times more clients and users than with other file
+systems. The classic business case can then be made that this organization
+will need 5 to 10 fewer file servers and, almost as importantly, as
+many fewer system administrators. As technical companies today
+rapidly expand, this reduction in the number of administrators is more than made up
+for in future expansion, and AFS becomes a way to permit the existing staff to
+support many more desktops without an increase in resources.
+
+Taking a conservative estimate of 5 times fewer servers and
+administrators for a particular-sized company, we can easily work
+out the math: 2,000 desktops needing, say, 50 servers now will need only
+10 AFS servers of the same hardware configuration. The 40 servers left over are 40 computers either not
+purchased or converted into new desktops. And rather than perhaps 5 administrators
+for 50 servers, only 1 administrator would be needed strictly for file storage
+administration. For some commercial organizations, the savings in
+administration costs can easily outpace savings due to reduced hardware.
+As the user population grows, these savings will accumulate
+year-in and year-out. This back-of-the-envelope calculation suggests
+savings for moderately large organizations of millions of
+dollars per year. Even taking into account the initial software purchase and
+training for AFS, most companies will be saving an enormous amount over
+traditional file services.
+
+Smaller companies will certainly not see such savings, and the
+idea of an initial investment in resources and education may appear to be a
+drawback to AFS. But there are no static organizations: change and growth is
+inevitable. As more and more file data needs to be managed even at a small
+site, there will be benefits in using AFS to create a more flexible
+infrastructure that can be easily expanded or modified as needed. And AFS's
+cost benefits will still permit savings year after year.
+
+On the other hand, try not to get bogged down in unnecessary cash-flow
+details. If, as in many other companies, few projects are subjected to a
+complex business analysis, you should feel free to wonder if this exercise
+is intended to prove the viability of the project or just to delay it. Almost certainly, larger projects at your company with heavier
+up-front costs have gotten the go-ahead based on nothing more than
+buzzwords and good feelings. Your business case must make clear that of moving into AFS is constructed from proven technologies providing <I>built-in security</I>, <I>high-availability</I>,
+<I>remote manageability</I>, and <I>long-term scalability</I>. And those rewards 
+surely outweigh the risks of spending capital 
+to bring in a new infrastructure.
+
+SECTION: AN AFS PROJECT
+
+The cost savings and technical advantages should not be taken on faith by managers; you -
+must demonstrate the system and show regular progress before you can fully integrate AFS
+into an organization. There are usually three distinct phases to any
+organization's introduction to AFS: research, pilot tests, and rollout.
+
+In the research phase, you establish contact with Transarc and
+the AFS community to bring the system in house and demonstrate its
+workings to engineers, administrators, and management. Once a
+demonstration period has been agreed to, you should bring up two or
+three servers. For the research phase, these may as well be desktop systems
+in an engineering group; all that may be needed is to scrounge a few extra
+disks to use as storage partitions.
+
+More than one server is essential because one of the primary benefits of the
+system is its fail over characteristics. Once the servers are set up, create volumes that house examples of writeable home directories and
+replicate volumes containing directories of read-only binaries. Now you can write simple scripts to prove
+the ability of the system to move volumes between servers while remaining
+on-line to user reads and writes. And you can run long-lived executables while the file servers are brought up and
+down. These demonstrations by themselves will sell administrators and managers on the
+virtues of AFS more than any business case ever could.
+
+If direct access to the Internet is available, don't forget to install a ~~CellServDB~/~  file to enable contact with the hundreds of other publicly visible
+AFS sites around the world, especially Transarc's home site. If it's ever possible that your organization will need to pick up patches from Transarc or
+connect distant office sites together, this demonstration will convince management that globally connected information systems can be a
+reality.
+ 
+Demonstrating the scalability of AFS is, however, more difficult. By its
+nature, scalability can only be seen with large numbers of clients. For a valid 
+experiment, write a set of scripts that create,
+read, write, and remove hundreds of files of various sizes to simulate the
+effects of the real working sets of an everyday client. Then run these scripts simultaneously on one to at least six clients at a time. 
+This test is, in effect, what is done during the Andrew Benchmark as run and 
+reported by CMU and Transarc, or what happens during the SPEC 
+organization's SDET benchmark. (It is to AFS's disadvantage that a robust,
+standard benchmark has not been designed to describe the performance of 
+large-scale distributed file systems, for it is not too difficult to
+unwittingly bias a naive script to perform an odd mix of operations that
+will not show the advantages of AFS in the best light).
+
+If your site uses NFS, one way to create a fairly decent test script begins
+with the ~~nfsstat~/~ program. This program reports the number and percentage of each operation carried out on an NFS server and client. You can
+then write a script that attempts to duplicate that
+mix of operations. Once written, run the script repeatedly on an NFS client and reread 
+the NFS statistics to make sure that the proper proportion of
+operations has been executed. This script can then be run on AFS clients and the total execution time, system time, and megabytes of network traffic can be compared to the NFS scenario. Most importantly, run the script on multiple
+clients simultaneously.  Typical conclusions for tests run on six clients
+are that AFS cuts network traffic by 60 percent, server load by 80 percent, 
+and execution time by 30 percent.
+
+One note about the publicly available ~~nhfstones~/~ benchmark: It is written
+exclusively to benchmark NFS server performance. Internally, it incorporates code
+that triggers specific NFS operations and constantly monitors the server to
+make sure that the correct mix of these operations is being maintained. And it
+reports its results in number of NFS operations per second within a certain
+millisecond latency. This is intriguing information for designers of NFS but
+cannot be used to compare user loads versus AFS.
+
+When the research phase has demonstrated the administrative and technical
+benefits of the system, a pilot project is the next logical step. At this
+point, commission the initial server hardware and install a select
+population of user's desktops with AFS client code. The 
+pilot phase ensures that client desktops, users, and administrators
+are comfortable with the system.
+
+Every organization using distributed computing devises its own mechanisms
+for creating desktop machines. Some desktops are constructed as exact
+duplicates of each other; others are permitted to vary as needed. As
+detailed in the chapters on client configuration, not much 
+needs to be done to connect to AFS, but that which is done must be done
+exactly right. The pilot phase enables the administration staff to make
+sure that each client in the current population is configured correctly.
+This task includes ensuring that the operating system is running at the correct
+level; that the local ~~CellServDB~/~ file is up-to-date; and that the login program
+performs both local and AFS authentication. While a client can have any
+decently sized cache it can find on its local disks, it would be best to
+find several dozen megabytes at the very least, and preferable to put that
+cache on its own partition so it won't be disturbed by other uses of the
+disk.
+
+This interim phase is also the time to begin training users with the few
+facts they will need to know in day-to-day operation: how to check their
+authentication credentials and reauthenticate if necessary; what ACLs are and
+how they affect privileges; how to manage their own groups of users; and
+how to check the disk space and quota allotment of their volume. Luckily, while this information is not too onerous for savvy users, 
+those less adept at computers will not need to know too much for day-to-day use. Write up clear and simple Web-based materials to explain the most
+common commands.
+
+The purpose of this phase is to introduce everyone, especially the 
+administration staff, to AFS. Now you can start putting together the
+typical operational scripts used by cell managers: automate client 
+configurations as needed; install a system to copy updated
+~~CellServDB~/~ files from some central repository to the local desktop;
+and write some tools customized for your customers to ease their use of the
+system.  Most importantly, now is the time to formulate policies that deal 
+with volume names, replication schemes, file server locations, backup 
+strategies, and administration privileges.
+
+Also, you will gain experience as to what size of server you should use for
+a certain number of your users. AFS's load on the hardware and operating
+system of a server is quite different from that of other systems, so take
+the time to stress-test your particular vendor platforms to find out
+which should be delegated to read-write, read-only, database, or other
+services. 
+
+To reduce the risk of switching to AFS, start making
+available to clients your heavily used production binaries. It may seem odd to
+recommend production use of the system as a way to reduce risk, but because 
+your other distributed file system (perhaps NFS or Novell) will
+most likely still be in place it is trivial to redirect a client
+back to the old system if problems arise with client
+configurations or server availability. Meanwhile, users will be seeing the benefits of the
+global namespace and client side caching. And because the binaries will
+probably have access controls that give them wide visibility, there will be
+fewer problems with authentication issues. Lastly, with the original
+binaries still stored in another system, you can test the backup system 
+on a large scale without hazarding the loss of newly written data.
+
+This strategy promotes the widest use of AFS as early as possible with
+little risk so that the organization can get up to speed quickly. By the
+time you're ready to tackle putting users home directories, development
+areas, and other read-write data into the AFS tree, you'll already have
+several months' experience under your belt.
+
+Begin the final rollout phase by making all desktops clients of AFS. In
+parallel, copy users home directories into personal volumes
+along with other read-write data sets. In the long run, this operation will
+free up disk space on the old servers; you can wipe those disks clean and
+add them to the AFS server systems. Convert the old servers 
+or simply turn them into desktop systems. The key to this stage is providing
+well-thought-out backup and recovery procedures. If you've followed a
+strategy of segregating read-only from read-write servers, you'll be able to
+rely on the automatic fail over of AFS clients to replicated volumes. So, the
+most important data, the read-write master volumes, can be concentrated on
+fewer machines and backed up accordingly.
+
+As important as it is to create your policies, scripts, and procedures,
+don't allow this process to delay use of the system. Certainly, the
+replication and caching features of AFS provide many advantages over other
+systems. And if your organization is like most others, your current file
+system will not have a complete set of procedures in place to handle every
+contingency. Rather, current procedures have evolved from past ones as the
+client/server configurations have changed. AFS will not be any different;
+with time new and different procedures will need to be designed to
+care for changing environments.
+
+SECTION: OPERATIONAL BUY-IN
+
+When bringing in AFS to an organization, perhaps the most important issue is
+to make sure that management is behind the project and has made its success a
+specific goal of the operational staff. In the long run, it is the
+administrators who will be crafting and using the scripts used for daily system
+administration. Naturally,
+most operators will rightly complain that they have no extra time to work on
+the small-scale pilot phase versus the immediate problems of the current
+system. This perception can easily lead to AFS being left in the backwater
+of interesting projects on which no one has the time to work.
+
+From the start, AFS must be viewed as a way to solve critical problems faced 
+by your organization. The AFS solution is designed not only to
+save systems from disaster but to save real money as well. Once the efficacy of AFS is 
+demonstrated, management should make prudent implementation of AFS a high
+priority for the entire enterprise. After all, AFS isn't free: while the system is not
+outrageously expensive, someone will have to pay for it. Only a
+fully implemented AFS project will be able to justify and pay back that expense.
+
+After AFS has been demonstrated, train as many operational
+staff members as possible. Though the training is lengthy - the
+standard administration course from Transarc is three full days - the content
+is important and must be learned by a majority of staffers. It's important
+at this point to make sure that the information on how to make AFS work be
+easily available. Although AFS is a large system, none of its technologies
+require administrative gurus for operation. It seems strange that, given the
+pace of change in the computing industry, some people will insist that they are too
+busy to learn about AFS. But if AFS is not the chosen solution to
+distributed file storage management, whatever else is chosen will have its
+training requirements as well. 
+
+Once staff are trained, management must make available the appropriate resources to
+test and implement a stable solution. AFS is a complex system with many
+interrelated components; these components work together to provide seamless
+access to all file data. If components begin to fail, the potential for
+sitewide outages increases. These risks are easily mitigated only when the
+proper infrastructure has been planned for and implemented without kludges,
+stopgap fixes, or scrounged hardware. The biggest problems are seen at AFS
+sites that do not enforce appropriate procedures for file system
+maintenance, relying merely on ad hoc support efforts. Proper procedures are a management
+problem, pure and simple, and require up-front investment and continual
+follow-through to ensure success.
+
+Again, the operational staff must be the ones to roll out the final
+implementation. It's far too easy for senior engineers to develop AFS
+solutions that are not understood by administrators. Even such a
+simple task as server installation should be done by those who will be
+running the system - when you've installed the files and processes yourself,
+an AFS server will cease to be mysterious and begin to be an ordinary part of
+the enterprise. By now, AFS has been around a long time; it doesn't need
+obscure development efforts to make it work in most organizations. What it
+needs is experienced administration, which, of course, can come only through
+actual use of the system by those who run the day-to-day
+operations.
+
+After the right staff has been recruited to work on implementing AFS, the
+next item is to prioritize your client base and decide which desktops should
+be connected to AFS first. This is a key decision, and its success will
+encourage all parties to continue the rollout. If these clients are
+important to your organization, they can be the perfect showcase for the
+best features of AFS, such as automatic fail over from unavailable servers,
+transparent movement of files from server to server, and lighter network
+loads. By publicly demonstrating these benefits, not only will you gain
+needed acceptance of AFS, but the entire project can gain closure: AFS ceases to be
+a research project, the up-front expenses have paid off, and the system can
+become part of your dependable infrastructure.
+
+There will come a point in the adolescence of AFS use when the system will
+perhaps become a victim of its own success. Presumably, AFS was brought in
+to solve a set of distributed systems problems. As more time and effort are
+put into AFS to make it a regular part of the computing environment, more
+and more individuals - administrators and managers - will begin to see it as
+a potential solution for their immediate crises. And more than likely, they
+are exactly right. It then becomes a delicate balancing act for the AFS
+project to grow at a reasonable pace without incurring too much risk at one
+time; by prudently expanding its administrative domain as solutions are
+implemented and not before.
+
+At the other end of the scale, the AFS project could wind up as a niche solution
+for just certain desktops or certain files. Because AFS offers many
+solutions to many disparate problems, its learning curve is somewhat steep
+and its implications for a computing environment are many; the best way to
+amortize those costs is to spread them out over as much of your computing
+population as possible. If every client in the organization gets access to
+AFS, administrators can work toward putting most of the file data into AFS
+and then stop administering desktops one at a time. Otherwise, instead of 
+introducing a technology designed to solve problems, AFS will simply double 
+the amount of work. 
+
+The centralized administration
+model and global visibility of files guaranteed by AFS works best when the
+system is ubiquitous. When everyone can get to all files all the time, when
+anyone can walk up to any desktop - potentially from anywhere in the world - and
+still access their home directory and mail with ease, then AFS will have
+repaid the effort put into it.
+
+SECTION: ONGOING WORK
+
+Though use of AFS is supposed to be transparent to most users, there are
+several ways that the underlying distributed file system can affect people's
+jobs in ways that will raise criticisms of AFS itself. 
+
+One such issue is the perception by users that they have less control
+over their files. A multitude of loosely administered servers has now
+become a small centralized cell; user's may have been permitted to create
+directories and projects with whatever names and structures they wanted.
+With the single namespace of AFS, there will probably be stricter policies
+on the top-level path names permitted. A reasonable response to this
+is to create alternate views of the AFS namespace according to user's
+suggestions. And you can also emphasize that, although the namespace 
+structure is under somewhat tighter control, it is guaranteed to be visible
+24-hours a day to all clients in the enterprise. 
+
+Another issue is that as a smaller number of administrators take on
+responsibility for a larger user population, it may take longer than usual
+for simple tasks to be completed. This delay should not be the case: AFS provides
+a rich set of tools to manage its cell efficiently, often with no disruption
+to normal file service. So, to make sure that changes to an 
+administrative organization does not result in perceptions of inefficiency,
+implement procedures to ensure that user requests are fulfilled
+quickly.
+
+Once AFS is implemented, individual AFS operators will find that their workload has not been much 
+reduced; rather, it has simply changed. Regular file system administration
+will take a smaller bite out of the day: rather than fighting disks,
+partitions, and servers, an administrator will be able to single-handedly
+manage many more users and desktops. Perusal of the entire file tree and
+underlying volumes is trivial, and therefore hour-by-hour maintenance is
+straightforward. Because users are insulated from the physical disks by AFS's
+layer of indirection, operators can manipulate and tweak the namespace
+with hardly a bother to anyone.
+
+Instead, administrators will find their time is filled up with maintenance
+of the backup system and the installation of software packages. Transarc's
+backup system provides the necessary tools to manage the archiving of
+volume-based data, but only through the slightly laborious process of naming
+volume sets and labelling tapes. Judicious use of the automation features
+can allow handling of the majority of cases. However, some
+cases will always need watching. For example, while the tape error logs
+can provide indications of failure, you'll have to either manually watch
+over their content or write a script that extracts useful information and
+e-mails or beeps someone if a problem develops.
+
+Third-party software installations are the bane of AFS administration.
+Many more sites are based on NFS and Novell than on AFS, so it stands to
+reason that installations are geared toward the many rather than toward the few.
+But NFS-style installations are still primarily local installations which
+just happen to be visible to a select few machines. To put such a package
+into AFS, you are well advised to install it on a local desktop to see the entire shape of the software package. Through a
+seemingly file-by-file examination of the software, you can discover those portions that are
+read-only versus read-write and apportion these to the
+appropriate volumes in AFS. Happily, once installed, AFS guarantees that all
+desktop systems in the organization will see the package without further
+ado.
+
+If different architectures are supported, you must examine them, too, to find
+the files that are system neutral versus those that are not. You can copy the neutral
+files (such as man pages and shell scripts) a single time into
+an AFS volume; copy the architecture dependent files into multiple
+directories and use the ~~@sys~/~ path name element construct a single
+file name to them.
+
+Spending the time to make a multiple-architecture package fit into AFS is
+sometimes not worth the bother, so you can simply copy the entire package 
+into its own volume, one volume per architecture. But when replicating those
+volumes, you must still take care of paths that the
+package binaries expect to be writeable. On UNIX based AFS servers, yet another symbolic link 
+usually takes care of the problem.
+
+As part of the education and training of new administrators, run regular
+disaster recovery drills. These drills should include testing
+the failure of read-only volumes, 
+recovering single read-write volumes from backup tapes, recovering whole
+disks, and recovering the AFS databases themselves (volume location,
+Kerberos, protection groups, and backup).
+
+You should allocate a small set of servers to a test cell so
+that you can try out new scripts and unload and check out new releases of server binaries. This test cell is also the obvious
+arena in which to let loose new administrators. As long as trainees are
+given only the password to the administration group of the test cell, they
+can experiment without fear of disrupting the main production cell.
+
+One final aspect of AFS administration is to be ready to investigate the
+inevitable complaints - some justified, some not - with which you will be
+faced during the transition. It seems that computer users are quite
+conservative when it comes to the commands they use and the responsiveness
+of the system. Though users may run dozens of commands a day, AFS 
+introduces a few commands of its own; to many people this is a burden. The only
+way to reduce this frustration is through early, swift training sessions
+geared towards the commonest scenarios while saving the more complex user
+issues (such as individual group membership management) for those persons
+who need it.
+
+One of the simplest issues raised by users of AFS is that path names to many
+files become longer. As a consequence of the single namespace visible
+underneath ~~/afs~/~, many directories that have been haphazardly mounted on a
+variety of names or drive-letters are now mostly accessed through the wellknown, top-level directory; this single namespace can lead to longer paths. Your response:
+Although the paths may be longer, all computers in
+the organization always see exactly the same set of paths. Once this point is clear,
+the benefit versus other systems with per-client views, each more likely
+than not to be different from the other, becomes quite clear.
+
+With AFS's aggressive use of caching, most file accesses will appear to be almost as quick as if the files were local. Yet the first access will,
+of course, necessitate a trip to the server. Unlike other systems with their
+rather predictable responsiveness, it is somewhat easy to feel when your
+desktop computer has a file cached and when it hasn't. This fact inevitably leads users
+to request that certain files be stored locally for faster speeds. You should point out that while some accesses feel slower, overall performance has increased and manually caching certain files locally will only lead to less local disk
+space for truly transient files (like cache and swap) and inevitable
+mismatches between versions on one desktop and another; the resulting
+administrative nightmare is just the situation that was solved with AFS.
+
+Similarly, users, during their first skirmishes with access control
+permissions and volume quotas, will tend to blame problems on
+bugs with AFS. As with all user queries, give due
+attention to these reports. In practically all cases, the problem does not lie with AFS
+system software. But, explaining to a frustrated user that something which
+seems to be a bug is in reality a feature of the system is difficult at
+best.
+
+
+SECTION: AFS FUTURES
+
+To be honest, while AFS provides much needed functionality, an
+organization's first experiences with it will not be trouble free.
+Especially when dealing with the unexpectedly strong authorization scheme
+proscribed by Kerberos and ACLs, using AFS can at times seem more trouble
+than it is worth. After all, goes the criticism, aren't distributed file
+systems easy? The answer is, of course, no. And just because we have
+grown used to the problems of other systems doesn't mean that those technologies 
+don't present their own sets of ongoing issues that must be overcome.
+
+Yet when compared to other systems, AFS does appear burdensome.
+While providing certain features of undeniable benefit, there's a certain 
+lack of completeness and integration for which we all end up paying extra. 
+For AFS, being able to transparently move pieces of the file system around 
+a distributed environment is a brilliant tool to solve practical problems. 
+But the constant hacking at backup scripts, juggling token lifetimes, and repackaging 
+third-party software adds much friction to the system's efficiencies. 
+Though most competing file systems don't even try to solve similar problems, 
+they nevertheless coexist with existing infrastructures, if for no other 
+reason than that NFS or NetWare is probably used at other sites, 
+whereas AFS is not.
+
+Perhaps a better analogy is to call AFS the Macintosh of file systems. It
+may be prettier, easier, and have a cult of diehard believers, but will it
+ever become mainstream? Certainly, the major innovations from
+CMU, such as caching, replication, fail over, and location
+transparent namespaces, are being adopted by competing systems. And
+while purists will argue, perhaps rightly, that these add-ons to existing
+protocols are never as good as the original, all that matters is that the
+result is good enough. And if good enough is available for a better price on
+more platforms with superior integration, the winner will be obvious.
+
+Nowadays, it appears that the market mechanisms have subverted
+price-performance questions into simple demands for free services, at least
+on the client side. Even though AFS is not exorbitantly expensive, it does
+require a purchasing decision; that process in itself is so fraught
+with nontechnical issues and politics that the successes AFS has had is an
+unbelievable achievement in itself. Given that Transarc does not charge
+a per-client fee, the question for Transarc is, is there a better
+business model that will transform this product (or DFS) into a de facto
+standard, at least for a certain segment of the computing industry?
+
+Worse, no truly significant advances have been made to the product
+in the last few years. Transarc is so busy working on ports to
+never-ending new releases of hardware operating systems that any significant
+features seem to be years away. And AFS could stand some real improvements:
+How about a better interface to AFS functions with real return codes and
+structured, informative output? Higher availability through shorter fail over
+periods? Use of emerging hardware cluster standards to provide fail over for
+mirrored read-write volumes? The ability to export non-~~vice~/~ partitions or
+even CD-ROMs into the AFS namespace? Finally providing support for
+hierarchical storage systems as was promised long ago? Although DFS has
+improved write-consistency semantics, it doesn't provide any of these
+features, either.
+
+The more optimistic viewpoint is that while AFS solves some issues and
+raises others, many hundreds of large commercial sites around the world
+have chosen to invest in AFS because it has proven itself to possess
+needed functionality that translates into persuasive cost benefits.
+More importantly, distributed file systems are like programming languages:
+there's no reason to use a few different solutions as long as they
+can interoperate. The more significant change to an organization will
+not be in the bit-by-bit wire protocol used but in a change from 
+distributed to centralized management of the enterprise's file storage.
+
+Choosing a distributed file system technology from the available products
+is not a trivial task. That's not unusual for an industry seemingly based 
+simultaneously on vaporware and legacy systems. Trying to decide on 
+different technology to support an organization's infrastructure is a 
+gut-wrenching process. It would help to have unambiguous 
+direction statements for AFS from Transarc, a hope perhaps doomed by the fact that Transarc also sells DFS, the most technically advanced competitor to AFS.
+
+But as of late in 1997, there is no indication that work on AFS will end
+any time soon. Enhancements for the product up to the turn of the century
+are in the works. AFS 3.5 is planned for release in early
+1998. Among the features intended for inclusion are:
+
+-- Multihomed support for database servers and clients
+
+-- Selective use of network interfaces for file servers
+
+-- On-line salvage operations to permit volumes and partitions to be
+available while corrupt volumes are being fixed
+
+-- Better support for third-party backup systems
+
+-- Integration of user authentication with other login systems such
+as the Common Desktop Environment
+
+The recent AFS client port to Windows NT is being upgraded to NT version 4.0.
+This upgrade will necessitate replacement of the integrated File Manager operations with
+the newer Explorer interface. Other enhancements on the todo list include:
+
+-- Support for NT Universal Naming Convention file path names
+
+-- Performance improvements
+
+-- A true disk cache
+
+-- More support for other AFS client commands such as the ~~pts~/~
+suite, password changing, and server preferences
+
+Clearly, these on-going improvements suggest that AFS will continue to
+have a lifetime longer than the computing market's event horizon. Looking
+beyond that is a risky proposition. But it is hard to conceive of a moment
+in time when AFS is truly dead: far too many organizations 
+have source code licenses and can support AFS on their own;
+the University of Michigan and the Pittsburgh Supercomputing Center are
+prime examples of this. Until all AFS sites have migrated to DFS (or some
+other equally scalable and efficient system), users and administrators should
+not worry too much about the end of AFS. Indeed, it would probably be beneficial to
+all if, at the end of its life cycle, AFS were released into the public domain;
+AFS source code has, after all, been available to many universities for years. 
+Such a release would probably increase the number of sites using AFS, Transarc 
+could focus solely on DFS and other products, and sites that wanted more and 
+better-supported functionality could go straight to DFS.
+
+However, even when Transarc's support of AFS is dropped at some far future date, 
+that doesn't mean that implementing AFS now is a waste. The difference between
+AFS and other solutions is really a difference in management infrastructure
+and not a technical battle over protocols. For users, the
+difference between sites before and after AFS is introduced has to do with
+the efficiencies of AFS's central administration model and the transparency
+of file access across the enterprise. As far as can be determined, any other
+future distributed file system could be installed in place of AFS
+without much fanfare; administrators may need to learn new support tools,
+but users and developers will still be browsing and creating data in
+directories and folders as before.
+
+SECTION: DCE AND DFS
+
+Toward the end of the '80s, in order to thwart an imagined power play by 
+Sun Microsystems to control the future of UNIX, several competing workstation 
+vendors - Digital Equipment Corp., IBM, Hewlett-Packard, Bull, and others - 
+combined resources to form an independent software institute chartered with the 
+creation of a new operating system and related tools. This institute, the 
+Open Software Foundation, put out a request for technology to provide a 
+distributed environment with directory services, security, remote procedure 
+calls, and a distributed file system. This request was answered through a 
+collaborative effort by many of the OSF founders as well as Transarc with 
+a suite of specifications for what became the Distributed Computer Environment 
+and the Distributed File System: - DCE and DFS.
+
+DCE enables an application writer to specify the interfaces to a client/server system in a high-level language. This interface definition can then
+be turned into real code to which can be added the actual application logic.
+When run, servers can register themselves with the DCE directory services
+such that clients can find the servers without the need for location-
+dependent configuration data. The security services can then be employed to
+confirm the identity of client and server through a system of mutual
+authentication and also to encrypt all data packets.
+
+Most of these technologies were based on existing implementations rewritten to
+add more functionality such as replication and redundancy. DFS itself was
+produced by Transarc as a rewrite of AFS. In some respects, DFS can be
+thought of as simply a new version of AFS that attempts to solve some of the following 
+outstanding problems of the system.
+
+-- DFS generalizes the server callback model into a token-passing
+system. When a client wishes to read to a portion of a file, the client
+must first request a read token for that portion. Similarly, when writing
+data into a file, the client must obtain a write token. Since the DFS servers
+manage all token transitions, this system allows for almost perfect emulation
+of standard UNIX file semantics. No longer do distributed applications have
+to wait for file closes to synchronize data, as in AFS; all clients should
+see all reads and writes as they occur anywhere in the system.
+
+	The drawback is that the server must maintain yet more state and, of course, during server recovery, a more complicated scheme ensures that consistency is maintained. And, in order to
+implement the token-passing system, more data packets must be passed between
+clients and servers. Nevertheless, with local file caching as in AFS, DFS is
+able to provide similarly high performance and scalability with predictable
+file behavior.
+
+-- On the administrative side, DFS and AFS are very similar. Though
+much of the terminology has been changed - volumes are called filesets, ~~vice~/~ 
+partitions become aggregates, the ~~vos~/~ command is now the ~~fts~/~ command with a
+different selection of subcommands - most of the basic workings are the
+same. You can still create filesets at will, attach them to the file
+namespace, and move them around with full location transparency. One change
+that seems trivial will come as a relief to many AFS administrators:
+fileset names can be 106 characters long. Other changes seem somewhat
+arbitrary: an AFS volume quote of 0 means that the quota is turned off,
+whereas in DFS, 0 means a quota of 0 bytes.
+
+	But in general, much regular DFS administration should be completely
+familiar to AFSers. Even the volume (that is, fileset) backup system is
+practically the same.
+
+-- Desktop administration is different because
+clients of the cell must be configured as DCE clients. DFS client caches 
+are located in a different place but are otherwise treated similarly, 
+though the implementation is much changed. Most interestingly, there is 
+no ~~CellServDB~/~ file to be maintained. All server information is 
+registered with the DCE directory services, and clients query DCE to
+determine where to find the fileset location database servers and the
+security services. 
+
+-- Regarding security, access control lists can be attached to all
+objects in the DCE cell. Such objects include all of the administrative DCE
+services as well as all DFS files and directories, as opposed to just the
+directories in AFS. Having ACLs on each file in a directory is touted as
+a good thing. With files ACLs, you can implement fine-grained permissioning schemes, 
+but more importantly, there is a strong linkage between the
+DFS ACLs and the standard UNIX permission bits. When permission bits are
+modified, such as with the ~~chmod~/~ command, the corresponding ACL entry is
+changed; when a specific entry (such as the owner entry) is edited, the
+permission bits reflect the new controls. This is another example of how DFS
+more closely emulates POSIX semantics.
+
+	On the other hand, DFS ACLs are more difficult to read and 
+internalize. Making sure that all files in a directory have the same DFS ACL 
+or any non-trivial access pattern, is a task fit for automation only and not 
+casual visual inspection. And because multiple groups can be added to an ACL 
+but those group entries must be reflected in the single UNIX group
+permission, DFS ACLs include a group mask entry which seems to 
+magically change to ensure POSIX conformance.
+
+-- The DCE Kerberos server can be replicated, but it does not use 
+the Ubik protocol, so there is only a single, immovable master site.
+
+-- Transarc has produced a port of DFS to Windows NT which includes not only
+client access but the server side as well. It's remarkable to have
+an organization's file data be moved between UNIX and NT servers while 
+UNIX and NT clients of the cell continue to access the same data no matter
+where it comes from.
+
+	Significantly, the server port comes with a graphical user interface 
+so that most DFS administration tasks can be accomplished through a few 
+mouse clicks. At the very least, the interface helps train administrators 
+in DFS operations with its visualization of servers, aggregates, filesets, 
+and services. Even better, the DFS system interface is provided as a set 
+of ActiveX objects so that customized tasks can be custom built into 
+your own administration suite.
+
+The conclusion in many people's minds is that DFS is an adequate competitor
+to AFS but there is no overriding reason to choose one over the other.
+The reasons favoring AFS are its greater maturity and simpler administration
+model versus DFS's closer POSIX semantics and potential ability to support
+other DCE applications. 
+
+Others will argue that DCE and DFS provide a better bridge to systems such 
+as CORBA and that it is the only production-grade distributed environment 
+supporting an integrated set of security, naming, and network transactions. 
+Certainly such support makes DFS compelling if an organization is moving 
+towards DCE anyway. 
+
+In fact, one particularly good reason to introduce DFS services is to make DCE
+available to all desktops. Generally, a programming group that
+wishes to use the DCE RPC for an application will install DCE on
+just the few machines in their territory. Cajoling other divisions or
+the entire organization to use DCE becomes a political battle more often
+lost than won. A central IT group, however, usually has a specific mission
+to support widespread infrastructural technologies such as file and
+directory services. Putting DCE on all computers to gain access
+to DFS files will automatically enable other DCE applications to be built
+and rolled out with relative ease.
+
+If AFS is already in use, a migration path to DFS is available: AFS
+clients can connect to a DFS cell through a gateway. Given a DFS cell, 
+you would add the list of DFS fileset location servers to an AFS client's 
+~~CellServDB~/~ files and then run a gateway process, ~~adapt~/~, on the 
+DFS servers. This process converts AFS client requests into DFS protocol 
+packets. The migration path would then be to introduce a DFS cell into 
+an AFS site and allow AFS clients to see both the AFS and DFS namespaces. 
+
+In this scenario, you can use a Transarc utility to transform AFS volumes 
+into DFS filesets.  Administrators could then gradually move data
+from cell to cell as the opportunities arise. As the last volumes are moved
+over into DFS filesets, the AFS cell can then be turned off. Naturally, the
+security systems of both cells will have to be coordinated and users may
+need to know both AFS and DFS command suites for some time, for instance, to
+manipulate ACLs. In theory, the migration can be accomplished with less
+interference in day-to-day operations than the introduction of AFS services
+in the first place.
+
+If desired, a given desktop client can even run both the AFS and DFS protocols
+simultaneously. The only drawback to this model is that DFS is not 
+currently available for quite the range of client platforms as is AFS.
+One significant omission is lack of support for SunOS 4.1.3; you
+may want to keep AFS installed on these clients and use the AFS-to-DFS
+gateway.
+
+However, the strangest aspect of DCE/DFS is not technical at all but
+political: Who's in charge of the product?. While Transarc is nominally the
+expert provider of the DFS system, OSF is a member-supported
+consortium. Yet of the original members who are hardware vendors, only
+IBM provides full support for DFS client and server on their UNIX platform.
+HP has only recently started to release DFS servers with full replication
+support for their hardware. And DEC supports basic DFS services only on their 
+UNIX system and have failed to provide client support for VMS systems. It's
+fallen to Transarc to provide the most complete implementation for some 
+of these platforms.
+
+In 1996, OSF combined with the open standards-setting organization
+X/Open, forming The Open Group, an umbrella group to manage many of
+the computing industry's practices. The good news is that the technology
+has a more organized promoter; the bad news is that innovations to DCE and 
+DFS have to pass through many hands before becoming standardized, a process 
+that must be streamlined to ensure that the system continues to improve at 
+a rapid pace. 
+
+SECTION: THE COMPETITION
+
+Meanwhile, back at Sun, work on the future of NFS has been proceeding
+faster than ever. As of 1996, Solaris 2.5 included much-needed improvements
+to their ~~automount~/~ daemon and a caching file system layer that could be used
+for either remote files or CD-ROM data. This release also included
+Version 3 of the NFS protocol, which favors TCP connections rather than 
+UDP datagrams, provides for some protocol optimizations, such as returning 
+attribute information even when it wasn't specifically requested, and 
+supports 64-bit file offsets.
+
+In 1997, Sun released Solaris 2.6, which, as far as distributed file systems 
+are concerned, provided support for large UNIX files and client fail over 
+between NFS servers. Previously, fail over was available only at the moment 
+of a client's initial mount of an exported file system. Now, fail over of 
+read-only files can occur at any time. These are welcome innovations and 
+will prove useful.
+
+But the combination of features is not the same as the integrated system 
+provided by AFS. For example, while fail over between read-only file systems 
+is supported, there's no mechanism to ensure that the read-only file systems 
+are equivalent.
+
+Worse, you cannot both cache and allow fail over for the same file system. 
+So, the files that might benefit most from caching, such as on-line documentation
+or often-used binaries, won't have the protection that fail over offers. 
+Assuredly, later versions of Solaris will improve the performance and 
+functionality of these capabilities. But unlike Transarc's ports of AFS
+to multiple platforms, few other vendors have shown an interest in supporting
+these advanced features.
+
+Though NFS Version 3 is only a year or so old, Version 4 of the protocol
+is in development. This version is based on work done to help NFS deal with 
+the World Wide Web; the early versions have been called WebNFSª. One of
+its features is its ability to be incorporated directly into a Web browser.
+A Uniform Resource Locator with the prefix ~~nfs~/~: would result in use
+of the NFS protocol to fetch a desired file from a given server. The
+major innovation here is the disappearance of the heavyweight mount protocol.
+
+(Strangely, while the Network Computer reference profile mandates the
+use of NFS, it does not include ~~cachefs~/~ or fail over, technologies that would
+make network clients and servers much more reliable and efficient.)
+ 
+Novell's NetWare and Microsoft's NTFS and CIFS are also going full steam
+ahead. All are bringing a certain amount of robust fail over and
+caching efficiencies to the desktop. This implicit acknowledgement of
+the rightness of the AFS technologies would be heartwarming to Transarc
+if the fear of being steamrollered by the marketing of these competitors
+wasn't so chilling. But let's not forget that the real winners will be 
+the organizations who use the best technology to support their users.
+
+SECTION: SUMMARY
+
+In the world according to UNIX, everything's a file. The operating system
+promises to maintain this illusion, and we pretend to play along. Even things
+that aren't files, such as window systems, e-mail, and client/server computing,
+have been, at one time or another and with little or more success, treated as 
+files. But as some systems move toward distributed objects and others to network 
+computers, we still find that the general paradigm of files - a stream of 
+bytes able to be read and written - is where most of our data resides. After 
+all is said and done, Javaª bytecodes, most of the Web's content, the interface 
+definition language for CORBA objects, and relational database executables are all stored in files.
+
+For the most part, local file systems raise very few concerns among
+users or administrators. Bringing AFS into any established computing culture 
+might therefore generate a shock. To those that wonder why anyone should 
+bother with a technology that appears only to complicate something solved 
+years ago, just take a look at what the competition is up to.
+ 
+There seems to be general agreement that many of the issues AFS is
+trying to address are worth the added complexity. The relaxed security
+model of trusted hosts is giving way to cryptographically provable
+authentication. Fixed, small-scale permissioning
+schemes are being replaced with fully generalized access control lists.
+Overused networks are having throughput freed up through aggressive
+client caching. And one-at-a-time administration of innumerable desktops 
+is being replaced with global, centralized management methods.
+
+Make no mistake, this is still distributed, client/server computing. But
+rather than each individual client bearing the burden of this paradigm, the servers are now working together, behind the scenes, in a
+coordinated system to keep alive the illusion that everything's just a file.
+
+These trends did not begin nor will they end with AFS. Yet this
+product has had a decade of experience with its implementation and
+has a multitude of large sites that can demonstrate its success.
+Understanding this, some organizations will want to aggressively push 
+AFS to as large a population as possible as quickly as possible;
+the risk here is that the user and administrator training can be 
+shortchanged, resulting in more problems than solutions.
+
+Others organizations will implement a research project to investigate the product,
+insisting on a completely detailed project plan before proceeding. Here,
+the risk is that the large-scale implementation schedule will be used only
+as a make-work project for middle managers, resulting in endless planning meetings.
+
+The successful plan will naturally evade either extreme and focus
+on the best parts of the system and the greatest needs of the organization.
+Showing early and sustained success is vital to this project, as it is
+to any project. And getting all interested parties signed on and invested
+in the long-term success is most important of all.
+ 
+While the transition to AFS is not trivial, the bottom line is that a
+networked file system can be a ubiquitous resource, omnipresent and
+dependable.  With this in mind, it's hoped that your organization will 
+find good use for AFS. It will undoubtedly complement and enhance your 
+distributed computing environment. Like most other users and administrators 
+who use AFS daily all over the world, you'll quickly wonder how you ever 
+did without it. 

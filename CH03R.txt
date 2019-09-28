@@ -1,0 +1,1061 @@
+CHAPTER 3: SETTING UP AN AFS CELL
+
+AFS cells consist of server machines acting in concert to provide file
+services to client workstations. No preferred architectures
+or numbers of servers are defined by the system; a cell's servers could
+be a single computer or dozens of relatively independent systems
+strewn about an enterprise. It is only important that all the servers
+know about each other, one way or another. From the first server installed
+with AFS software, the cell infrastructure will evolve, with specialized
+systems supporting a selection of the various AFS services.
+
+As you learn about how an AFS cell is brought to life, you might be
+surprised at the number of programs and commands used to operate the system.
+At first glance, there seem to be too many. But AFS is not just a
+system for the delivery of files; it is a way for an enterprise to
+manage all distributed file data, to securely manage user identities,
+to provide flexible authorization policies for file access, to archive data in a manner consistent with the additional functionality of the
+system, to oversee all AFS server processes, and to distribute new versions 
+of server executables. It should not be expected that these services
+could be provided with only one or two programs.
+
+In general terms, three kinds of programs are used to make the
+different servers and disks accomplish these goals:
+
+-- Server programs - Long-running daemons that execute on the file server: 
+such as ~~bosserver~/~, ~~kaserver~/~, ~~volserver~/~, or ~~fileserver~/~
+
+-- Operational commands - Programs run by administrators to
+manipulate the system: ~~fs~/~, ~~vos~/~, and ~~kas~/~
+
+-- Client cache management - The client itself and some utilities to
+modify its behavior: ~~afsd~/~, ~~fs~/~
+
+We'll look at each of these kinds of processes over the next few chapters.
+Here, we'll go over the server processes in detail with an emphasis on
+how they are initialized in a brand-new cell. It may be fruitful to read
+this chapter once now, and then return to it after reading further chapters that
+introduce other operational aspects of the system.
+
+SECTION: PRELIMINARY DECISIONS
+
+There are a few questions that you must answer before starting 
+installation. First and foremost is the choice of an AFS cell name.
+This name is used throughout the system, in server databases, as a key used
+to encrypt Kerberos information, on each client machine to define its
+default cell location, etc. As such, changing a cell's name should be
+treated as a moderately difficult task. The fact that it can be done (as described later) is no reason not to pick a good
+cell name in the first place.
+
+That said, your organization could purchase a site 
+license for the product. Not only will the license eliminate regular additional costs 
+as more servers are brought on line, but it will permit you to create test 
+cells as needed. With a test cell, you can train new administrators in your 
+standards and practices of cell support, including installation. 
+Because AFS allows centralized control of an enterprisewide file server, 
+it is difficult to test new software releases of operating systems, or AFS 
+itself, as well as new hardware configurations or disk hardware, within 
+your production cell. With a test cell, you can experiment freely so choosing your first cell name decision can be less traumatic.
+
+If you do not choose to set up an ongoing test environment, you should still
+envision the initial AFS installation as an experiment, with the software
+configuration to be thrown away after evaluation. In this case, no
+individual decision will haunt you for your career. The first installation
+will seem a bit magical; once you understand the AFS terminology and
+mechanics, you'll see why each operation is performed in its particular
+order - you'll even be able to optimize the installation. The second installation
+will go much more quickly and (it is hoped) you will configure the system more confidently.
+
+When choosing your final AFS cell name, keep in mind the possibility of
+publicizing that name to a larger audience. Many organizations rely on the
+strong authentication model of AFS and allow their cells to be visible in an
+Internet-wide file sharing namespace. The conventional directory structure
+has cell names as the subdirectories directly underneath ~~/afs~/~. To keep
+that directory organized and to encourage unique cell names worldwide, we recommend that your cell name be based on your organization's
+DNS name. For example, Transarc's cell is called
+~~transarc.com~/~ and can be found at ~~/afs/transarc.com~/~, the University of Michigan's cell is at ~~/afs/umich.edu~/~, IBM in
+Switzerland at ~~/afs/zurich.ibm.de~/~, and the Fermi National Accelerator Lab
+at ~~/afs/fnal.gov~/~. The dot characters in the name do not have any meaning to AFS
+as they do to DNS; there is no integration of cell names with DNS at all.
+Nor is there any internal hierarchical namespace for cells. The dots 
+just suggest a hierarchy whereas in reality the cell namespace is
+flat. The similarity of cell names to DNS names is just a convention of
+the AFS community.
+
+If you can guarantee that your site will never, ever have its cell visible
+to the outside world, you could, of course, name your cell practically
+anything. But given the explosive use of the Internet, that's an
+unwise bet to make. And, even though, for clarity, a cell's name is often included in
+the directory structure, you are free to invent new
+directory structures to hide the cell name from users.
+
+As your organization grows, you'll likely wind up with multiple cells either
+just for testing, for political reasons, or even just large-scale
+geography. A reasonable practice, therefore, is to use your organization's
+registered DNS name as the starting point for your cell and then to add one
+(or more) levels to indicate status or geographic subdivisions, such as
+~~test.hq.firm~/~, ~~prod.hq.firm~/~, or ~~main.new-york.hq.firm~/~. While shorter
+is better (for typing's sake) additional sublevels can help administrators
+coordinate very large scale AFS sites. Many firms have cells in several dozen
+cities worldwide; each cell is given a country and possibly a city sublevel 
+to make administration procedures more predictable and simpler to construct.
+
+After we look at more AFS administration practices, you'll see that the
+actual cell names chosen can be mostly hidden behind a variety of other
+names through symbolic links and additional mount points.
+
+SECTION: HARDWARE REQUIREMENTS
+
+Neither AFS server nor client software puts a great stress on system
+resources. Though distributed file servers regularly service
+hundreds of clients, it is not necessary for specialized hardware platforms,
+clusters, or appliances to be used with AFS. All that is needed is
+a modestly configured server computer, typically just a high-end workstation.
+One advantage of this configuration is that as a server runs out of steam in a few
+years with the addition of ever greater numbers of clients and gigabytes
+of disks, you can move the old server workstation to a user's desktop
+and install a new computer in its place. This waterfall model extends
+the depreciation lifetime of an organization's hardware and can greatly
+reduce the overall costs of the computing infrastructure.
+
+For reasons outlined later, it is beneficial to run the servers that provide 
+access to the database of volume location, authentication, group, and backup
+information separate from the file servers. And, as access
+to the database should be highly available, we recommend you have
+at least three separate servers to provide this service. These 
+servers will also need some extra disk space to hold their databases.
+With workstations being shipped these days with at least 2 gigabyte internal disks, the
+concern over disk space is not quite as critical as it was in the early
+days of AFS.
+
+Although you could dedicate three or so systems to AFS database servicing, no minimum or maximum numbers of file servers are required. Clearly, it will be
+useful to have at least a handful to provide reliable data access and to
+have that access spread around, relatively close to various desktops. But
+AFS has been proven to support, depending on actual access patterns, upwards
+of several hundred clients per modest server with the clusters of clients located
+over a small-city-sized WAN. A single AFS cell can easily scale from one
+to tens of thousands of desktop users, so there's no need for most
+organizations to have multiple production cells at a single site.
+
+Other considerations could warrant such multiplicity; if the WAN links
+between buildings are particularly unreliable or the geography quite large,
+more than one cell can be a good idea, especially during the initial pilot project.
+And large organizations often suffer from bureaucratic or political issues
+that can best be solved by creating one administrative cell for each division.
+There's certainly nothing wrong with such a topology; but while it is easy to navigate
+and work in more than one cell, there are effectively no AFS tools with
+any built-in support for multicell administration.
+ 
+As for concrete specifications for an individual server system, only a small amount of local disk space, about 18 megabytes, is
+needed for storage of the server binaries, and less than 1 megabyte for clients.
+Servers also need some local disk storage for possible server process core
+files and for storage of log files.
+
+Clients and especially servers use RAM for many internal data structures;
+therefore, the more the better, but there's no need, as far as AFS is concerned, to go over 32 megabytes
+for clients or 64 megabytes for servers. Servers will benefit from more RAM only if
+the organization is particularly large, say, over 1,000 users. 
+
+More important is disk space used by clients as caches and by servers as
+file storage. For the latter, you can add up to 256 partitions to be
+used by AFS to a single file server. That number accounts for the naming convention
+used by the volume server as it starts up to discover what disk space it
+controls: it assumes it controls any partition mounted at a directory name
+that begins with ~~/vicep~/~ and followed by ~~a~/~ through ~~z~/~ or ~~aa~/~ through ~~iv~/~. 
+As we'll see when we examine volumes in closer detail, all AFS
+needs from a file server is a native file system installed on the ~~vice~/~
+partitions. In the past, this requirement limited the amount of data that could be
+installed on a server. Today, however, with virtual disks commonly available
+through hardware RAID or operating system enhancements such as Sun's
+DiskSuiteª or IBM's Journal File Systemª (JFS), the potential data storage for a single system
+is enormous.
+
+Note that as the partitions are fairly normal local
+file systems, administrators can create and delete files and directories in them. 
+This practice doesn't harm AFS at all, but it is not how one manages AFS. When you 
+take a look at the files that are written to a ~~vice~/~ partition, you'll be 
+surprised to see hardly any visible file activity.
+ 
+For clients, a piece of the local disk must be devoted to AFS caching.
+In this regard, the bigger the better, but there are diminishing returns
+especially for anything over 100 megabytes. However, again, given the large
+internal disks shipped by many manufacturers, it is hard to resist the
+temptation to give 200-300 megabytes to the cache manager. Though initial
+startup of the client is delayed as the manager creates the large
+number of cache files, there are ways around this delay. Eventually, as you migrate more
+and more locally installed files into the AFS namespace,
+it is good practice to store on the client disks only transient data, such as the cache,
+temp files, swap, and spool files.
+
+SECTION: INSTALLATION OVERVIEW
+
+The installation procedure creates a running cell on a single machine to which you can introduce
+additional server machines and clients. A running cell
+consists of several cooperating processes, which must be started one at a
+time in a particular order. Once initiated on one server, they can be
+started on others, providing resiliency to the system as a whole. Achieving this level of flexibility takes some doing, especially when you are attempting to
+eliminate any security exposures.
+
+After initial installation, you will have constructed a single machine that runs a
+management process, the security database, the protection database of group
+information, the volume location process, and the file server. Several
+pieces of information, such as the first security credential and the first
+volume, need to be created during this phase. To finish, the client daemon is
+started so that the administrator can access the cell's file system to begin
+regular AFS management. 
+
+Figure 3-1 shows how these processes relate to one another and what 
+data each controls. As more servers are installed, you can choose which 
+processes run on which machines.
+
+[[Figure 3-1: Processes on an AFS Server]]
+
+Because this first machine is necessarily a file server, make sure to set up
+a few desired disk partitions and mount them at directories named ~~/vicepa~/~, ~~/vicepb~/~, etc.
+
+Later, when we discuss volume internals, it will be clear
+that although the ~~vice~/~ partitions use the native file system layout,
+there are a few differences which the vendor file system check program,
+~~fsck~/~, would report as errors and attempt to correct. At this stage in
+the installation, you must copy Transarc's AFS ~~fsck~/~ into place
+in the expected system location, such as ~~/usr/etc/fsck~/~. This version
+will perform as usual for non-AFS partitions but will do the 
+appropriate lower-level checks only in ~~vice~/~ partitions. 
+
+To continue the installation, load Transarc's AFS module 
+into the kernel. The module is usually just an object file, ~~libafs.o~/~, 
+which contains the algorithms and data structures that implement the 
+AFS file system. You load the file into the kernel either by using 
+Transarc's dynamic kernel loader or the vendor's own tool or by building 
+a new kernel statically link-edited with the module. These procedures 
+are slightly different for each architecture and are outlined in detail
+in Transarc's AFS installation manual.
+
+In terms of administration overhead, both loading mechanisms require that a binary 
+file (either the module or a new version of the kernel) be 
+copied onto each server. Either way, the server's kernel will have a new 
+system call to start up AFS kernel threads, a new file system (usually 
+installed as part of a kernel vnode layer), and other hooks. 
+
+Now that the system hardware and software are ready, start the AFS services. All servers begin by running an overseer process, ~~bosserver~/~. 
+This service manages all other AFS jobs on the server. Administrators 
+normally control AFS  through a client program ~~bos~/~ which sends instructions to the overseer process on a
+particular server rather than logging in to a machine and manually
+manipulating a specific process.
+
+As with the overseer process, each subsequent AFS service is managed by a server 
+program that is contacted via a protocol request sent by a custom-built
+client program. (In the case of the file server, the control program is the
+client kernel as it reads and writes files.)
+
+Before you continue, note that it is important to perform the 
+installation tasks in one pass because regular authorization checking
+is turned off. You may want to disconnect from the network or disable
+logins to ensure that the system is secure and that no unauthorized reading or 
+writing of data can occur. Once the installation is complete and the system 
+is up, there is strongly controlled access to all critical data. However, it 
+will still be important to restrict access to servers as much as possible,
+and especially so for the Kerberos security servers themselves.
+
+Next, you will configure the cell name with a special subcommand of the ~~bos~/~ administration command. 
+This command sends a data packet to the ~~bosserver~/~ process so
+that the server can create the configuration file ~~/usr/afs/etc/ThisCell~/~, 
+which stores the local cell name; the server also automatically configures the file 
+~~/usr/afs/etc/CellServDB~/~.
+
+The server's ~~CellServDB~/~ file is similar to the client's. It is a text file 
+in which the names and addresses for the cell's database servers are stored.
+This step of the installation 
+process ensures that a correctly formatted version of the file is created.
+
+The Kerberos server, ~~kaserver~/~, is the next job created; this starts up 
+authentication services. Immediately, you'll add
+two privileged identities to the security database. The first is 
+a name to be used initially for AFS management. This shared administrator's name 
+can be any name you'd like: ~~admin~/~, ~~afsadmin~/~, or ~~celladmin~/~ are 
+common choices. The second identity which must be created is ~~afs~/~, the principal
+which acts as a service key for the AFS processes themselves. 
+Be sure to remember (and don't write down) the passwords for these two 
+principals.  Later on, you can add administrator privileges to other identities.
+
+When the cell is finally running, you'll need to authenticate as one of the AFS 
+administrator identities to perform system management. To authenticate, you'll
+use the ~~klog~/~ program, much like a regular log-in program, to confirm
+your AFS identity against the Kerberos system. The installation process outlined
+here only stores the administration name in the Kerberos databases; you must also
+add this name to your password file or map. This way, any files or directories 
+created in AFS by an administrator will have their ownership information displayed 
+correctly. Keeping the password maps and the AFS Kerberos databases synchronized 
+for all user identities is an on-going concern.
+
+One benefit of AFS is that users of client workstations mutually authenticate 
+themselves with the AFS file servers: once authenticated, a server can trust the 
+user's identity and the user's can trust that they are talking to the cell's true 
+file servers. This authentication can happen only when the Kerberos servers store 
+secrets both about the users (their password) and about the AFS servers (the service 
+key). It is critical to the security of the AFS system that the Kerberos servers 
+be trusted and that their integrity never be violated. To increase the safety
+of the ~~afs~/~ service key, you should change its secret password regularly
+to forestall efforts to crack it. 
+
+If your site is already using Kerberos based on the MIT distribution,
+you do not need to install Transarc's server, but you will probably have
+to take care of small inconsistencies between the two implementations.
+Some of these issues are discussed in Chapter 6.
+
+With the ~~afs~/~ principal defined, you can now extract a Kerberos service ticket
+and install it on the file server. This ticket is essentially
+a new secret password, usable only on this server, which authenticates the server
+to Kerberos. You extract this ticket with another ~~bos~/~ command, which stores the 
+ticket in a special file, ~~/usr/afs/etc/KeyFile~/~. Occasionally, 
+access problems to AFS are a result of corruptions to this key file; 
+we examine the failure mode and fixes in Chapter 10.
+
+Only after Kerberos has started can the protection database containing
+group membership information be initialized. Administrative control
+of most AFS procedures is permitted via a few mechanisms, one of which
+is membership in the group ~~system:administrators~/~. This group is automatically
+created as you start up the protection server process, ~~ptserver~/~. The
+next step is to add the administration name defined previously into 
+the protection database and to add it to the membership list of the
+~~system:administrators~/~ group.
+
+Once the security infrastructure is in place, you can run the processes 
+that make up the file system proper:
+
+-- The volume location server, ~~vlserver~/~ - This server 
+process allows AFS clients to determine which server holds a given
+volume's file data. 
+
+-- The backup database server, ~~buserver~/~ - This server tracks the backup schedule, the volumes
+archived at a given time, and the backup media sites. In Chapter
+7, we'll see how this database stores information on our archive jobs.
+
+-- The file server processes - These are three related processes: ~~fileserver~/~, to store and retrieve file
+data, ~~volserver~/~, to manage volumes, and ~~salvager~/~. The ~~salvager~/~ is not
+a long-running server like ~~fileserver~/~ or ~~volserver~/~ but is available
+to scan the file server's disks to recreate any lost file or volume
+data on the disk if the other two processes crash.
+
+Now, you can create the first AFS volume. Nominally called ~~root.afs~/~, 
+this volume name is assumed by clients to be connected to the directory 
+named ~~/afs~/~. To create the volume, you use the ~~vos~/~ command suite. This 
+command controls most aspects of AFS volume existence and is perhaps the 
+commonest command run by an administrator. It is discussed in detail in 
+the next chapter.
+
+Finally, you can set up two optional services. The first is
+the update server, ~~upserver~/~, which allows for easy updating of servers' 
+AFS binaries and configuration files. It is critical that all servers 
+in a cell are running exactly the same version of all AFS processes and 
+have exactly the same data in the few static ASCII configuration files. To
+that end, you can use Transarc's update system to propagate changes among 
+the servers themselves. 
+
+The upshot is that new configuration files need be installed on a single
+machine and new binaries installed on a single machine per architecture.
+The update server system will perform all transfers between the masters
+and slaves and ensure that the new data or programs are installed in a
+methodical manner without any disruption of distributed file service.
+
+The second optional service, ~~runntp~/~, is a process to start up synchronization of the local clock.
+Both Kerberos and the distributed database servers use timestamps for
+controlling their operations.  If you're not running any of the publicly 
+available network time protocols, you can use the system that Transarc supplies. 
+
+Your first server will now be running all the AFS server processes outlined
+in Figure 3-1, and the first, topmost, volume has been created. 
+
+To complete the AFS installation, you'll next install the 
+client software. It may seem odd to think of client software being installed 
+on a server, but AFS is a rigorously architected client/server system. 
+All access to file data must use the AFS protocol to reach the correct 
+server processes which return the data; so even on an AFS server, the 
+only way to get at the files is by using the AFS client software.  
+One reason for this requirement is that it increases the security of the system: even
+the root superuser on an AFS server must be properly authenticated
+before being able to read or write data. Before we
+discuss client set up, let's examine the server processes in more detail.
+
+SECTION: THE BASIC OVERSEER
+
+Thinking back to the original motivation of the AFS designers, it is
+easy to imagine their dismay when faced with monitoring all the services
+they had just written. Like most of AFS, this practical need for a
+monitoring tool was satisfied with the creation of the basic overseer
+server, ~~bosserver~/~. This server process manages
+much of the installation and other administration tasks of the system.
+Rather than logging in to a remote server and manipulating
+jobs manually, the administrator can use a simple command-line client program, ~~bos~/~.
+The primary purpose of ~~bosserver~/~ is to start up, track, 
+and restart any server processes that fail.
+
+Once the AFS server jobs have been defined, all that is required to 
+begin services after a reboot is to load the kernel module and begin
+~~bosserver~/~. These two actions are the only ones that need be added to a
+system's startup scripts, such as ~~/etc/rc.local~/~.
+
+Naturally, ~~bosserver~/~ has been written to handle the special cases
+needed by AFS servers. But this job control system is actually somewhat
+flexible and can be used to manage other processes needed for server
+administration. These other jobs are controlled through a
+configuration file named ~~/usr/afs/etc/BosConfig~/~. The data is
+formatted in a simple ASCII-based language which you can edit
+by hand, but the ~~bos~/~ program is the preferred means to communicate with a
+~~bosserver~/~ changes to configuration information or to start and stop services.
+
+A ~~bos~/~ job consists of a unique name, a program name and invocation
+arguments, a job type (e.g., ~~simple~/~, ~~fs~/~, or ~~cron~/~), and optionally a program to be
+run when the job terminates. During the installation, you created three
+~~simple~/~ jobs: ~~kaserver~/~, ~~ptserver~/~, and ~~vlserver~/~. Each
+of these is "simple" in that each is a single process which is expected
+to run forever and does not depend on any other process. The unique
+name for these jobs is based on the server name; the program name
+is the full path of the executable. If you'd like, ~~simple~/~ jobs can be 
+used to manage long-running servers of your own devising.
+
+The ~~fs~/~ type of job is a custom job which only the AFS file server
+programs should use. Its unique name is normally ~~fs~/~ and the
+program name is a set of three path names for the ~~fileserver~/~, 
+~~volserver~/~, and ~~salvager~/~ programs. The basic overseer understands that
+the first two programs are expected to be long-running processes and
+that if either exits, special processing may be needed.
+In particular, if ~~volserver~/~ crashes, ~~bosserver~/~ restarts it without
+further ado; but if ~~fileserver~/~ crashes, then ~~bosserver~/~ will stop ~~volserver~/~ and run ~~salvager~/~ to restore some file system state.
+After ~~salvager~/~ has run, ~~bosserver~/~ restarts ~~fileserver~/~ and then ~~volserver~/~.
+
+During installation, no ~~cron~/~ jobs are created. These jobs short-lived
+programs defined to run at regularly scheduled times. By running out of
+the ~~bosserver~/~ system, administrators can take advantage of the
+~~bos~/~ tool to monitor their operation.
+
+In addition to these per-job pieces of data, all jobs includes two overall
+configuration items: restart times and a time to turn over new binaries.
+These and other more advanced server management facilities are described in
+more detail in Chapter 10.
+
+SECTION: FILE SERVICES
+
+File services are ultimately provided by three processes on each file
+server. Of these three, two are always running, and the third runs only to
+clean up after a failure. Because of this dependency, ~~bosserver~/~ has a
+single job that controls the startup of the file services or the
+initiation of cleanup followed by the two long-running processes.
+
+The aptly named ~~fileserver~/~ is the first of the two long-running processes; it delivers or stores file data to or from client systems.
+Although a file server will usually hold a great deal of data in multiple
+~~vice~/~ partitions, only a single ~~fileserver~/~ process is run per server.
+
+Besides communicating with clients, this process also queries the protection
+server to check the permissions of a user's read or write request. For
+other queries or administration, the ~~fs~/~ command can check or
+change access controls, volume connection points, or quotas. (As an aside,
+yes, overloading the name "fs" to signify both a kind of basic overseer job
+and a command suite is potentially confusing.)
+
+A similar process, ~~volserver~/~, runs continually on each file server to
+make or destroy volumes, coordinate entire volume dumps or restores, and
+moves volumes from one server to another. Don't confuse this process with the volume location server, ~~vlserver~/~, which manages the
+database of volume locations. As with ~~fileserver~/~, there is only one ~~volserver~/~
+process per file server no matter how many volumes or partitions are on
+the machine.
+
+The final process in an ~~fs~/~ job is ~~salvager~/~. This process is similar to
+the portion of the native file system check program, ~~fsck~/~, which checks
+for consistency of directory and file names and linkages. In this case,
+~~salvager~/~ understands the connectivity between volumes, files, and access
+control lists. It is normally not running at all but is started up when
+a failure is detected.
+
+The detection method is triggered by the existence of a sentinel file.
+When the ~~fileserver~/~ process starts normally, it creates a file
+~~/usr/afs/local/SALVAGE.fs~/~; when the ~~fileserver ~/~ exits normally (such as
+during a graceful AFS shut down), it deletes the file. Hence,
+if the file exists before ~~bosserver~/~ runs ~~fileserver~/~, then ~~fileserver~/~ must have exited abnormally, potentially leaving the
+volume structures in an inconsistent state. In this case, ~~bosserver~/~ 
+runs ~~salvager~/~ to check and restore the volumes structures.
+
+Naturally, this file can be created manually if ever a salvage of ~~vice~/~
+partitions is deemed necessary, but there is also a separate ~~bos~/~ command
+to start a salvage if needed. 
+
+As previously mentioned, there is no explicit configuration file to describe which partitions are controlled by the ~~fs~/~ job processes. AFS assumes
+control of any disk partition mounted at a name beginning with ~~/vicep~/~. Although ordinary UNIX tools can be used to
+create or delete files in these ~~vice~/~ directories without harming
+the rest of the AFS data, such usage is not recommended.
+
+For the curious, inside the ~~vice~/~ partitions are volume headers, visible 
+as 76-byte files named ~~V<I>nnnnnnnn</I>.vol~/~, where ~~<I>nnnnnnnn</I>~/~ is the volume 
+identification number.  As ~~volserver~/~ starts, it scans the disk to
+find all volumes available and attaches them, that is, it validates 
+their integrity and acknowledges ownership of them.
+
+These volume header files contain data which points to more volume 
+information stored in the ~~vice~/~ partition; the root directory entries, and 
+thereby, the rest of the file data for the volume. All of the file, directory, 
+and access control data is stored in standard inodes and data blocks in 
+the ~~vice~/~ partition file system, but none of this data is given a regular, 
+user-visible file name.  
+
+As users store data, ~~fileserver~/~ assigns each file a FID or file identification
+number. Unlike file handles in NFS, which are different on each server, FIDs 
+are enterprisewide identifiers that can be used to discover where the 
+file is stored anywhere in the system. Each FID is composed of a 32-bit 
+volume identity number, a 32-bit vnode or file number, and a 32-bit 
+uniquifier or version number. Once a client has used the volume identifier 
+to find the server that stores the file, the file and uniquifier 
+numbers are sent to the ~~fileserver~/~ process. This process then searches
+through AFS data structures maintained in the operating system to directly 
+point to the location of the file data in the ~~vice~/~ partition.
+
+Although the inodes and data blocks in the ~~vice~/~ partition are standard, their connections and
+lack of visible names will cause the vendor's file system check program
+to believe that there are numerous problems with the internal system
+state. If the vendor ~~fsck~/~ program is run, it will attempt to fix these
+problems and thereby undo some of the state that was being used by
+~~fileserver~/~ and ~~volserver~/~. For this reason, during
+the installation process you must replace the normal ~~fsck~/~ program with 
+Transarc's version. That version will work correctly on the vendor's 
+regular UNIX file systems as well as do the right thing with the ~~vice~/~ 
+partitions. 
+
+Because AFS servers spend much of their time processing data and updating 
+disks, they should be gracefully shut down before the system is rebooted.
+You use ~~bos~/~ to shut down any or all AFS processes on any
+server. It is especially important to perform this action on any 
+servers holding read-write file data or the master site for the
+database processes. There are a variety of recovery mechanisms for
+systems that crash; these are discussed in Chapter 10.
+
+SECTION: DATABASE SERVICES
+
+The other main jobs run on AFS central machines are the database services. 
+Separate databases store authentication information, group 
+memberships, volume location information, and historical data about volume 
+archives. Each database type can be replicated among a few servers; these 
+replicas permit the data to be available in the face of server or network 
+failures.
+
+Although each database server process is independent of the others, most AFS commands assume that 
+each database server listed in ~~CellServDB~/~ will be running all four of the 
+database processes: the volume location server, the authentication
+server, the protection server, and the backup server.
+
+The <I>volume location server</I>, ~~vlserver~/~, keeps track of every volume in the cell. 
+For each named volume, up to three versions are potentially available: a 
+master read-write, a few read-only copies, and a backup or snapshot. 
+For each of these volumes, ~~vlserver~/~ stores information about the server and partition in
+which it is stored, its size, creation and update time, and other data. 
+Volumes are manipulated by ~~vos~/~ commands, which will update both the
+volume location database as well as the actual volume on disk. For example,
+the volume creation command adds an entry to the volume location database and 
+also contacts a specific volume server to create the actual volume data. The
+~~vlserver~/~ is also contacted by clients to find out where data is stored.
+
+The location information is stored in the <I>volume location database</I>, 
+often abbreviated as VLDB; do not confuse this with other literature that 
+uses that acronym to mean very large database.
+
+The <I>authentication server</I>, ~~kaserver~/~, is an almost-standard Kerberos
+version 4 server. Interestingly, the original CMU ~~kaserver~/~
+was the first Kerberos server written according to the MIT specification.
+Its database stores all the encrypted user passwords and server keys.
+Users interact with the server through modified login programs or a 
+separate program, ~~klog~/~, to become authenticated and retrieve a Kerberos 
+ticket-granting ticket. Administrators will use AFS's ~~kas~/~ command suite 
+to add or delete users and change passwords.
+
+The <I>protection server</I>, ~~ptserver~/~, stores access control information, user
+name and IDs, group names and IDs, and group membership mappings. The ~~fileserver~/~ process queries this server
+to determine access permissions. Administration of user IDs, groups,
+and group membership is performed through the ~~pts~/~ command which queries
+the server's information in the <I>protection database</I>.
+
+The <I>backup server</I>, ~~buserver~/~, tracks and stores data used by Transarc's
+archival system. The administrative command ~~backup~/~ defines full 
+and incremental dump schedules and archives sets of volumes as a unit.
+As dumps are made, ~~buserver~/~ keeps a complete database of which volume sets were dumped 
+to what media at what time.
+
+Each of these four database processes stores the actual data on the
+server's local disk under the ~~/usr/afs/db~/~ directory. The data is
+accessed via two files per database: their suffixes are ~~.DB0~/~ and ~~.DBSYS1~/~. 
+The ~~.DB0~/~ file holds the database entries themselves while the ~~.DBSYS1~/~ file
+holds a log of add or update operations which are being applied to the database.
+If certain errors occur, this log can be replayed to bring the database file
+into a coherent state. In addition to backing up AFS file data, you must archive 
+these database files to storage in order to have complete disaster recovery 
+procedures.
+
+SECTION: SERVER MACHINE TYPES
+
+While AFS is composed of a number of services all acting together, it is not
+necessary for every server to run every service. This is not to suggest that
+random combinations of processes are supported; Transarc (and their
+documentation) distinguishes between the following types of
+servers:
+
+-- File servers - These systems run the ~~bosserver fs~/~ job (consisting of ~~fileserver~/~,
+~~volserver~/~, and ~~salvager~/~) and therefore are known to have ~~vice~/~ disk
+partitions. It is common for a cell to have a dozen or so file server machines.
+ 
+-- Database servers - These systems run the processes that
+maintain AFS databases. As mentioned, for reliability you'll probably want to run
+more than one database server. It is expected that
+each database server is running all of the database processes that you
+require. Typically, this means that each will run ~~vlserver~/~, ~~kaserver~/~, ~~ptserver~/~, and ~~buserver~/~.
+
+-- System control machine - This single server is so named because it is
+the distribution point for systemwide data, such as the AFS service key file. 
+This and other textual configuration data must be synchronized across all AFS
+servers. This data can be propagated automatically by making all other servers clients of the update process on the
+system control machine. By design, the configuration data which must be 
+propogated is all stored in the single directory, ~~/usr/afs/etc~/~. 
+
+-- Binary distribution machine - Just as systemwide configuration
+data must be the same everywhere, so too must the binary releases of the
+server programs themselves be the same. Of course, each different
+machine architecture must have its correct executables. So, for each
+server's hardware and operating system version, there should be one binary
+distribution machine; the other similarly configured systems will be clients
+of this binary distribution master. Again, by design, the binary files
+of concern to the system are all stored in one directory, ~~/usr/afs/bin~/~.
+
+Naturally, a single machine may be performing several of the above roles. But 
+many sites choose to run their database services on machines separate from
+their file server machines. As we'll see as we explore file and volume
+operations, AFS file servers are quite independent machines - neither
+clients nor the databases need any prior knowledge of the identity of the AFS file servers prior to using them. It is therefore a simple operation to administer a
+file server system without affecting the cell's operation as a whole. On
+the other hand, AFS database servers must be known to each client in a
+cell and must be known to each other, thus requiring somewhat more careful
+administration practices. While it is easy to bring down a file server
+to, say, add a disk, with a predetermined amount of service outage,
+bringing down a database server may affect the cell in less predictable
+ways. Hence, isolating the file and database functionality onto their
+own machines provides a more manageable environment.
+
+While file servers and database servers are often segregated,
+one of them will almost certainly be the system control machine,
+propagating its configuration data to all other servers. Likewise, this
+machine may as well be the binary distribution machine for any other
+servers of the same architecture.
+
+As an example (and, indeed, in examples throughout the book), we will be administering computers at a firm named "HQ."
+Its domain name is ~~hq.firm~/~, which will be therefore be the name of its
+AFS cell. Our firm has many clients and many gigabytes
+of files to be managed, so we've set up their servers as depicted in
+Figure 3-2.
+
+[[Figure 3-2: The Machine Topology at hq.firm]]
+
+According to the suggested practice, we have installed separate servers 
+for database and file services. (Note: It is not necessary to give the machines
+as dull a set of names as is done in our example; we chose these names to 
+make clear which server should be listed as an argument to example
+commands in the rest of the book. It is possible with DNS to give such names as aliases to your real server; this practice
+may make writing scripts or teaching the system to others easier.)
+
+Of the servers, ~~db-one~/~ is the system control machine and also the 
+binary distribution machine for all Sun servers - ~~db-two~/~, ~~fs-one~/~, and 
+~~fs-two~/~. ~~db-three~/~ is the binary distribution machine for
+other HP¨ servers, of which there is only one, ~~fs-three~/~. Finally, ~~fs-one~/~,
+~~fs-two~/~, and ~~fs-three~/~ are simple file servers.
+
+Table 3-1 summarizes the exact services and daemons that are running on
+each system.
+
+[[Table 3-1: Server Types and Running Processes]]
+
+Because a single server machine can be running more than one process for more
+than one purpose, we'll use the server type names with care: ~~db-one~/~
+is an AFS server, which could be described as a database server, a system
+control machine, or a binary distribution machine, depending on the
+circumstance; ~~fs-three~/~ is a file server and a client of the binary 
+distribution system. 
+
+Also note that these names are descriptive only. Given an arbitrary
+cell, the only way to determine what roles a machine is taking is by
+examining the output of the ~~bos~/~ status command and reading which
+services it is performing at that moment. Knowing that a machine serves
+a specific purpose does not rule out other uses for that machine; the
+system control machine is probably also a database server and perhaps
+a file server as well.
+
+SECTION: ADDING MORE MACHINES
+
+Once you've completed the somewhat tedious startup configuration of the first machine, adding further servers is much more straightforward. To install a new
+file server, you must first copy the program files to the system.
+Given that a few ~~vice~/~ partitions have been set up, all that is required is 
+to start the ~~bosserver~/~ and initialize the ~~fs~/~ job and the two ~~upclient~/~ jobs: 
+one for the system configuration data and one for the binary programs.
+
+Additional file servers are this simple because they do not communicate with
+each other; they only need to know the addresses of the database servers.
+Other than that, the only configuration information that identifies
+a file server to the rest of AFS is the volume location database, which
+stores pointers to the machines and partitions that store a given volume.
+
+A new database server is a little more complex, mainly because all
+other servers and clients in the cell need to be told 
+about the existence of the new server. After copying over the program files,
+start ~~bosserver~/~ and initialize it with the four 
+database jobs - ~~vlserver~/~, ~~kaserver~/~, ~~ptserver~/~, and ~~buserver~/~ - and also an
+~~upclient~/~ job to periodically retrieve new configuration data. 
+
+To let all other AFS servers know of the new database server, add its name 
+and address to the ~~/usr/afs/etc/CellServDB~/~ file on the 
+system control machine. The ~~upserver~/~ and ~~upclient~/~ jobs that were 
+set up previously will copy over this changed file to all other AFS servers.
+In a few minutes, all other servers in the cell will have the new file. 
+
+At this point, you must manually restart the database jobs on the other
+database servers. When they restart, they will read the ~~CellServDB~/~ file
+and contact the listed servers, including the new server, and begin
+communication to determine which site is to be the master site. The
+new database processes will quickly discover that they do not have a 
+copy of the databases and will request a transfer of the data.  The
+election and internal management of this process is handled by the
+Ubik algorithm, described in the next section.
+
+AFS client machines also need to be informed of the new database
+server. Running clients need to be explicitly told that a new server
+exists; the server should also be added to client's ~~CellServDB~/~ file.
+It is simple to write a script to check for a new version of the 
+~~CellServDB~/~ file in some well-known place and install it;
+you could even write a small daemon process to run on a client and
+listen for custom messages. Given that large AFS cells are regularly run with
+only three AFS database servers, the need to change such a server is a
+fairly rare occurrence. Yet, given the large number of potentially visible 
+cells, somewhat frequent changes to the cell server database file must 
+be made. And with no standard mechanism for distributing these changes 
+from external sites to your site or to your client desktops, you'll have to develop homegrown solutions to keep your 
+clients in synchronization with the AFS world.
+
+SECTION: UBIK
+
+The database services are set up on multiple servers so that a client 
+can send its queries to any available server. This configuration not only automatically
+spreads out the load (and the load is further reduced by client caching of 
+the answers) but during outages permits a client to query successive 
+database servers until it gets an answer.
+
+The problem posed by running multiple instances of the databases is
+deciding where updates are to be sent and how to make sure that those
+updates are propagated to the other instances. Any solution should
+be able to manage circumstances when one or more of the database servers
+has crashed or is running but unable to communicate with the other servers.
+
+In AFS, multiple database instances are synchronized through an algorithm 
+named Ubik hard-coded into the server process. 
+The algorithm's prime purpose is to enable the multiple instances to elect
+one of themselves as the master site to which all update requests are
+sent. When a single process handles all updates, the requests are
+inherently serialized. For example, a request to change a user's record 
+could not be accepted at exactly the same time that the user is deleted 
+from the system; if these two requests are serialized, then either the deletion
+occurs first, so that the request to change would fail, or the change
+would occur first, to be followed by the deletion.
+
+Once changes are made at the master site, they must be reliably propagated 
+to the other sites. To ensure that the propagation succeeds requires that 
+the database instances communicate among themselves to discover and work 
+around any outages. When all database processes agree that the new version of the database 
+is ready, any of the instances is available to respond to read requests, such 
+as queries for a volume's location or which users belong to which 
+groups. Compare this scheme to a fileserver's ~~fs~/~ job 
+which perform its work with no interaction with any other file server's 
+processes.
+
+There are, of course, many ways to provide replicated read access to this 
+kind of data. The advantage of Ubik over other database technologies is that 
+during system or network outages, a majority of surviving database processes 
+can elect a new master, so that updates to the database can still be
+accepted and maintained correctly despite the failure. The ability of
+the master site to automatically move itself to a new site during
+network outages enables the AFS databases to be highly available for
+both read and write operations. 
+
+In Ubik terms, the master is called the <I>synchronization</I> or <I>sync</I> site, and
+the other sites, which hold read-only replicas of the database, are called
+<I>secondaries</I>. When an update to a database is received from an administrator's
+program, it is logged to the sync site's disk and then propagated to all
+of the secondaries. If less than a majority of secondaries responds that
+the update succeeded, the sync site aborts the update and tells the
+administrator that the request failed. 
+
+Every time an update is successfully applied to the sync site,
+the update is immediately propagated to all other secondaries and
+the database version number is incremented. The sync site and the
+secondaries regularly check to make sure that the latest 
+version of the database is used for replying to requests. If a
+secondary has been unavailable due to a network outage and has missed
+an update or two, once the network is repaired, the secondary will notice that its 
+database has an older version number than that which is available on the 
+sync site and so will request a transfer of the more up-to-date version.
+
+To determine which system is the sync site upon startup, all database
+processes examine their local ~~/usr/afs/etc/CellServDB~/~ file to find the other 
+AFS database machines. An individual server will check to see which of these
+machines are reachable on the network and then will decide to vote for one. 
+This choice is made by selecting the available
+server with the lowest numerical IP address; a purely arbitrary but easily 
+calculated algorithm. What is important is that because the voting preferences
+are well known, all observers (and administrators) will know that the 
+election represents a stable, and, under normal circumstances, repeatable
+situation. 
+
+To be elected sync site, a server has to receive a majority of votes, that is, a 
+majority of the number of servers listed in the ~~CellServDB~/~ file for this cell.
+If three servers are listed in the ~~CellServDB~/~ file, the sync site must 
+receive at least two votes. To help make a majority when there are an even 
+number of servers, the lowest-addressed site gets to break the tie in its 
+favor. 
+
+In a normally functioning cell, the lowest-addressed database server will win 
+all the elections for all of the database servers. That machine will receive
+100 percent of the available votes and all servers will recognize that machine as the
+elected sync site. From then on, all requests to update any AFS database data will be
+directed to the sync site, which will accept the update and write the
+data to its disk before propagating the new record to the secondaries.
+In our example cell with three database servers, ~~db-one~/~ has the 
+lowest IP address and will win election as the Ubik sync site.
+
+The sync site stays in touch with the secondary sites by periodically sending
+out a packet of information called a <I>beacon</I>. The beacon lets the secondary know that 
+the sync site is still alive and represents a promise that, unless explicitly 
+told of a record update, the database it holds will be valid until some number 
+of seconds in the future, usually about 60 seconds. A new beacon will
+be sent out before the previous one expires.
+
+When secondaries receive this beacon, they send a response back; this
+acknowledgement enables both secondaries and sync site to know that
+both are running well. If a secondary realizes a beacon has expired,
+it knows that some outage has occurred and therefore will begin a 
+new election process. At some point, if a sync site crashes and 
+another machine takes its place, then, when the original sync site reboots
+and joins in an election, it will retake the read-write mastery of the
+database. Although a site may win the election, it may realize that there 
+is a higher-numbered version of the database on one of the secondaries. 
+If so, it will transfer a copy from there to its own site, and then begin synchronization 
+beacons with the remaining secondaries.
+
+If a database process running as a secondary realizes that it has lost contact 
+with the sync site, it is still permitted to respond to queries. 
+This response is a potential
+problem because, if the sync site is still running but is hidden behind a
+network partition, the sync site's contents may change at any time. For
+the volume location database, an incorrect response does little damage; at
+worst, when told the incorrect name of a file server, the file read or
+write request will fail on its own. More problematic are incorrect answers to
+queries of the Kerberos and protection database instances. But as of AFS 3.4a, it
+was decided that in the rare event of a network partition, it would be
+better to permit read access to the databases, which would permit logins
+and access control lists to be checked, rather than refuse to answer such
+queries.
+
+There are any number of ways for a collection of database servers to crash or 
+lose contact with each other, and so it's important to understand that the Ubik 
+algorithm running inside each database instance does its best to ensure that 
+correct read-only data is available and that only one sync site will be 
+available at any given time. A few selected examples should suffice to 
+demonstrate how this works.
+
+In a single-server system, the server will always be available, and will 
+receive one vote - a majority - as it votes for itself as the lowest-addressed
+server. It is always available because if the machine
+crashes, there are no other databases which would compete in the
+election; either this system is available, in which case it is the sync site, or it will have crashed.
+
+In a two-server system, there is the possibility that either the sync
+site or the secondary crashes or that they are both running but unable 
+to communicate with each other over the network. Table 3-2 shows
+the possible scenarios: When both are running normally, the lowest-addressed 
+server gets votes from each server and becomes the sync site. 
+
+[[Table 3-2: Ubik Resiliency: Two-Server Scenarios]]
+
+When the highest-addressed server is running but doesn't hear from the
+other server, it will decide to vote for itself as the currently available
+server with the lowest address. But this adds up to only one out of two 
+votes and so is not a majority; the highest-addressed
+server will never be the sync site and will remain a secondary.
+All that it can do is service read requests from the database and 
+periodically attempt to begin a new election. When the original 
+sync site reboots, it will win the next election and retake sync-site
+responsibilities.
+
+On the other hand, if the lowest-addressed server cannot contact the
+other server, it will vote for itself, but because it knows that there are an 
+even number of servers, it adds a half vote as the lowest numbered server in ~~CellServDB~/~ and so gains a
+majority and remains the sync site.  This situation occurs either if
+the secondary has crashed or if a network problem
+blocks transmissions between the two servers. If the secondary has
+crashed, upon reboot it will respond to a beacon from the sync site, 
+it will realize that it has an old version of the database, and a copy of 
+the current version will be transferred. 
+
+From these scenarios, you can see that two AFS database servers provide a small 
+measure of load balancing but not much in the way of greater availability.
+
+For more availability, a three-server system is preferred. In this case, all queries 
+are split between three servers for load balancing. If the sync server 
+crashes, the remaining two servers engage in an election and one of 
+them will receive two votes as the lowest-available-addressed server;
+those two votes represent a majority of the original three machines, and so a
+new sync site will become available. Obviously, if one of the two nonsync 
+sites crashes instead, the sync site will remain available. Thus, the Ubik
+protocol provides a mechanism for three servers (at a minimum) to always 
+establish a sync site no matter which single machine crashes or becomes 
+unavailable.  In Table 3-3, several scenarios are worked out.
+
+[[ Table 3-3: Ubik Resiliency: Three-Server Scenarios]]
+
+More interestingly, in the case of a network partition that leaves the sync
+site isolated from the other two servers, both sides of the partition will
+start up an election. The single sync site will vote for itself but will not
+get a majority of two or more votes and so will stop being a sync site; the
+other two sites will elect a new sync site between themselves and be available 
+for updates from those clients on their side of the partition. When the 
+network problems are resolved and a new election takes place, the original
+sync site will win the next election, and the newest version of the database
+will be transferred back to the original sync site.
+
+The Ubik sync site election rules ensure that at no time will more than one
+active site be accepting updates to the database. At worst, no updates
+will be permitted, but client data queries can be answered. When a majority
+of servers is available, a new master read-write site can be elected. 
+To ensure that all communication during an election is accurate,
+the election itself can last almost three minutes. During the election,
+neither updates nor queries can be processed.
+
+Why not create more than three database servers then? The trouble with
+additional servers is that updates must be propagated to all secondaries.
+As the number of servers increases, the odds increase that some subset will
+crash or lose communication with the others.  While the Ubik protocol manages 
+this unavailability, it does put a stress on the system: updates must be 
+sent to all servers, and elections may take place, new sync sites may be chosen, 
+and database transfers may occur. Also, because the servers must send each 
+other periodic beacons and votes, multiple databases add their own load to 
+the network.  
+
+In general, three servers are recommended as optimum; this number can support 
+thousands of clients and a few tens of file servers. Some sites have as
+many as five database servers, a few, up to seven. Beyond seven database 
+servers, there simply isn't much experience available.
+
+As can be seen, this architecture depends on the accurate a priori
+knowledge of database machine names. Each server needs to know the set 
+of servers in its own cell, listed in ~~/usr/afs/etc/CellServDB~/~. And
+each client needs to know of all potentially available servers for all 
+cells it will want to access, listed in ~~/usr/vice/etc/CellServDB~/~. 
+
+Client workstations will initially prefer one of the database machines
+as the system to which to send queries. The queries are satisfied 
+immediately whereas the updates must be sent to the sync site for 
+processing. If the preferred database machine becomes unavailable, a
+client will dynamically fail over and use one of the other database servers
+listed in the ~~CellServDB~/~ file. When the preferred server becomes available
+again, the client will return to using it.
+
+A program is available for querying the status of the Ubik algorithm
+running inside each of the database server processes. See Chapter 10 for information on 
+diagnosing and repairing Ubik failures.
+
+SECTION: TIME SYNCHRONIZATION
+
+Several AFS services insist that systems maintain synchronized time clocks.  
+For security, the Kerberos authentication model relies on timestamps to 
+help prevent replay attacks and to manage the expiration of user credentials. 
+For the files themselves, it is important for the times seen by one client 
+to make sense to other clients: it would be strange for one user to see that 
+a file had been changed by another user, but that the file's modification 
+time was several minutes into the future. In addition, the Ubik protocol uses 
+timestamps to validate server votes and database version numbers.
+
+In 1987, an Internet RFC was published which describes the Network Time 
+Protocol. This is a mechanism by which many independent computers can 
+agree on and distribute time information. The result of this protocol 
+is that clocks on all functioning systems can agree with one another to 
+within milliseconds of a reference timeframe.
+
+Many AFS sites use the public domain version of NTP for their time services.
+Because this was not in wide usage when AFS was first released, the AFS
+product includes a version of NTP and integrates the protocol and programs
+with the rest of the system. If precise time services are already available,
+you can skip the following configuration information.
+
+The general layout of NTP starts with one system in the
+organization getting its time reference from an external source. This
+external source can either be a quasi-absolute provider, such as a radio
+receiver set to the WWV U.S. time service or a GPS (Global Position
+Satellite) system receiver. A simpler reference can be had by using the NTP
+protocol to receive timestamp packets from another, trustworthy, computer on
+the Internet. Figure 3-3 shows the general layout of time distribution.
+
+[[Figure 3-3: AFS Time Synchronization]]
+
+Alternatively, if you do not care about the accuracy of your timestamps, you
+can just rely on any reliable local computer and declare that that system's 
+clock is the correct time for your organization.
+
+Once your reference point is set up, you must assign a set of
+servers as the next stratum of timestamp support. In the AFS product, these
+servers are normally the same as the set of database servers. An enterprise
+needs only a handful of time servers spread around the network topology
+- a distribution which happens to match that of the AFS database servers.
+
+From there, file servers will communicate with the time service daemons on the database servers using the NTP protocol to maintain precise local clocks.
+
+Transarc's AFS comes with an NTP server daemon, ~~runntp~/~, which uses
+the synchronization protocol to keep the times accurate on AFS servers.
+Like other server processes, this daemon is managed by ~~bosserver~/~.
+Because timestamps are used by Ubik to coordinate elections and database
+versions, you should monitor this job as closely as you monitor any other AFS service.
+AFS clients query servers to set their clocks on their own; as
+discussed in Chapter 5.
+
+SECTION: SUMMARY
+
+At first glance, there seem to be an overwhelming number of servers
+and databases needed to get AFS up and running. This is in stark
+contrast to, say NFS. But NFS is really just a wire protocol to 
+tie together remote UNIX file systems; it accomplishes this goal
+quite successfully. But AFS's goals are to present
+an integrated file system service with improved reliability, security,
+and performance.
+
+The beauty is that even with all of these new processes, command
+suites, and architectures, regular management of an AFS cell is easy
+and provides important functionality. Certainly the up-front costs
+are higher, but the continuing costs end up being much lower.
+
+The basic overseer process is the biggest aid to managing the system.
+Through it, you can discover the jobs running on any of the servers
+in the cell. With the implementation of a client/server architecture
+for almost all services, management tasks can be executed from any
+administrator's own desktop, making it easy to quickly check on the
+status of a cell.
+
+AFS file server machines tend to be fairly nondescript workhorses. As
+long as they have disks to manage, they tend to respond reliably to
+read and write requests. With the ability to replicate and move
+file trees off file servers, administrators can schedule maintenance
+during regular working hours with no disruption to any users. 
+
+The database services employ a built-in replication scheme with one
+significant advantage: when set up on at least three servers, the database processes
+can vote to elect a new master site in a well-defined manner. Not only
+does this make the vital AFS state information highly available, but it
+also enables changes to the data to be made even in the face of
+otherwise disastrous service outages.
+
+These production-ready and mature technologies form the bedrock for
+the AFS services. With them, organizations can expand in size without
+the need for a constantly increasing administration or hardware budget. But the
+price for this scalability is in the up-front costs of education and training
+in the processes and mechanisms by which the servers provide the
+illusion of an integrated file system.
+
+
+

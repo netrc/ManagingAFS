@@ -1,0 +1,1660 @@
+CHAPTER 9: MORE AFS ADMINISTRATION
+
+With most of the AFS architecture and basic use described, we can
+now turn our attention to details of the administrative process that
+have been previously been treated sparingly. The AFS command suites
+include not just the programs needed to get the system running 
+but also extensive requests to query the status of the servers and 
+custom programs to investigate the various protocols used.
+
+AFS supports a number of interesting processes to help manage the
+installation and running of the servers themselves. These are, strictly
+speaking, not completely necessary to make AFS work, but Transarc's
+documentation imagines that all of their products are being used in
+concert. So, it will be beneficial to understand Transarc's idea of how
+a cell functions.
+
+Some processes need to run only occasionally, such as during a reboot
+of a server. Others are available for constant monitoring of the
+system. Like the previous description of cell set up, this chapter
+describes a somewhat overwhelming number of new commands and services.
+While none will be needed by some sites all the time, they will nevertheless
+come in handy to all sites at some time.
+
+Of course, to exercise all these processes, commands, and services, we'll first need to obtain administrative credentials.
+
+SECTION: ADMINISTRATIVE CREDENTIALS
+
+The previous chapters on cell set up, volume administration, and backup have
+assumed that you obtained proper system privileges before running many
+commands. The AFS manual set describes in detail exactly what authority must
+be granted for each of the many dozen possible options and subcommands.
+We have so far skipped over these security issues in the belief that
+the infrastructure and process interrelationships were more important to the
+discussion. But now, before we begin to focus on detailed administration
+questions, it's time to describe the various ways an operator can be
+authorized to run these procedures.
+
+There are essentially three ways to gain authority to run AFS administration
+commands and one more to control Kerberos: 
+¥ Being a member of ~~system:administrators~/~
+¥ Being a member of a server's administration list
+¥ Using the local authority of a server itself
+¥ Having Kerberos administration privilege
+Each type of authority grants a slightly different privilege, so pieces of the administration pie can be doled out to different people, thus enhancing the overall security of the system.
+
+The first kind of administrator privilege, membership in the
+~~system:administrators~/~ group, is discussed in Chapter 6. A user can be authenticated as a member of this group in a variety of ways. Most commonly,
+a single, well-known login, such as ~~afsadmin~/~, is made a member of the group. The drawback with this well known login is that a single password also becomes well-known. Just as easily, several user logins can be added to the group. The benefit is that each user will have a unique password. But, rather than require certain users to always have root privileges, a better solution is to create new logins to be used by certain users. While David will normally use the login name ~~david~/~ when authenticating to AFS, a new login, perhaps ~~david.admin~/~, could be created, added to ~~system:administrators~/~, and thereafter used by David when he administers the system.
+
+The commands for adding or deleting users from ~~system:administrators~/~ are
+exactly the same commands used for regular group management. If we
+create for David an additional AFS login name of ~~david.admin~/~, we can add
+that identity to the membership of ~~system:administrators~/~.
+
+PROGRAM DONE
+	$ <B>kas create david.admin -admin afsadmin</B>
+	Administrator's (afsadmin) Password: 
+	initial_password:
+	Verifying, please re-enter initial_password:
+	$ <B>pts adduser david.admin system:administrators</B> 
+	$ <B>pts membership system:administrators</B>
+	Members of system:administrators (id: -204) are:
+	  afsadmin
+	  david.admin
+PROGRAM
+
+The benefits of using an authenticated identity which is a member of ~~system:administrators~/~ are the right to issue all ~~pts~/~ commands, implicit Administer right on all AFS directory ACLs, and the right to set quotas on volumes.
+
+The second kind of administration privilege is obtained via server
+administration lists, which are contained in a file on each server and which list who is permitted to issue all ~~bos~/~, ~~vos~/~, and ~~backup~/~ commands. This is a very powerful privilege inasmuch ~~bos~/~ controls the running of all the AFS server processes and configuration data, ~~vos~/~ commands control all file data storage, and ~~backup~/~ is used to bulk-copy
+all files from and to the system. The file that contains this administration list is ~~/usr/afs/etc/UserList~/~; during installation, the ~~afsadmin~/~ login is added to the ~~UserList~/~ file. The file is manipulated with ~~bos~/~ commands.
+
+PROGRAM DONE
+	$ <B>bos listusers db-one</B>
+	SUsers are: afsadmin cell hq.firm 
+	$ <B>bos adduser db-one david.admin</B>    
+	$ <B>bos listusers db-one</B>
+	SUsers are: afsadmin cell hq.firm david.admin 
+PROGRAM
+
+Here, the change to the ~~UserList~/~ file is made on the system control machine. This machine propagates the architecture-independent AFS configuration files between all AFS servers; therefore, the changed ~~UserList~/~ will soon be copied over to ~~db-two~/~, ~~db-three~/~, ~~fs-one~/~, ~~fs-two~/~, and 
+~~fs-three~/~.
+
+User names can also be removed.
+
+PROGRAM DONE
+	$ <B>bos removeuser db-one afsadmin</B>
+PROGRAM
+
+The third kind of administrative privilege is a default mechanism for programs 
+running directly on the AFS servers. Like Kerberos, AFS distrusts desktop clients; all communication from a client must be through an authenticated RPC connection. And like Kerberos servers, AFS servers are distinguished machines that store
+critical data. Ordinary users should not be permitted to gain access to the
+servers; the server machines should, in fact, be placed in a controlled
+environment under strict supervision. There's not much point in claiming
+high security if the server is in a public location where someone can, at
+worst, yank a disk drive off the desk and at leisure scan the partitions for
+interesting data.
+
+These concerns explain why most AFS management is performed through commands run on an administrator's own desktop. The command uses the Kerberos protocol to mutually authenticate with an AFS service. The user's administrative
+ticket and the service's own credential are used by the Kerberos
+protocol so that the user is assured that the service belongs to the
+cell and the service knows that the user has administrative privilege.
+
+But if an AFS administrative command is run on the server itself - a server controlled only by the local operating system's security - that 
+program may well have privileged status even though it has no AFS 
+credentials at all.
+
+Actually, AFS doesn't give up control quite this easily: local authentication 
+mode is permitted only for processes running as UNIX root on an AFS server. To
+signify that an AFS command is to use the local default administrative privilege, you specify the ~~-localauth~/~ option. The command then operates with the server key stored in ~~/usr/afs/local/KeyFile~/~. (See appendix A for a list of which commands and sub commands that support this mode of operation.) With this technique, it is easy to construct certain privileged batch jobs and other operational routines, so long as they are initiated by a root process. Note that because client machines have no ~~KeyFile~/~, there is no ~~-localauth~/~ of any sort for regular AFS clients.
+
+The final kind of administrative privilege is used to control Kerberos.
+The Kerberos system is somewhat special in that a special flag kept by the
+authentication system itself controls who has administrative control of the
+database. (This is exactly the same as the public-domain Kerberos software.)
+When the software is installed, at least one AFS login is initialized with
+this administration flag, called ADMIN. 
+
+Only those logins with the ADMIN flag turned on are permitted to run
+most ~B~kas~/B~ commands. Even using the ~~examine~/~ subcommand to see a Kerberos database entry and what flags are set requires the issuer to be an ADMIN (authenticated users can examine their own entry only).
+
+PROGRAM DONE
+	$ kas <B>-admin afsadmin</B>
+	Administrator's (afsadmin) Password: 
+	kas> <B>examine afsadmin</B> 
+	 
+	User data for afsadmin (ADMIN)
+	  key (0) cksum is 553810536, last cpw: Sat Mar 29 15:31:46 1997
+	  password will never expire.
+	  An unlimited number of unsuccessful authentications is permitted.
+	  entry never expires.  Max ticket lifetime 25.00 hours.
+	  last mod on Sat Mar 29 15:32:09 1997 by <none>
+	  permit password reuse
+	kas> <B>examine david</B> 
+ 
+	User data for david
+	  key (2) cksum is 2100489361, last cpw: Sat Mar 29 16:08:12 1997
+	  password will expire: Mon Apr 28 17:08:12 1997
+	  10 consecutive unsuccessful authentications are permitted.
+	  The lock time for this user is 34.1 minutes.
+	  User is not locked.
+	  entry never expires.  Max ticket lifetime 100.50 hours.
+	  last mod on Sat Mar 29 16:08:12 1997 by afsadmin
+	  don't permit password reuse
+PROGRAM
+
+The ~~afsadmin~/~ identity has the ADMIN flag set, whereas user ~~david~/~ does not. To increase security by delegating administration privileges, remove Kerberos ADMIN privilege from the shared ~~afsadmin~/~ login and at the same time create new identities for the select few operators permitted to administer
+Kerberos.
+
+It is simple to set the ADMIN flag.
+
+PROGRAM DONE
+	$ <B>kas -admin afsadmin</B>
+	Administrator's (afsadmin) Password: 
+	kas> <B>setfields david.admin ADMIN</B>
+	kas> <B>examine david.admin</B>
+	 
+	User data for david.admin (ADMIN)
+	  key (0) cksum is 1630388111, last cpw: Sun Mar 30 14:10:36 1997
+	  password will never expire.
+	  An unlimited number of unsuccessful authentications is permitted.
+	  entry never expires.  Max ticket lifetime 25.00 hours.
+	  last mod on Sun Mar 30 14:18:42 1997 by afsadmin
+	  permit password reuse
+PROGRAM
+
+Now, when David logs in as ~~david.kadmin~/~, he can run Kerberos administration commands, such as account creation and deletion, but he does not have authority for other AFS operations, such as unlimited access to the file system, or authority to manipulate the AFS server processes.
+
+As long as we have someone left who can administer Kerberos, we can take
+away ADMIN privilege from ~~afsadmin~/~.
+
+PROGRAM DONE
+	kas> <B>setfields afsadmin NOADMIN</B>
+PROGRAM
+
+Note that the ticket lifetime for ~~david.admin~/~ is just 25 hours. Earlier,
+we gave David a personal credential lifetime of 168 hours, equal to one
+week. This extended limit made it easier for David to do general work all week long without having to reauthenticate with Kerberos. It makes sense to shorten the lifetime of ADMIN privileged tickets, even shorter than 25 hours, just to ensure that no long-lived ticket will accidentally be left around, encouraging dishonest use.
+
+If, during outages or other administrative downtime, you need to turn off authorization setting, you can run the following command.
+
+PROGRAM DONE
+	$ <B>bos setauth db-one off</B>
+PROGRAM
+
+This command inserts into the directory, ~~/usr/afs/local~/~, an empty file named ~~NoAuth~/~. Running server processes notice the existence of this file and from then on refrain from mutually authenticating the user with the server
+process. Without mutual authentication, there is no effective checking of who is permitted to run restricted operations such as creating and deleting AFS users.  Obviously, turning off authentication is an extraordinary action to take and should be done only when you are installing the system or when there is a complete breakdown in use of AFS, as when the server's secret keys themselves are corrupted. If necessary, you can create the ~~NoAuth~/~ file by hand.
+
+Because the contents of the ~~/usr/afs/local~/~ directories are usually not propagated among AFS servers, you may need to create this file on all file and/or database servers to turn off authorization checking cellwide. Additionally, to make sure that all RPC connections between the servers themselves will obey the lack of security, restart the AFS server processes.
+
+PROGRAM DONE
+	$ <B>bos restart db-one -all -noauth</B>
+PROGRAM
+
+Here we appended one new option, ~~-noauth~/~. Most administration commands permit a ~~-noauth~/~ option. This option instructs the command to use an unauthenticated connection to the servers. Because the connection is unauthenticated, no operations requiring restricted authority will be permitted. But if the authorization system is in ~~NoAuth~/~ mode or is otherwise broken, using the ~~-noauth~/~ option permits commands to complete successfully -- as long as the operations are permitted to any user. Now that no authorization checks are being performed, you may see extraneous error messages displayed during the now useless authentication stage.
+
+<I>Cancelling authorization checking is a fundamental breach of the
+security system for emergency use only.</I>
+
+To turn authorization back on:
+
+PROGRAM DONE
+	$ <B>bos setauth db-one on</B>
+PROGRAM
+
+You must perform this operation on all the servers for which authorization checking was turned off. You should also restart all the AFS server processes to ensure that all of their connections are reset.
+
+
+SECTION: SERVER MANAGEMENT
+
+In Chapter 3, we learned about the separate processes that run on server
+machines to create an AFS cell. The primary process is ~~bosserver~/~, a
+process that manages the real server processes. Through the ~~bos~/~ command interface, you can query, shut down, restart, or create new jobs on any AFS server in any cells of your enterprise.
+
+The configuration data for ~~bosserver~/~ is kept in the file ~~/usr/afs/local/BosConfig~/~. Entries in this file are normally manipulated with ~~bos~/~ commands to create or delete jobs. Though you'll rarely have to examine the file by hand, let's take a quick look at the format.
+
+PROGRAM DONE
+	# <B>cat /usr/afs/local/BosConfig</B>
+	restarttime 11 0 4 0 0
+	checkbintime 3 0 5 0 0
+	bnode simple kaserver 1
+	parm /usr/afs/bin/kaserver
+	end
+	bnode simple ptserver 1
+	parm /usr/afs/bin/ptserver
+	end
+	bnode simple vlserver 1
+	parm /usr/afs/bin/vlserver
+	end
+	bnode simple buserver 1
+	parm /usr/afs/bin/buserver
+	end
+	bnode fs fs 1
+	parm /usr/afs/bin/fileserver
+	parm /usr/afs/bin/volserver
+	parm /usr/afs/bin/salvager
+	end
+	bnode simple upserver 1
+	parm /usr/afs/bin/upserver -crypt /usr/afs/etc -clear /usr/afs/bin
+	end
+PROGRAM
+
+The contents start off with two lines specifying the restart time, that is,
+the time that all servers on this machine will be gracefully stopped and
+then restarted, and the checkbin time, the time at which new binaries will be
+checked and installed. These times are explained on page 586.
+
+Next, several bnodes are listed. A <I>bnode</I> is a ~~bosserver~/~ job entry in the
+file; it begins with the keyword ~~bnode~/~ and finishes with the keyword ~~end~/~. On the line with the ~~bnode~/~ keyword, the listed arguments indicate the type of the job, the name of the job, the number 1 or 0 signifying the status, and a final option if needed. A status number of 0 means that the process should not be started or monitored in the future; 1 means to start and continue monitoring.
+
+In general, do not edit this file manually. Because the file is read into
+~~bosserver~/~ memory only during startup, any changes to the file would require a restart of the process. For normal operations, use the ~~bos~/~ suite to contact the ~~bosserver~/~.
+
+When the server is running, if you were to examine its standard UNIX process 
+listing by logging onto the server, you'd see something like:
+
+PROGRAM DONE
+	$ <B>ps -ef</B>
+	     UID   PID  PPID  C    STIME TTY      TIME CMD
+	...
+	    root  3680     1  0 04:00:45 ?        0:00 /usr/afs/bin/bosserver
+	    root  4138  3680  0 14:24:32 ?        0:00 /usr/afs/bin/kaserver
+	    root  4139  3680  0 14:24:32 ?        0:00 /usr/afs/bin/ptserver
+	    root  4140  3680  0 14:24:32 ?        0:00 /usr/afs/bin/vlserver
+	    root  4141  3680  0 14:24:32 ?        0:00 /usr/afs/bin/buserver
+	    root  4144  3680  0 14:24:34 ?        0:00 /usr/afs/bin/upserver
+	...
+PROGRAM
+
+More usually, you would use the ~~bos status~/~ command from any 
+client to remotely check on any server's jobs.
+
+PROGRAM DONE
+	$ <B>bos status db-one</B>
+	Instance kaserver, currently running normally.
+	Instance ptserver, currently running normally.
+	Instance vlserver, currently running normally.
+	Instance buserver, currently running normally.
+	Instance upserver, currently running normally.
+	$ <B>bos status fs-one</B>
+	Instance fs, currently running normally.
+	    Auxiliary status is: file server running.
+	Instance upclientetc, currently running normally.
+	Instance upclientbin, currently running normally.
+PROGRAM
+
+
+The regular status listing, shown as the output to the first ~~status~/~ command, is a terse description of each job and displays the job name and a status message. Here, all is running normally. For bos ~~cron~/~ jobs, this output does not mean that the job is actually running, only that the scheduler is ready to run it when the time arrives. Other possible messages are:
+
+-- ~~temporarily enabled~/~ - A job that was started via a ~~bos startup~/~ command but is not configured to run automatically.
+
+-- ~~temporarily disabled~/~ - A job that was stopped via ~~bos shutdown~/~ or one disabled because of too many errors
+
+After this description, there may be another line of information:
+
+-- ~~has core file~/~ - In this case, the job has crashed and ~~bosserver~/~ has moved the core file to the ~~/usr/afs/logs~/~ directory. If the job has been restarted successfully, this message will appear in addition to the
+"currently running normally" message.
+
+-- ~~stopped for too many errors~~ - The ~~bosserver~/~ process restarted this job too many times in a short period of time and therefore assumes there is some system error.
+
+File server jobs print out an additional status line, as shown in the second
+command output.
+
+-- ~~file server running~/~ - The ~~fileserver~/~ and ~~volserver~/~ (file server and volume server) processes are running normally.
+
+-- ~~salvaging file system~/~ - the ~~fileserver~/~ and ~~volserver~/~ have been
+disabled temporarily and the AFS partition check program, ~~salvager~/~, is running. Once the salvage is done, the ~~fileserver~/~ and ~~volserver~/~ are automatically restarted. The salvage process itself is described in the Chapter 10.
+
+There is an additional status for ~~cron~/~ jobs to indicate whether they are
+running now or whether they will run in the future:
+
+-- ~~currently executing~/~ - The cron job specified is running.
+
+-- ~~run next Wed Mar 29 02:00:00 1996~/~ - The time when the command is
+next scheduled to run.
+
+The ~~-long~/~ option provides more details on when the process was
+started, when it last exited, and exactly what command line was
+used to start the process.
+
+PROGRAM DONE
+	$ <B>bos status db-one -long</B>
+	Instance kaserver, (type is simple) currently running normally.
+	    Process last started at Sun Mar 30 14:24:32 1997 (2 proc starts)
+	    Last exit at Sun Mar 30 14:24:32 1997
+	    Command 1 is '/usr/afs/bin/kaserver'
+ 
+	Instance ptserver, (type is simple) currently running normally.
+	    Process last started at Sun Mar 30 14:24:32 1997 (2 proc starts)
+	    Last exit at Sun Mar 30 14:24:32 1997
+	    Command 1 is '/usr/afs/bin/ptserver'
+ 
+	Instance vlserver, (type is simple) currently running normally.
+	    Process last started at Sun Mar 30 14:24:32 1997 (2 proc starts)
+	    Last exit at Sun Mar 30 14:24:32 1997
+	    Command 1 is '/usr/afs/bin/vlserver'
+	 
+	Instance buserver, (type is simple) currently running normally.
+	    Process last started at Sun Mar 30 14:24:32 1997 (3 proc starts)
+	    Last exit at Sun Mar 30 14:24:32 1997
+	    Command 1 is '/usr/afs/bin/buserver'
+	 
+	Instance upserver, (type is simple) currently running normally.
+	    Process last started at Sun Mar 30 14:24:32 1997 (2 proc starts)
+	    Last exit at Sun Mar 30 14:24:32 1997
+	    Command 1 is '/usr/afs/bin/upserver -crypt /usr/afs/etc -clear /usr/afs/bin'
+PROGRAM
+
+Of particular interest is the number of times the job has been started 
+during this invocation of ~~bosserver~/~ and the times the job was last 
+started and last exited. If the job exited abnormally, that time is 
+printed separately.
+
+A related set of subcommands controls ~~bosserver~/~ jobs; as listed in Table 9-1.
+
+-- ~~shutdown~/~ - Temporarily stops a job. The job gracefully shuts down but restarts normally when ~~bosserver~/~ itself restarts or when the start or startup subcommands are issued.
+
+-- ~~startup~/~ - Restarts a job that has been shut down
+
+-- ~~stop~/~ - Not only shuts down a job, but automatically edits the ~~BosConfig~/~ file so that ~~bosserver~/~ will not start the job on restarts or with the ~~startup~/~ subcommand.
+
+-- ~~start~/~ - Starts a server job running and, like stop, edits the ~~config~/~ file so that any future bos restarts will also start the job.
+
+-- ~~restart~/~ - Gracefully shuts down a job and then restarts it. The option ~~-all~/~ causes all jobs on the specified server to restart; the ~~-bosserver~/~ option causes even the ~~bosserver~/~ process itself to begin anew.
+
+-- ~~delete~/~ - Permanently deletes the job entry from the ~~config~/~ file. Should normally be preceded by a stop request.
+
+Most of these subcommands can take one or more job names as arguments. But
+be careful with stopping database jobs (~~kaserver~/~, ~~ptserver~/~, ~~vlserver~/~, and ~~bakserver~/~), the AFS system expects that a database server machine (i.e., a machine listed in the ~~CellServDB~/~ file) will be running all database processes at once, and there's no way to configure
+one machine to run a subset of database jobs.
+
+One recommended option to these subcommands, at least when they are run
+interactively, is ~~-wait~/~, which makes sure that the ~~bos~/~ command - a client
+command to ~~bosserver~/~ - waits for confirmation that the stop or start
+request has completed the operation. We used this option in Chapter 8 to shut down the database servers before archiving the database contents.
+
+Each AFS server process has it's own log file located in the ~~/usr/afs/logs~/~ directory.
+When a job is restarted, the corresponding log file for a server process is rotated. Unfortunately, the system does not keep more than one previous file in its rotation. For example, the fileserver log file, ~~/usr/afs/logs/FileLog~/~ will be closed and renamed to ~~/usr/afs/logs/FileLog.old~/~ whenever the fileserver restarts. The problem, of course, is that multiple restarts and their related log files will be lost. All that will be left after multiple crashes of a server are the current log file, which will report that all is well, and the previous log, which will report only the very last error and not the problem that precipitated the crashes in the first place. 
+
+In fact, the ~~bosserver~/~ has its own log file. You can augment this log
+with information on all privileged commands run on a server. The file
+~~/usr/afs/logs/BosLog~/~ would thus provide an audit trail of 
+AFS administration activities. To save this information, add the ~~-log~/~ 
+option to the ~~bosserver~/~ command in the server's startup scripts. 
+
+As is usual for AFS, there is a ~~bos~/~ subcommand that gets and prints out
+any log, so you need not manually log in to a server machine to read the log files.
+
+PROGRAM DONE
+	$ <B>bos getlog fs-one FileLog</B>
+	Fetching log file 'FileLog'...
+	Sun Mar 30 14:24:33 1997 File server starting
+	Sun Mar 30 14:24:35 1997 Partition /vicepa:  attached 15 volumes; 0 volumes not attached
+	Sun Mar 30 14:24:36 1997 Partition /vicepb:  attached 7 volumes; 0 volumes not attached
+	Sun Mar 30 14:24:36 1997 Getting FileServer name...
+	Sun Mar 30 14:24:36 1997 FileServer host name is 'fs-one'
+	Sun Mar 30 14:24:36 1997 Getting FileServer address...
+	Sun Mar 30 14:24:36 1997 FileServer fs-one has address 0xc0a80315 (0xc0a80315 in host byte order)
+	Sun Mar 30 14:24:36 1997 File Server started Sun Mar 30 14:24:36 1997
+	Sun Mar 30 14:34:18 1997 fssync: volume 536870955 restored; breaking all call backs
+	...
+PROGRAM
+
+The options to ~~getlog~/~ are the server name and the log file name: 
+~~BosLog~/~ for the ~~bosserver~/~ process log, ~~FileLog~/~ for ~~fileserver~/~, ~~VLLog~/~ for the ~~vlserver~/~, ~~VolserLog~/~ for ~~volserver~/~, ~~SalvageLog~/~ for ~~salvager~/~, ~~BackupLog~/~ for ~~bakserver~/~, and ~~AuthLog~/~ for ~~ptserver~/~. However, you can retrieve any named file in the ~~/usr/afs/logs~/~ subdirectory, so you can see any of the old log files or any other file if you've set up a system to rotate files over a longer period. Because the log files can grow large over time, you should periodically copy each to an archive, compress them, and start a new log.
+
+Another feature of ~~bosserver~/~'s management of server jobs is to corral core
+files. When a UNIX process crashes due to inappropriate memory access,
+illegal instruction, or whatever, the kernel will create a dump of the process memory image in the process's current working directory and name the resulting file ~~core~/~. Since all AFS server jobs run in the ~~/usr/afs~/~ directory, one process crashing after another would overwrite the core file of the previous crash. When ~~bosserver~/~ notices that one of its jobs has crashed, it moves the core file to ~~/usr/afs/logs~/~ and gives it a name based on the job that crashed. So, if ~~fileserver~/~ crashes, you can expect to find a file ~~/usr/afs/logs/core.file~/~. Again, as with log files, ~~bosserver~/~ retains only the last crash image. While there's not much that can be done with the core file by the average AFS site, if the crash is of unknown origin and not due to your own administrative actions (such as removing a disk while the server is on-line), you should make arrangements with Transarc to send the ~~core~/~ file to their engineering staff for proper analysis.
+
+Now's the time to more fully explain ~~restarttime~/~ and ~~checkbintime~/~, the first two lines of the config file. Earlier versions of the AFS servers were prone to memory leaks; after running for several days, a server process would keep using up more and more memory in its user address space. To take care of this, ~~bosserver~/~ was instructed to restart all of the server jobs at a specific time. By default, the restart time is every Sunday morning at 4 a.m. At that time, all running jobs are gracefully shut down, ~~bosserver~/~ is reexecuted, and all jobs configured to run are restarted. This plan is supposed to keep the entire system more available by reducing delays due to job crashes. Of course, the solution itself causes a certain amount of server downtime. If you feel that this downtime is worth the peace of mind of not running out of process memory, at least stagger the default restart times for different servers so that all the servers don't bounce at the same time. Nowadays, though, the common wisdom is that the memory leak problems have been fixed, and many sites run ~~bosserver~/~ with a restart time set to ~~never~/~.
+
+More usefully, when new binaries are installed into the system,
+~~bosserver~/~ can be told when to check for them. ~~checkbintime~/~ is the time at which the latest restart time of a server job is compared to the
+modification timestamp of the job's executable program file. If the file is
+newer than the server's last restart, then the process is restarted. By default, this check is performed at 5 a.m. every day. This binary check
+time can be set to any time and to either every day or any given day of the
+week. This feature is normally used as part of the automatic process of installing new binaries.
+
+SECTION: UPDATING AFS BINARIES
+
+To help with the installation of new binaries, ~~bos~/~ includes a subcommand that automatically copies over program updates and manages the process of deprecating the old versions. When given access to Transarc's file tree, the complete process looks like this:
+
+PROGRAM DONE
+	$ <B>cd /afs/transarc.com/product</B>
+	$ <B>cd afs/3.4a/sparc_sunos55</B>
+	$ <B>cd root.server/usr/afs/bin</B>
+	$ <B>bos install db-one buserver</B>
+	bos: installed file buserver
+PROGRAM
+
+Here, we use the global AFS tree to get at Transarc's product distribution
+area, then we change directory to a specific version of ~~afs~/~ compiled for the Sun Solaris 2.5 platform. (We assume that we're authenticated as a user in
+Transarc's cell and are permitted access to that product.) There, we can see
+all of the files for the latest release and run the ~~bos~/~ command to install specific files, in this case, new versions of the file server programs. The fact that we're getting the binaries directly from Transarc via AFS itself is simply showing off for this example. If the files were received on tape in the mail, we'd just as simply read them off the tape and install the programs from wherever they were unloaded.
+
+The machine given as the argument to the ~~bos install~/~ subcommand is chosen
+quite carefully. It is the binary distribution machine for the platform
+being installed, Sun Solaris 2.5. Recall illustration 3-2 on page 129 and the layout of our hypothetical cell; the machine ~~db-one~/~ was designated the
+binary distribution machine for Solaris and is running the update server
+process for the ~~/usr/afs/bin~/~ directory, and the machines ~~db-two~/~, ~~fs-one~/~, and ~~fs-two~/~ are its update clients. The machine ~~db-three~/~ is the binary distribution machine for HP-UX executables and is also running the update server process for its ~~/usr/afs/bin~/~, and the machine ~~fs-three~/~ is its only update client.
+
+Use the ~~bos install~/~ only to install new binaries into the 
+~~/usr/afs/bin~/~ directory on running AFS servers. Of course, the binary 
+that is presumably running still needs access to its program text, so 
+it would not be appropriate to overwrite the file. Instead, ~~bosserver~/~ renames the current program file and installs the new version with the 
+correct name. Thus, when the binary check time (~~checkbintime~/~) comes
+around, ~~bosserver~/~ will notice the new version and restart the server. The
+renamed program file is still available as a backup in case the new version
+is drastically wrong. You can see the old version of the files in
+the ~~/usr/afs/bin~/~ directory along with the new versions.
+
+PROGRAM DONE
+	$ <B>ls -l /usr/afs/bin/bu*</B>
+	-rwxr-xr-x   1 root     staff     487516 Mar 30 14:52 buserver
+	-rwxr-xr-x   1 root     staff     487516 Jul  5  1996 buserver.BAK
+PROGRAM
+
+This renaming scheme suggests that the backup version is kept around forever.
+In fact, when a new binary is being installed, any existing backup version is
+renamed as an old version and any existing old version is simply thrown
+away. Therefore, only the two previous generations of program files for a
+given process are kept. If you were to manually emulate the results of 
+~~bos install~/~, the process would be:
+
+PROGRAM DONE
+	$ <B>cd /usr/afs/bin</B>
+	$ <B>rm buserver.OLD</B>
+	$ <B>mv buserver.BAK buserver.OLD</B>
+	$ <B>mv buserver buserver.BAK</B>
+	$ <B>cp /afs/transarc.com/product/afs/.../buserver  buserver</B>
+PROGRAM
+
+Figure 9-1 shows the process graphically.
+
+[[Figure 9-1: ~~bos install~/~ Process]]
+
+These actions permit the new version of ~~fileserver~/~ or other server processes to be installed without disrupting the running of the current version. If you need to install new binaries immediately, you can run this install procedure and then follow it with an explicit ~~bos restart~/~ command.
+
+If the binaries are installed on a binary distribution server, the 
+~~updateserver~/~ process will make similar changes to each of its configured 
+update clients. Again, normally, at the next time to check for new binaries, 
+the client machine's ~~bosserver~/~ will restart the server processes. If you need to restart the processes immediately, run the ~~bos restart~/~ command upon those servers but first make sure that the update process has finished distributing the binaries. The ~~bos getdate~/~ command prints out the modification timestamps of selected binaries and any ~~.BAK~/~ and ~~.OLD~/~ versions of the binaries. When it is obvious by inspecting the times that the new version is available, it is safe to run the ~~restart~/~ subcommand.
+
+In case of a problem with the new binaries, you can use the ~~bos uninstall~/~ command to roll back the transaction to the previous release. When the command is run, ~~bosserver~/~ deletes the current program version, renames the .BAK version to the suffix-less file name, and renames the .OLD version to .BAK. Again, ~~bosserver~/~ will discover the new program file at the binary check time and restart the process then; use the ~~bos restart~/~ command to run the current version immediately.
+
+This system is designed to be bulletproof and to provide the
+functionality needed to run a large, production cell. But the use of
+automatic restart times may seem a bit cocky to some. Even after testing the
+new versions of a program in a test cell or on an isolated file server, many
+administrators will feel squeamish about trusting a product turnover to an
+automated system. So remember that there's no need to use the system if you
+don't want to. If not, you can delete the ~~updateserver~/~ and ~~updateclient~/~ jobs and manually shut down file and database servers, copy over the new files, and restart the processes. In a cell with just a few servers, this choice is entirely reasonable.
+
+If you use the automatic system, you may end up with many .BAK and .OLD files
+in every server's ~~/usr/afs/bin/~/~ directory. If these files take too much 
+valuable disk space and you're confident that the server jobs are running correctly, you can use yet another ~~bos~/~ subcommand to delete the previous versions of any program.
+
+PROGRAM DONE
+	$ <B>bos prune db-one -old -bak</B>
+	$ <B>ls -l /usr/afs/bin/bu*</B>
+	-rwxr-xr-x   1 root     other     487516 Mar 30 14:52 buserver
+PROGRAM
+
+As you can see, ~~.BAK~/~ and ~~.OLD~/~ versions can be deleted as needed. In this case, we're depending on the update server and client processes to take care of deleting the versions on the other machines.
+
+To automatically delete core files from the ~~/usr/afs/logs~/~ directory, you can use the ~~-core~/~ option to the ~~prune~/~ subcommand. Files in this directory are not managed by the update jobs, so you'll have to prune each server, database, and file individually, as needed.
+
+To aid per-server management, the ~~bos~/~ system has a built-in remote execution
+ability. Many organizations prefer to deny access to server machines for all
+users, allowing only console logins so as to increase the security of the
+system. The ~~exec~/~ subcommand can be used by authorized users of AFS as
+follows:
+
+PROGRAM DONE
+	$ <B>bos exec db-one  /etc/reboot</B>
+PROGRAM
+
+The first argument is the server machine, and the second argument is a
+command to execute. The intention is to allow properly authenticated users 
+to reboot the server or perform any other administration without their 
+having to log on to the server directly. 
+
+SECTION: JOB NOTIFICATION
+
+When you are creating ~~bosserver~/~ jobs, you can assign each a custom-designed 
+notification script. If the job terminates, this script will run and can 
+execute any commands that you desire. Most often, the script is used to
+send an e-mail or a beep to an administrator that the job stopped. As
+~~bosserver~/~ usually restarts any jobs which abnormally terminate,
+a single restart may just require a short e-mail notification; if the job 
+is continually crashing, a more urgent alarm or beep could be sent.
+
+The script is supplied as an argument to the ~~-notifier~/~ option during
+the creation of the job.
+
+PROGRAM DONE
+	$ <B>bos create db-one kaserver simple /usr/afs/bin/kaserver -notifier /usr/afs/bin/local-notifier</B>
+PROGRAM
+
+Information concerning the job that stopped is written to the standard input of the notifier program as a series of simple ASCII name-value pairs, one per line. Table 9-2 lists the following are the available names with explanations of their meaning and an example value.
+
+-- name: kaserver - The keyword name is used for the instance name of
+the ~~bosserver~/~ job. This is not the name of the command, although for most jobs, the name is based on the job's command name.
+
+-- rsTime: 859743005 - The first time that the job was started during this run
+of ~~bosserver~/~. Like most internal time values in UNIX, this value equals
+the number of seconds since the start of day on January 1st, 1970. Most
+programming libraries have routines that can convert this value to a readable
+string of characters.
+
+-- rsCount: 1 - The number of times that the job has been restarted during
+this run of ~~bosserver~/~.
+
+-- procStartTime: 859746941 - The time that this job last started. Again, 
+this is a UNIX epoch value.
+
+-- procStarts: 2 - The number of times that the job has been started. Note
+that this number, the total number of starts, can be greater than the
+~~rsCount~/~; ~~rsCount~/~ will not include starting up after a crash.
+
+-- lastAnyExit: 1 - The number of times the job exited for any reason.
+
+-- lastErrorExit: 1 - The number of times the job exited due to an error.
+
+-- errorCode: -1 - The return code of the process after its last exit.
+
+-- errorSignal: 3 - The last UNIX signal that terminated the process.
+
+-- lastErrorName: fs - The name of the job that failed last. 
+
+-- goal: 1 - Indicates whether bosserver was trying to keep the job running (a value of 1) or not running (a value of 0).
+
+-- comLine: /usr/afs/bin/kaserver - The complete command line used to run the
+~~bosserver~/~ job.
+
+-- coreName: /usr/afs/logs/core.kas - The name of the core file that was
+created, if any.
+
+-- pid: 1433 - The UNIX process identification number of the job when it was
+running.
+
+-- lastExit: -1 - The last return code from the process. 
+
+-- lastSignal: 3 - The last UNIX signal that terminated the process. 
+
+As the notifier program runs, it must read its standard input and store these
+names and values until the pipeline is closed by ~~bosserver~/~. The ~~bosserver~/~ parent process will wait for the notifier to finish, so if any lengthy processing of the data needs to be done, it is best to execute a new
+process and allow ~~bosserver~/~ to resume its monitoring job. A simple Perl
+language notifier skeleton looks like this:
+
+PROGRAM - DONE
+	#! /usr/local/bin/perl5
+ 
+	while (<>) {
+		chop;
+		s/://;
+		my($name,$value)=split;
+		next if ! $name;
+		$JobInfo{$name}=$value;
+	}
+
+	$msg = $JobInfo{'name'}." was started again. ";
+	$msg .= "It exited with a return code of ".$JobInfo{'errorCode'};
+	system("echo $msg | mail afs-admins");
+	 
+	if ($JobInfo{'rsCount'} gt 5) {
+		system("echo $msg | beep  on-call-admin");
+	}
+PROGRAM
+
+This script is used to e-mail information about job restarts to a 
+preset list of AFS administrators. If the job restarted more than
+five times, then the current on-call administrator would be beeped.
+While any unusual restart of an AFS server process needs to be investigated,
+the whole point of ~~bosserver~/~ is that if a simple restart is all that
+is required, then ~~bosserver~/~ can do that on its own and the administrators
+need not be beeped in the middle of the night.
+
+Using the information prepared by ~~bosserver~/~, you can fairly easily determine if a job's termination is a serious event or not. And besides logging
+appropriate information and sending messages to the on-call staff, the
+notifier script is a good place to try and save server log files through a
+longer rotation than the default of one restart.
+
+SECTION: KEYFILE MANAGEMENT
+
+An AFS server key is essentially a password generated for use by the server
+processes themselves. These keys are initially created during the AFS 
+installation phase and are stored in two places: in the Kerberos server database, under the principal name ~~afs~/~, and in a simple file on the server, ~~/usr/afs/etc/KeyFile~/~.
+
+To keep things secure, neither the ~~KeyFile~/~ nor the Kerberos database stores the plain text of the server password but stores an encrypted version. Because both the database and the simple ~~KeyFile~/~ can be attacked by
+outsiders, it is crucial that all AFS servers be kept in secure locations and
+that they be isolated from sources of intrusion.
+
+During a user's authentication process (through ~~klog~/~ or Transarc's
+~~/bin/login~/~ program), a credential is created and associated with that user.
+When administrative commands or client file operations are executed, that
+credential is presented to a server for inspection. But this credential does
+not prove the user's identity simply with some clear text, - which could
+potentially be forged. Instead, the identity is encrypted. A general AFS server has no way to read the credential to see what's inside; it can only pass the credential to a Kerberos server and request that the token be validated. A Kerberos server can do this only because it knows that the user credential was encrypted with a server key: a positive response from the Kerberos server therefore suffices to prove mutual authentication between the AFS server and the user.
+
+It should be clear that the Kerberos database and the ~~KeyFile~/~ must contain 
+exactly the same encrypted key. This would not be much of an issue if the 
+key never changed. But Transarc recommends that an administrator change the 
+key regularly to reduce the window of opportunity in which an outsider could crack the encrypted version. 
+
+The authentication process uses DES 56-bit encryption. In 1997, thousands of workstations working collectively managed to crack a file that used this encryption - but that effort took several months. As long as you change your ~~KeyFile~/~ more often than that, say, once a month, you should feel secure that your Kerberos systems (and therefore your cell) are safe from external infiltration.
+
+The problem facing administrators is that as keys change, one or more servers could potentially have the wrong version of the key which, when presented to the Kerberos server would be assumed to be wrong, thereby denying access to files or procedures.
+
+Following the correct procedures when changing keys is essential in keeping the kerberos server and ~~KeyFile~/~ the same. To check if the keys are the same, run the following two commands (you must be authenticated as a user on the server's ~~UserList~/~ and with Kerberos ADMIN privileges).
+
+PROGRAM DONE
+	$ <B>bos listkeys db-one</B>
+	key 0 has cksum 553810536
+	Keys last changed on Sat Mar 29 08:36:16 1997.
+	All done.
+	$ <B>kas examine afs -admin afsadmin</B>
+	Administrator's (afsadmin) Password: 
+	 
+	User data for afs
+	  key (0) cksum is 553810536, last cpw: Sat Mar 29 16:33:59 1997
+	  password will never expire.
+	  An unlimited number of unsuccessful authentications is permitted.
+	  entry never expires.  Max ticket lifetime 100.00 hours.
+	  last mod on Sat Mar 29 16:33:59 1997 by afsadmin
+	  permit password reuse
+PROGRAM
+
+The two commands display the key's checksum rather than the characters 
+that make up the key's encrypted string to further decrease the chance
+of attacks on the key. By comparing the checksums, you can see that the
+keys are the same.
+
+The key encrypts certain pieces of data as the data travels on the
+network:
+
+-- The keys as they are installed with the ~~addkey~/~ and ~~listkey~/~
+subcommands.
+
+-- Kerberos login and password changes.
+
+-- Kerberos administration commands. A ~~kas~/~ interactive session is
+completely encrypted.
+
+-- The Kerberos database, which is encrypted during Ubik transfers and
+updates.
+
+-- Textual configuration files, during which the Update server encrypts transfers between servers. These are the files in ~~/usr/afs/etc~/~. The AFS product sold outside the United States of America does not permit this particular feature, although the other, purely authentication-oriented, encryptions are permitted.
+
+SECTION: CHANGING THE CELL NAME
+
+An AFS cell name is normally used as part of the password encryption process.
+The name is not directly stored in any of the various databases, but if it 
+changes, it is impossible to compare a user's password against the version 
+in the Kerberos database. Thus, when changing a cell's name, you must assign new passwords to each user. Whether this is feasible depends on the size 
+of the cell and the administrative or political control you have of your users.
+
+If you choose to change the cell name, you will need to change the name
+in all the ~~CellServDB~/~ and ~~ThisCell~/~ files on all the clients and servers. It will be best to start with the servers: shut down all servers, make
+the change on the system control machine, install a new password for the ~~afs~/~ principal (using NoAuth mode) and extract a new ~~KeyFile~/~, just
+as you did during the installation of the first server. You can then
+copy this ~~KeyFile~/~ to all other servers along with the other configuration
+files, and then restart them.
+
+Because the local cell name is copied into the kernel when a client 
+cache manager starts, you'll also have to reboot each client after changing
+each ~~CellServDB~/~ file to enable authenticated access to the new cell name.
+
+Finally, if you're following the standard AFS cell layout, you'll have to replace your second-level path name: change ~~/afs/oldcell.com~/~ to ~~/afs/newcell.com~/~. The implications of this procedure are that any external site that has mounted your cell via the public ~~CellServDB~/~ file will need to have its remote cell mount point changed. And any absolute file names in
+your applications or administration scripts will have to be changed to use the new path.
+
+As you can imagine, for large cells with many servers and users, this 
+process is so laborious as to make the endeavor worthwhile only in special
+circumstances. 
+
+SECTION: DATABASE SERVERS
+
+Since there are usually only a few AFS database servers in a cell, their
+administration needs are modest. It's been suggested that these servers
+be distinct from the file servers so that administration of file servers
+can be done without interrupting database queries from clients. The
+hardware needed for a database server is minimal, in terms of processing
+power, although it's beneficial to have a sufficient amount of memory to permit the database processes to run at full speed.
+
+When you are adding or deleting database servers, the only item to keep in mind is
+that the static ~~CellServDB~/~ file must be updated on all database servers
+and eventually on all clients. You can use the AFS server's ~~upserver~/~ and ~~upclient~/~ processes to easily propagate this file to all servers, but you must individually restart each database process so that changes to this file are noticed. To restart the processes, simply run ~~bos shutdown~/~ and then ~~bos restart~/~ on the database servers. As a new Ubik election will normally be taking place, there will be an outage lasting a few minutes during which updates to the databases cannot be processed.
+
+Because the databases are so important to the running of an AFS cell,
+once a computer has been set up to manage the database processes, you'll
+be tempted to just leave the machine alone. 
+
+Upgrading the operating
+system on these machines is not difficult, but you must take care to
+keep the databases intact.  Let's next examine the steps needed to 
+perform an operating system upgrade, say from SunOS 4.1.3 to Solaris 2.5. 
+
+1. check that you have a copy of the AFS binaries for the new version of the operating system and the desired hardware platform. The version number of the AFS binaries should match the version running in the rest the cell. 
+
+The release notes provided by Transarc with the binaries will discuss which combination of releases will work together, but you should reduce the risk of any incompatibility by using the same AFS version throughout the cell.
+
+2. Run a ~~bos status -long~/~ command to display exactly which AFS jobs are running. After the upgrade, you can use this information to recreate the cell's server infrastructure.
+ 
+3. Assuming that there is more than one database server in the cell, issue ~~bos~/~ commands to shut down the server. 
+	Because of the Ubik database protocol, the remaining server processes will notice the unavailability of this machine's databases, and, if necessary, elect a new master sync site.
+
+4. While AFS database process can control which server is the master
+automatically, the update server, which makes sure that binaries and
+configuration files are kept up to date throughout the cell, is manually
+configured. Ensure that one of the remaining servers is an update server, specifically for the text-based configuration files. If necessary, reset the other update clients so that they understand the name of the new server.
+
+5. Now, install the new operating system release on the server.
+
+	There's no need to worry about saving the data in the AFS databases because that data is already replicated on the other servers.
+
+6. Once the system has been upgraded, install the AFS binaries into the ~~/usr/afs~/~ directory.
+
+7. Just as you did during the initial cell set up, start the ~~bosserver~/~ process and recreate the jobs previously installed on this machine.
+
+7A. First, restart an update client task. 
+
+	This task will automatically copy over the correct set of configuration files, such as the AFS secret ~~KeyFile~/~, the ~~CellServDB~/~ list, and the ~~UserList~/~ file from the designated update server. It may take up to five minutes for this process to wake up and perform the file transfers. If you don't want to use the update client/server system, you can copy over these files manually.
+
+7B. When the configuration files are correct, restart the database
+processes.
+
+	These jobs will start contacting the other database servers in
+the cell, so the database files themselves will be propagated from one of the other servers to the upgraded machine. Again, a Ubik election will take place and a new master sync site may be chosen, but these activities occur automatically and mostly transparently to users of the cell.
+
+That's it. Because in this example the machine is just a database server,
+there was never any file service outage in the cell. At worst, there was
+only a short prohibition against write requests to the databases, such as adding or changing users or groups membership.
+
+Here's another example. If, rather than upgrading the operating system, you are
+upgrading the hardware platform, the process is much the same. Again, you'll 
+need to ensure that you have the correct AFS binaries for the new platform; the
+same caution concerning mixing versions of AFS applies. The luxury of a
+hardware upgrade is that you might be able to install the new hardware
+system alongside the soon-to-be obsolete system. If so, the changeover process could be much faster. You can copy the relevant configuration files over manually, turn off the old system, reset the IP address and host name of
+the new system, and then reboot the new system. When the database server processes and update client restart, the relevant data will propagate to the new system as detailed above.
+
+The volume location database is also in ~~/usr/afs/db~/~ and is the pair of files ~~vldb.DB0~/~ and ~~vldb.DBSYS1~/~. Unlike the protection, kerberos, or backup databases, this database can be reconstructed from existing data. After all, it really is only a central repository for the information about which volumes exist on which servers. That information can be rebuilt by examining all of the file servers - indeed, that rebuilding is exactly what the vos subcommands ~~syncserv~/~ and ~~syncdb~/~ do. A fearless AFS administrator can use this fact to restore a muddled database by simply deleting the existing database and running the volume synchronization commands.
+
+PROGRAM DONE
+	$ <B>vos syncvldb fs-one</B>
+	VLDB synchronized with state of server fs-one
+	$ <B>vos syncvldb fs-two</B>
+	VLDB synchronized with state of server fs-two
+PROGRAM
+
+SECTION: FILE SERVERS
+
+Usually an AFS cell will have many file server systems spread around
+the enterprise. Besides the general management of user requests,
+administrators will want to spend some portion of their day making
+sure that these file servers are working correctly and that they
+have the right set of volumes stored on them.
+
+When you install a new hard-drive on the server, all you need do is use the native operating system commands to mount it on a directory named ~~/vicepxx~/~, where ~~xx~/~ is any one or two lowercase alphabetic characters in the range of ~~a~/~ to ~~z~/~ and ~~aa~/~ to ~~iv~/~. To make the ~~fileserver~/~ notice the new disks, restart the bos ~~fs~/~ job.
+
+The ~~vice~/~ partitions managed by the ~~fileserver~/~ and ~~volserver~/~ processes contain standard UNIX file systems. That is AFS simply uses standard mechanisms to store and manipulate data on the disk; the underlying disk file system type could be almost any vendor-specialized file system. Some vendors support disk partitions of up to 2 gigabytes only. Other operating systems can handle larger partitions, or intermediary software may provide virtual partitions on top of the disk surface. Sun's Online Disk Suiteª or IBM's Journal File Systemª can both be set up to deliver large partitions out of smaller disks, and they additionally provide mirroring, striping, or other RAID-style redundancies.
+
+Although AFS supports ~~vice~/~ partitions greater than 2 gigabytes, a single file 
+must be less than 2 gigabytes in size. Volumes greater than 2 gigabytes are 
+only partially supported: while residing on a large partition, a volume 
+can grow to greater than 2 gigabytes, but, at this point, several volume 
+operations, such as dumping, restoring, moving, or replicating the volume,
+are not supported.
+
+Because the AFS file and volume server processes use the vendor's file system
+as the basis for partition management, you can use other standard tools to
+manipulate the disks. A classic UNIX tool, ~~dd~/~, is often used to move a ~~vice~/~ partition from one disk to another. This tool simply reads one file and writes to another; if the files are disk devices, ~~dd~/~ performs the equivalent of a disk copy. To make sure that this operational hack works, you should ensure that the disk is quiescent by turning off the AFS servers, or better, by bringing the system into single-user mode. When trying to resurrect data from a dead disk, you may find that the command fails when reading a certain block. At this point, you may be able to use some options to ~~dd~/~ to skip over a certain number of blocks during the reading and writing phases. When performing these operations, you'll have more success if the read-from and written-to disk partitions have the same geometries and are attached to equivalent operating systems.
+
+When choosing disks and devices for file storage, it's probably best to stay
+one step behind the latest and densest drives. There's not much point in
+putting all of your file data behind a single controller, armature, and
+spindle, as opposed to purchasing a few smaller disks which will tend to
+spread out the load. And when partitioning the disks, it makes sense to have
+one partition for each spindle because AFS volumes perform their own logical division of the disk surface. Having more than one partition for a single disk may be useful in certain circumstances but more often will just add administrative overhead.
+
+AFS volume replication takes care of redundant access to read-only data. Because of
+this (and the ever-present fact of client-side caching), the read-only copies
+need not be stored on particularly high-powered or fault tolerant hardware; on the contrary, second-rate or hand-me-down servers can prove extremely cost effective and yet still support a large number of clients. This is one of the scaling attributes of AFS. But we're still left with the read-write data - home directories, development areas, source repositories, and the masters for read-only volumes. These volumes should be grouped together when possible on hardware better designed to support precious data.
+
+Either a software or hardware RAID solution works well for these read-write volumes. Software systems like Sun's Solstice DiskSuiteª or IBM's Logical Volume Manager enable administrators to mirror or stripe reads and writes to multiple disks. As for AFS, it will be given access to a metadisk and will dutifully record and report its data there, while in the background, furious activity will be taking place to duplicate the data. When a disk fails, the operating system drivers will keep the read-write data available with perhaps only a small performance penalty.
+
+The problem with software solutions to highly-available disk storage is that
+it depends on a single, running operating system, more often than not, a
+single CPU. A hardware RAID disk may provide some better data availability
+characteristics but will be similarly dependent on a single AFS file server's
+reliability. Still, either software or hardware RAID is better than none.
+
+Adding a file server to a cell is a simple process because the only dynamic configuration occurs when a volume creation or move command installs a file server's location into the volume location database. Unlike the case with database servers, there is no ongoing election process nor need to inform other servers or clients of file server addresses in the ~~CellServDB~/~ file. Once you copy over the AFS binaries and static configuration files to a new file server, you can load the AFS kernel module and create a ~~bos fs~/~ job so that the trilogy of ~~fileserver~/~, ~~volserver~/~, and ~~salvager~/~ are available to run, and an ~~upclient~/~ job, to enable configuration files to be updated on this file server.
+
+Now, you can create volumes on the file server. This action automatically
+installs the volume's named and location in the volume location database. 
+Once you mount the volumes into the enterprisewide AFS namespace, clients will query the VLDB to find the contents of the new volume on the new server.
+
+Removing file servers is also easy. First, of course, you may want
+to delete or move the volumes stored on the file server's disks. Since the
+only connection to the server is a set of records in the volume location
+database to the file server, in extreme circumstances you can simply
+turn off the file server and delete the VLDB records one by one
+with the ~~vos delentry~/~ command.
+
+This description gives you a hint as to what must be done if you need to move disks around from one server to another to repair some machine disaster. After you move the survivor disks from the dead server to a living server, run the VLDB synchronization commands: ~~syncserv~/~ to delete entries in the VLDB for the volumes no longer served by the dead machine and ~~syncvldb~/~ to add in the entries for the disk newly added to the living server.
+
+A more realistic sequence of commands for moving a disk from a dead server
+to another server is:
+
+1. Stop the source ~~bosserver~/~ jobs and halt the machine.
+
+2. Remove the disk from the source file server.
+
+3. Stop the destination ~~bosserver~/~ jobs and halt the machine.
+
+4. Install the disk.
+
+5. Reboot the destination file server.
+
+6. Ensure the ~~fileserver~/~ job has restarted.
+
+7. Salvage the newly installed disk if necessary to check that all the volumes are OK.
+
+8. Run ~~vos syncvldb~/~ to add in the new volume entries to the VLDB.
+
+9. Run ~~vos syncserv~/~ to remove volume entries from VLDB for volumes no
+longer on the source server.
+
+This sequence of operations demonstrates the benefit of having database server
+processes on separate machines from the file servers; by separating the functionality, you can increase the uptime for the service as a whole. Although during the above command sequence, one file server was out of commission, all the database servers and file servers were still available for read and write operations.
+
+Upgrading a file server's operating system is a process much like that described above for database servers. The additional issues are that during the
+installation of the new operating system, you should take the trouble to disconnect the AFS ~~vice~/~ partition disks until you have completed the upgrade and replaced the vendor-supplied ~~fsck~/~ program with the Transarc version. Once you're certain you have the correct ~~fsck~/~ and AFS configuration files installed, reconnect the disks and restart ~~bosserver~/~ and other jobs. Since the volume location data will be exactly the same as before the upgrade, the AFS cell should be able to function without a tedious series of VLDB synchronizations. 
+
+Retiring a server or its disks can be a much less troublesome affair. It's a
+simple matter to use the ~~vos move~/~ command to move all volumes from the
+retiring system to other machines. Once all the volumes have been moved,
+there's no information in the VLDB or any other database pointing to the
+disk or machine. As we've seen, file servers aren't really attached to the
+cell by any intrinsic configuration - they've just been told by an AFS
+command to store a volume's set of files. Once the volumes have been moved off, no other cell management is necessary.
+
+Unfortunately, unless you've been brutally strict with regard to volume
+location planning, it is easy to wind up with partitions containing all sorts of volumes. As you go through each volume in the disk or partition and consider how to move each type of volume, follow these prescriptions;
+
+-- If the volume is a read-write, it can be simply moved. If there
+was a backup volume on the source disk, it will be deleted. You will
+probably want to create a new backup volume on the new disk when the
+move is complete. 
+
+-- If the volume has a read-only on the source disk, remove that version from the volume's list of read-only sites and add the destination site to the volume site list. Once the volume is moved, re-released it.
+
+-- If the volume is a read-only with no read-write on the disk, the site list for the volume must be updated. Add the new destination site to the list, re-release the volume to update the new site, and remove the old read-only site with the ~~vos remove~/~ command. If the new destination site happens to be the location for the read-write master, make sure that there's no preexisting read-only volume - it should be ~~zapped~/~ so that the re-release creates a read-only clone.
+
+While the listed steps are wearisome to implement, for the most part there will be no loss of access to any data due to the implementation of volume moving and the AFS protocol for replicated data.
+
+SECTION: SALVAGER DATA
+
+The ~~salvager~/~ job is primarily used to recover from minor corruptions of the file server's ~~vice~/~ partitions, but some other options that are available might be used more regularly to extract information from the server's volumes.
+
+A common question asked by AFS administrators is, how do I find out where a
+volumes is mounted in the file system?. The somewhat surprising answer is
+that AFS does not explicitly track this information. The simple reason is 
+that when an ~~fs mkm~/~ command is run to create a connection between a 
+file system path name and a volume name, this information is stored in only
+the file system itself, that is, on a disk attached to some AFS file server. 
+Because of this, and because an AFS namespace is a usually quite broad, 
+it pays to strictly enforce your volume naming and mount point conventions. 
+
+As the only place in AFS where this information is stored is in the file 
+system itself, some command must read the entire namespace or ~~vice~/~ 
+partition data and report on any mount points encountered. As of AFS 3.4, the 
+~~salvager~/~ has supported an option, ~~-showmount~/~ , which logs a line to 
+the ~~SalvageLog~/~ file of all mount points it finds in a partition or volume. 
+You can run the ~~salvager~/~ in stand-alone mode as follows:
+
+PROGRAM DONE
+	# <B>/usr/afs/bin/salvager -showmounts -partition /vicepa -nowrite</B>
+	# <B>cat /usr/afs/logs/SalvageLog</B>
+	@(#)Base configuration afs3.4 5.00
+	03/30/97 15:39:17 STARTING AFS SALVAGER 2.4 (/usr/afs/bin/salvager -showmounts -partition /vicepa)
+	03/30/97 15:39:27 Scanning inodes on device /dev/rdsk/c0t1d0s4...
+	03/30/97 15:39:40 In volume 536870912 (root.afs) found mountpoint ./hq.firm to '#root.cell.'
+	03/30/97 15:39:40 In volume 536870912 (root.afs) found mountpoint ./.hq.firm to '%root.cell.'
+	03/30/97 15:39:40 In volume 536870918 (root.cell) found mountpoint ./tmp to '#cell.tmp.'
+	03/30/97 15:39:40 In volume 536870918 (root.cell) found mountpoint ./user to '#cell.user.'
+	...
+PROGRAM
+
+Since we're interested only in auditing the system, we add the ~~-nowrite~/~ option to inhibit any attempted salvaging. See Chapter 10 for more details on using the ~~salvager~/~ to debug AFS disk problems.
+
+Another frequent audit request is to determine all the ~~setuid~/~ or ~~setgid~/~ 
+executables in the system. You can use a ~~find~/~ program for this task, but ~~salvager~/~ includes an option, ~~-showsuid~/~, to report such files to the log just as ~~-showmount~/~ displays the mount points.
+
+SECTION: NETWORKING SUPPORT
+
+It is common now for computers, especially servers, to be configured with more than one network interface. Sometimes this configuration is done to permit alternate routes to the network, and other times, to provide different bandwidth capacities for different applications. These multihomed machines often cause problems with some software that assumes only a single network address per system. The current release of AFS, 3.4a, provides support for file servers with multiple interfaces, but does not support multihomed database servers. This is perhaps another reason to segregate the two sets of services.
+
+Earlier versions of AFS relied on the one-to-one relationship between network addresses and servers by using the address as an index in several internal databases. With more than one address, that relationship would not work, so now each file server is provided with a new, AFS-only identity guaranteed to be unique. When the 3.4a version of the ~~fileserver~/~ process starts up, it registers one or more local network interfaces with the cell's volume location database and then caches that data in a file, ~~/usr/afs/local/sysid~/~. The system can store up to 16 such interfaces.
+
+This system identification file contains a unique magic number for the file server and a list of the network interfaces available.  This file needs no particular administration because all the information is managed automatically. If any of the IP addresses on the server are changed, added, or deleted, a simple restart of the ~~fileserver~/~ process is all that is needed to bring the multihome information block up to date. Managing address changes is an improvement on earlier versions of AFS which required an administrator to run the ~~vos changeaddr~/~ command manually. Now, this change happens on restart and ensures that the VLDB knows all of the available interfaces to get to a file server's data.
+
+Although this file is maintained by AFS, there were problems with early revisions of the 3.4a release: If the file ~~/usr/afs/local/sysid~/~ was copied from one machine to another (for example, when one installed a new server by copying the files in ~~/usr/afs~/~ from a running server), the registration process could cause corruption of the VLDB. The current releases no longer have these problems. Nevertheless, when administering file servers, do not copy any data in the ~~/usr/afs/local~/~ directories between machines. If you suspect a problem, check the ~~/usr/afs/logs/VLLog~/~ file on the volume location servers; the database server will log a message there if it finds a problem with duplicate IP addresses or other sysid file inconsistencies.
+
+The result of this registration process is that the VLDB knows about all of
+the interfaces available on all of the servers. When a client is searching
+for file data and queries a volume location server, the volume location server sends not just a list of servers, but a full list of all the IP addresses from which the volume data (read-write, read-only, or backup) can be retrieved. The
+client cache manager then performs as it always has, by using that list to find an available server and getting at the file data.
+
+Also, cache manager file server preferences work perfectly with this
+arrangement. If a volume is stored on a file server with two IP addresses,
+each address can be given its own numeric preference. For example, the client systems that archive volume data to tape can be told to prefer to use the high-speed interfaces of a file server. Not only will these systems then utilize an optimized connection to the server without affecting the rest of the network, but should the high-speed link fail, they will automatically fail over to any other available network.
+
+From the server point of view, the ~~fileserver~/~ process knows about its interfaces from the beginning, so if responses to a client's request on one interface fail, the server will use one of its other interfaces. Since clients now understand that servers can have multiple network connections, there will be no confusing different IP addresses with different servers.
+
+Because of the robustness of the Kerberos-authenticated access controls in
+AFS, many organizations permit remote network access to their internal cell. AFS uses specific ports for different RPC requests. The UDP port numbers used are listed below in Table 9-3:
+
+Untitled Table
+PROGRAM - do not make courier
+	<B>port</B>		<B>machine type</B>		<B>process</B>
+	7000		file server		~~fs~/~
+	7001		client			~~afsd (for callbacks)~/~
+	7002		database server		~~ptserver~/~
+	7003		database server		~~vlserver~/~
+	7004		database server		~~kaserver~/~
+	7005		file server		~~volserver~/~
+	7007		server			~~bosserver~/~
+	7008		server			~~upserver~/~
+	7009		AFS/NFS gateway		~~--~/~
+	7021		backup server		~~buserver~/~
+	7025-7032+	backup tape coordinator	~~butc~/~
+	7101		clients/servers		~~xstat~/~
+PROGRAM
+
+For access to an AFS cell through a firewall, certain combinations
+of these ports must be opened up for network transfer. Since the underlying
+protocol, Rx, uses the UDP flavor of IP, any TCP packets or fragments on 
+the above listed ports can immediately be discarded. An IP packet holds the value of the source and destination ports in its first few bytes. But these packets are susceptible to fragmentation during their transit across the Internet, so IP fragments that are part of a packet going to or coming from a selection of the above listed ports must be permitted through the firewall. You can be quite selective about the exact ports permitted through the firewall depending on the services you want to support.
+
+To support external clients accessing public (unauthenticated) areas of your 
+AFS cell, you should, at a minimum, permit UDP protocol IP packets (and 
+fragments) that access the following port pairs in either direction.
+
+
+Untitled Table
+PROGRAM - do not make courier;
+	<B>External Client</B>		<B>Internal Server</B>
+	<B>IP Port</B>			<B>IP Port</B>			<B>Purpose</B>
+	7001		<->	7000			File access
+	7001		<->	7003			Volume location lookup
+PROGRAM
+
+
+Authenticated access will require that the cell's Kerberos servers
+are visible:
+
+Untitled Table
+	External Client		Internal Server
+	<B>IP Port</B>			<B>IP Port</B>			
+	7000-7009	<->	7004		
+
+
+SECTION: NFS-AFS GATEWAYS
+
+Clients for which Transarc does not offer a port of AFS can still access the
+file system via an NFS gateway. With the appropriately loaded kernel
+module on an AFS client (offered as a standard part of the AFS package), a
+client can export the ~~/afs~/~ directory to NFS clients. So, using a sort of
+transitive property for file system protocols, an NFS client can request data
+from an NFS server, which, if it is set up as an AFS client, would then
+request the specific data from the AFS servers. The AFS protocol response
+would be repackaged as an NFS packet and then delivered to the NFS client.
+Figure 9-2 shows how the gateway acts as an AFS client and an NFS server.
+
+[[Figure 9-2: NFS-AFS Gateway Architecture]]
+
+Concerning file data access, this system works well and the machine in
+middle can even be an AFS server so long as it is also configured as an AFS
+client. However, problems arise with the need for authenticated access to the
+AFS system. Because the NFS client is, in this case, a system for which
+there is no AFS port, there is no AFS module that can be used as a store
+for the Kerberos tokens used as an authentication credential. Therefore, we must do some extra work. 
+
+The critical issue is whether the NFS client is one of the supported AFS
+architectures. Most likely it is not, for if it were, it would simply have
+the AFS client code loaded at boot. If the client does have access to
+AFS command binaries of the correct architecture it may still need NFS-AFS 
+gateway services. In this case, the translation and authentication issues 
+are much simpler.
+
+Either way, a couple of points about this system should be made: 1) only NFS client access to the AFS file namespace is supported; 2) there is no way for an NFS server to make its data visible anywhere under ~~/afs~/~ on an AFS client. (Apart from not seeing NFS files in the ~~/afs~/~ tree, an AFS client can access 
+other NFS files anywhere else in its local namespace). 
+
+When dealing with NFS clients that belong to an unsupported AFS client
+architecture, you must ensure that the gateway is running NFS server processes and has ~~/afs~/~ (or a subdirectory) in its list of exported file systems. Once AFS is running, use the ~~exportafs~/~ subcommand to define some options.
+
+PROGRAM DONE
+	# <B>fs exportafs nfs on</B>
+	'nfs' translator is enabled with the following options:
+		Running in convert owner mode bits to world/other mode
+		Running in no 'passwd sync' mode
+		Only mounts to /afs allowed
+PROGRAM
+
+You can set the following options:
+
+-- Mode bit conversion - Because AFS files are not concerned with the
+top six bits of the UNIX permission rights (these bits are overridden by
+the access control lists), the question remains how to tidy up the permissions as seen by the NFS client. The gateway machine can either convert
+(which means, make a copy of) the user permission bits into the group
+and other bits or not convert and leave them precisely as they are
+stored in AFS.
+
+-- UID check mode - Because the NFS client is obviously not running AFS client code, NFS users cannot authenticate to AFS on their desktop. To gain AFS credentials, the user must log in to the gateway and use the ~~knfs~/~ command (described below) which associates a credential with the NFS client user's numeric identity. The problem here is how to perform the association if the NFS client has a mapping of users to numeric identities that is different from the gateway machine's mapping. If the set of users and their identities is the same, then the two password maps can be set to sync mode so that  users can associate their own identity only with an AFS token. If the set of users or their identities are different, then users must be permitted to associate a credential with any numeric identity.
+
+-- Submounts - The gateway administrator can decide whether to permit clients to mount on the NFS client machine either the ~~/afs~/~ directory only or any subdirectory to which access is permitted.
+
+The NFS client machine can then simply run the NFS client ~~mount~/~ command to enable access. Here, a UNIX client mounts ~~/afs~/~ from the gateway (which happens to be one of our AFS file servers) onto the local namespace:
+
+PROGRAM DONE
+	# <B>mount fs-one:/afs /afs</B>
+PROGRAM
+
+Users on the NFS client can now begin to access the AFS namespace.
+
+PROGRAM DONE
+	$ <B>cd /afs</B>
+	$ <B>ls</B>
+	hq.firm  transarc.com
+PROGRAM
+
+Although users can access the namespace, there is no credential on the local
+machine they can use to access secure areas of the file system. In this case, users authenticate by separately logging in to the gateway machine, obtaining normal AFS client tokens, for example with the ~~klog~/~
+program, and then exporting those tokens with the ~~knfs~/~ command. This command associates particular Kerberos credentials with an NFS client. The
+association can either be fixed to a single UNIX identity on a single NFS
+client, or it can be assigned to all users on the NFS client. This latter
+case is most useful when the NFS client does not have a built-in concept of
+user identities, for example, personal computers running MS-DOS¨ or MS Windows.
+
+PROGRAM DONE
+	$ <B>klog david</B>
+	Password:
+	$ <B>knfs client2 -id 1235</B>
+PROGRAM
+
+Here, David obtains Kerberos credentials on the gateway and makes them available to user identity 1235 on NFS client ~~client2~/~. Any access from ~~client2~/~ by such a user will use those credentials when checking read and write permissions. When David wishes to destroy the token, he must again log in to the gateway and run ~~knfs~/~ with the ~~-unlog~/~ option.
+
+Note that when a user accesses the AFS namespace in this manner, the user cannot use other client commands such as ~~fs~/~. The user must run any other queries, such as ~~fs whereis~/~ or ~~fs listquota~/~, on the gateway.
+
+With this configuration, the AFS path name element ~~@sys~/~ will be translated 
+according to the architecture of the gateway machine. If the NFS client is a different architecture, you can use the ~~knfs~/~ command's ~~-sys~/~ option to specify a different translation value. Here, the gateway machine of any
+hardware architecture is instructed to convert ~~@sys~/~ path name elements 
+into ~~sun4m_412~/~.
+
+PROGRAM DONE
+	$ <B>knfs client2 -sys sun4m_412</B>
+PROGRAM 
+
+In the case where the NFS client is a system type that is supported by Transarc but for some reason cannot be made true AFS client, the situation is much better. First, on the gateway, run the AFS cache manager with the ~~-rmtsys~/~ option. This option enables the gateway to perform a more direct mapping between an NFS client identity and an AFS credential. As before, the gateway must have the ~~/afs~/~ directory declared in its list of exported file systems, and the NFS servers must be running.
+
+Now, on the NFS client, you can make a normal NFS mount of ~~/afs~/~. 
+Also, set up local versions of ~~/usr/afs/etc/CellServDB~/~ and 
+~~/usr/afs/etc/ThisCell~/~ and a file containing the name of the 
+gateway machine. These items allow AFS client programs, like ~~fs~/~, 
+to contact the gateway and return information much as if 
+the NFS client were running AFS natively.
+
+You can set the values for this configuration data in a variety of places
+to allow multiple users on the NFS client to manage their data
+themselves or for administrators to manage all client users at once.
+For the finest control, users can set two environment variables: they should set AFSCONF to a directory path name in which ~~CellServDB~/~ and ~~ThisCell~/~ files are stored, and they should set AFSSERVER to the name of the gateway machine. Rather than setting environment variables, users can store the same two values in two files in their home directory: ~~.AFSCONF~/~ and ~~.AFSSERVER~/~. Lastly, to set defaults for all users on the client, an administrator can set the values in files in the root directory: ~~/.AFSCONF~/~ and ~~/.AFSSERVER~/~.
+
+With these values set up, a user can directly issue a ~~klog~/~ command on the NFS
+client. The command will recognize that it is not an AFS client and so will
+try to use the configuration data to contact the Kerberos servers in the
+indicated cell and obtain a token. As the AFS namespace is traversed, this token will be used to check permissions. Similarly, ~~fs~/~ commands will contact 
+the appropriate servers to return correct AFS data. And when credentials 
+need to be destroyed, the normal ~~unlog~/~ command can be used. 
+
+SECTION: ADMINISTRATION EXAMPLES
+
+As with most system administration, it is important to construct and publish a
+well-thought-out set of management policies complete with the necessary
+implementation tools. The bane of distributed computing is not any
+architectural flaw but simply the proliferation of anything-goes operations.
+When different administrators (or a single administrator at different times)
+implement arbitrary practices, the likelihood increases that systems will
+fail, security will be broken, and poor decisions will turn into immutable
+legacies.
+
+With the centralized administration model of AFS, such free-for-all behavior must be
+controlled from the beginning. Discipline of course, is difficult when bringing up
+one's first cell; even so, as administration experience is gathered and 
+changes are made to the system, they should be made to the entire cell namespace ,
+bringing everything up to the same level. In the cases where AFS has not
+been used to its best potential, the problems usually can be traced to a
+lack of resources and administrative discipline.
+
+Administering user accounts and homes in AFS consists of coordinating four different
+databases: the Kerberos identity and password database, the protection
+group database, the volume database, and the file system's namespace itself.
+Consistent application of policies to all of these databases is essential
+to controlling a cell. While each site will wish to implement its own
+standards, a few examples should help to expose the details which need
+to be managed.
+
+Adding a user to a cell is discussed in Chapter 6. Deleting
+a user from the system is simply the reverse. To start, look up the
+location for the user's home volume. Whether 
+the volume is immediately deleted or is renamed and saved
+somewhere for staging before deletion depends on your policies. As always,
+make sure that you are authenticated as a member of ~~system:administrators~/~,
+that you are on the server's
+administration list, that you have the ADMIN flag set for the proper
+execution of Kerberos commands, and that you can read and write to the
+necessary portions of the file namespace. Once you are satisfied
+that you are properly authenticated, you can begin.
+
+PROGRAM DONE
+	$ <B>vos listvldb user.ethan</B>
+	user.ethan 
+	    RWrite: 536871000 
+	    number of sites -> 1
+	       server fs-two partition /vicepa RW Site 
+	$ <B>vos remove fs-two a user.ethan</B>
+	Volume 536871000 on partition /vicepa server fs-two deleted
+	$ <B>fs rmm /afs/.hq.firm/user/ethan</B>     
+	$ <B>vos release cell.user</B>
+	Released volume cell.user successfully
+PROGRAM
+
+This set of commands removes the user's home volume from the namespace, but the user
+still exists as an identity in the database. Before deleting the user identity,
+ check to see what groups the user owns and determine
+which groups can be deleted and which ones should be reassigned.
+
+PROGRAM DONE
+	$ <B>pts listowned ethan</B>
+	Groups owned by ethan (id: 6873) are:
+	  ethan:projectX
+	  ethan:friends
+	$ <B>pts delete ethan:friends</B>     
+	$ <B>pts chown ethan:projectX david</B>
+	$ <B>pts delete ethan</B>
+	$ <B>kas delete ethan -admin afsadmin</B>
+	Administrator's (afsadmin) Password: 
+PROGRAM
+
+Ethan's personal groups can be deleted outright, but apparently ~~ethan~/~
+owned a development project's group. Rather than delete this, reassign the
+projectX group to another user. Now, you can delete the user from the protection and Kerberos databases.
+
+Note that any access control lists which had entries for
+~~ethan~/~ or ~~ethan:friends~/~ will now show an orphan numeric identifier rather
+than a string value when listed. Remove these orphan entries 
+from ACLs with the ~~fs cleanacl~/~ command. The ~~ethan:projectX~/~ group will
+be properly displayed as ~~david:projectX~/~.
+
+Changing a user's name is similar to deletion in that the difficulty
+is in modifying the user's groups. First, check for the groups
+that the user currently owns, rename the user, and rename the
+groups.
+
+PROGRAM DONE
+	$ <B>pts listowned bob</B>
+	Groups owned by bob (id: 5321) are:
+	  bob:writers
+	  bob:readers
+	  bob:friends
+	$ <B>pts rename bob robert</B>
+	$ <B>pts rename bob:friends robert:friends</B>
+	$ <B>pts rename bob:readers robert:readers</B>
+	$ <B>pts rename bob:writers robert:writers</B>   
+	$ <B>pts examine robert:writers</B>
+	Name: robert:writers, id: -208, owner: robert, creator: robert,
+	  membership: 1, flags: S-M--, group quota: 0.
+PROGRAM
+
+As you can see, the new owner of the groups is the renamed user. Any ACLs
+in the file system will automatically show the new, correct names. Now
+you can delete the old Kerberos name and install the new name.
+
+PROGRAM DONE
+	$ <B>kas delete bob -admin afsadmin</B>
+	Administrator's (afsadmin) Password: 
+	$ <B>kas create robert -admin afsadmin</B>
+	Administrator's (afsadmin) Password: 
+	initial_password:
+	Verifying, please re-enter initial_password:
+PROGRAM
+
+While the ~~bob~/~ principal is now deleted and a new principal, ~~robert~/~,
+has been created, the user identification number remains the same because 
+it is stored in the protection database. 
+
+Once the identity information has been changed, you'll need to change the
+user's home volume name and mount point. This change is not strictly necessary,
+but if you have a policy that says that home volumes are named after the
+users, include the step.
+
+PROGRAM DONE
+	$ <B>vos rename user.bob user.robert</B>
+	Renamed volume user.bob to user.robert
+	$ <B>fs rmm /afs/.hq.firm/user/bob</B>
+	$ <B>fs mkm /afs/.hq.firm/user/robert  user.robert</B>
+	$ <B>vos release cell.user</B>
+	Released volume cell.user successfully
+PROGRAM
+
+Additionally, you may have to change the mount point name of any attached
+backup volume. And finally, you'll have to change entries in the UNIX 
+password file or map.
+
+SECTION: E-MAIL, NETNEWS, AND THE WEB
+ 
+Once the AFS bug has hit your administrators, it sometimes seems that all 
+problems can be solved through appropriately named and access-controlled 
+directories and files. Once a distributed file system is ubiquitous and 
+trusted, everything from e-mail to NetNews newsgroups to Web pages is capable 
+of being stored in AFS. Is this a good idea? The answer is, it depends.
+ 
+Electronic mail systems have evolved over the years and now deal with
+many layers of software - from user agents, transfer protocols, and
+queueing systems - running on wildly different hardware platforms.
+
+With AFS, a natural question is whether e-mail can be directly delivered
+to user's home directories; such delivery would reduce the disk contention and
+usage problems of a single mail spool server. Users who regularly 
+leaves their spool file full of dozens of megabytes of unread mail will,
+with this scenario, affect only their own home volume quota rather than
+abuse everyone's shared spool area.  This method has been used at several sites but
+requires a fair amount of hacking in to get the permissions just right. 
+
+If user mail is to be delivered to a file in the user's home directory,
+that delivery site, perhaps ~~/afs/hq.firm/user/david/Mail~/~, must have an
+ACL that permits writing by the mail deliver agent. Getting a correct Kerberos authentication credential for that agent 
+is not trivial.
+Automatically obtaining credentials differs according to whether the agent is
+a a long-running or intermittent job. If the job is designed to start up
+and run for a long period, you can use the ~~reauth~/~ command, which periodically refreshes
+tickets. But automatically running the ~~reauth~/~ command requires that a
+principal's password be available, usually in a file on the mail
+delivery agent's disk. Transarc's public FTP site has a version of this approach 
+implemented as ~~auth-sendmail~/~.
+
+A better answer is the ~~kpop~/~ client, which understands the Post Office Protocol.
+This protocol depends on a central mail spool area managed by a POP daemon,
+usually named ~~popper~/~. The ~~kpop~/~ program is a client which can contact the
+~~popper~/~ daemon and retrieve new mail; this version has internal enhancements 
+that understand Kerberos credentials. An authenticated user can contact the central daemon 
+on the central mail server and, using the Kerberos protocols, prove his or 
+her identity. The ~~kpop~/~ system will then be able to retrieve any previously 
+spooled mail to the user's mail directory. This method helps maintain a high level of security for 
+mail, which is a good thing, but does nothing to address the concerns of 
+overloading a central mail spool area. 
+
+One site tries to get the best of both worlds by making the central mail
+store an AFS client. Rather than having mail stored in a local disk
+spool area or directly into users' home directories, the central mail
+service uses AFS as the spool directory. The
+mail server is assured, by AFS machine ACL entries, that only it can have access to the spool area,
+but the spool can be managed via AFS volume commands. In one case, the
+spool area is divided into thirty different volumes spread over
+many machines; each volume is dedicated to a certain set of users. Since these
+are AFS volumes, they can be manipulated, moved, and secured with ease.
+Clients can then use a POP client or other protocol to talk to the
+secured server and retrieve their mail.
+
+The anarchic NetNews system has similar problems and solutions but has perhaps fewer security concerns. Again, the normal architecture 
+depends on a central machine receiving a news feed and delivering articles 
+into any one of a thousand, or ten thousand, different directories. Users 
+will contact the news server and request information on what news groups and articles are 
+available and then download a particular article.
+
+Again, the natural question is whether the news articles can be delivered
+directly into an AFS directory structure; such delivery would then permit users
+to read articles by accessing the shared namespace.
+
+The trouble with replacing pieces of this system with AFS technology is
+that much of the bottleneck is simply on the Internet network connection
+which receives articles. In addition, complex indexing and threading
+applications often depend on their own protocols, which would be bypassed
+if clients accessed articles directly. The current Network News Transfer
+Protocol (NNTP) performs additional functions that would be lost if
+one were to simply list the news directories and read the files therein.
+
+A reasonable use of AFS might be, as with e-mail, to deliver NetNews into
+AFS directories solely for the advanced management capabilities of volumes; 
+users would still contact a regular, central NetNews server to
+retrieve articles. The drawback is that in addition to the network traffic needed to receive the news feed, writing files to AFS volumes imposes even more network bandwidth.
+
+It may seem that with the advent of the World Wide Web there is
+less need for distributed file systems at all. Don't protocols like HTTP, 
+SSL, CGI, and others, make AFS obsolete? On the contrary, AFS can
+improve the performance, security, and architecture of an enterprise intranet.
+ 
+The beauty of the Web is that it is available on practically all platforms, 
+including workstations, PCs, even set-top boxes, and connects installations
+worldwide whether they are connected by T1 networks or low-caliber modems. However, in
+an individual enterprise, there is usually a limited set of desktop
+architectures and a well-defined network topology. And, more importantly,
+there is a specific security model: all employees are members of
+a single administrative realm.
+ 
+These natural limitations are recognized in the distinction between the
+Internet - everyone and everything connected any which way - and an intranet,
+a natural domain of control. The computing systems in an enterprise deserve not
+only their own Web of information using all of the power and utilities
+available, but also a unified file system. The new Web technologies should be
+embraced when they add value to an organization but an 
+enterprisewide file system can be used with any and all of the legacy applications 
+that merely read and write file data.
+ 
+An intranet Web can use this enterprise file system for the distribution not
+only of production binaries, home directories, operating system components,
+and the like, but for all of the Web tools - the browser and builder
+executables - and also for Web pages and images with relatively static content.
+The benefit of using AFS for the support of most Web pages is the built-in
+benefits of replication, security, and caching.
+ 
+A disadvantage of most graphical user interfaces, including file managers and
+Web browsers, is that they need a manual refresh operation to check whether
+the local cache is up to date. AFS, on the other hand, has a strong consistency
+model: any examination of file or directory data is guaranteed to obtain the
+latest, consistent view of the data. By using file-based uniform resource
+locators or URLs, browsers will be sure of getting the most recent data
+without having to use the unoptimized HTTP protocol to deal with data
+transfer and caching. AFS file-based URLs will automatically use a network
+protocol to grab the data from anywhere in the enterprise; in addition,
+the global namespace of AFS provides better location transparency because no geographic information, not even a server name, is embedded in the file name.
+ 
+The security model of AFS provides much-needed functionality for enterprises.
+Users can be assigned to groups, those groups can be placed on directory
+ACLs, and a Web of information is immediately made secure; only certain
+people will be permitted to read certain data, and only certain others will be
+permitted to write that data. All without the need to enter additional user
+names and passwords because the underlying file system will use the
+user's already established Kerberos authentication token.
+ 
+However, Web servers are not made obsolete with this enterprise file system.
+Many of the new protocols used by a browser need a server with which
+to communicate, and many Web pages will be generated on-demand rather than
+living statically in the file system. Yet even for Web servers, AFS provides
+benefits: because a ubiquitous file service will also be visible to the Web servers,
+any Web server will be able to distribute any pages from anywhere in the file system.
+ 
+The best result of the Web hype of the late '90s will be to get everyone
+connected to the internet. Then, any of various protocols can be used to move
+information to the local processing and display unit. AFS 
+helps create robust thin clients, supports Web browsing, and transparently works with all applications that read and write files.
+ 
+SECTION: THIRD-PARTY SOFTWARE
+
+Management of third-party software is perhaps the greatest problem facing an AFS 
+administration staff. Whereas servers, disks, and backups can be gradually
+shaped into a smoothly running system, new software products regularly
+demanded by users and developers are a continual source of problems. This
+issue is not new to AFS; sites using NFS or NetWare must also deal with
+troublesome software installs. Nor does AFS provide any special advantages,
+except that once installed, a package can rely on replication and robust
+security services.
+
+The source of the trouble is the flexibility of our computing environments
+versus the assumptions software developers make regarding the layout of the
+file namespace. AFS encourages large areas of shared resources; this environment is
+often at odds with the environment used by software developers. Dealing
+with these differences occupies a large share of an
+administrator's time. 
+
+In the best case, you'd like to install a package by simply storing the
+application files in the AFS file system with no modifications made to the
+client's disk or set up. All desktops in the cell would be able to see this
+package at once, and users would simply run the application. In the worst case, you'll have to handcraft solutions to support multiple architectures, temporary write space, and hard-coded non-AFS path names.
+
+Perhaps the easiest way to install a package into AFS is to first install it
+onto a local file system, the equivalent of an examination room, where the
+files and linkages can be examined. It is important to understand the
+structure of the package, its files, their types, and their sizes. By
+running the product through its paces and reading the documentation, you
+will come to understand its architecture, how the application processes find its
+resources, and where it stores temporary and permanent file data.
+
+During the vendor's installation process, beware of running jobs as root;
+this login often masks changes made to a client's configuration or system
+executables. Often, there's no way to find out what's changed except by
+comparing files in the client's ~~/etc~/~ or ~~/bin~/~ directory with another client.
+Some vendors may expect that software will be installed on each client as
+needed; in this case, you can use the enterprisewide AFS namespace simply as a place to store the software image and then permit 
+users to load the software onto their desktop by simply running the install
+program.
+
+When your clients have migrated to the dataless model, you'll find that
+there are fewer desktop installations to perform. As an example, on any UNIX workstation,
+there's no reason for the graphical windowing software to be loaded
+locally. As long as the binaries are replicated
+there's no need to manually copy the desired programs down to a client -
+just let AFS the client grab the files as needed from AFS and cache them for the inevitable next
+use. This choice means that installing patches to the window system software
+involves copying the new files to the AFS server once and then releasing the
+replicas; clients will be informed of the changes and pick them up as they
+need them.
+
+Usually, the biggest difference between a product's assumptions and AFS's reality is
+that products expect that the file server will also be the application
+server. AFS is unlikely to meet such expectations likely because it uses fewer total file
+servers and does not make its files servers available as
+application servers. Often, you can solve this by setting up separate servers to perform
+application services for multiple products. Also, software that expects to run on
+an NFS server may expect that the server view of the file system is different
+from the client view. In AFS, all AFS clients see
+exactly the same files with the same names. It may be necessary to change
+the installation process to fix this assumption.
+
+Some of the quirks of AFS can also break applications: the inability to
+create hard links between files in different directories could cause an
+installation script to fail. Often, to fix the problem, you must laboriously
+track down the file names and replace the source file with a symbolic
+link or a full copy of the destination file.
+
+Applications can take one of two approaches for dealing with multiple
+hardware types: the package is installed once per hardware type onto a
+different server, or all hardware types are installed into a single system
+and the application itself determines at run time which executable to run.
+The latter case works well with AFS because you can simply copy all the files
+into AFS as is and let the package manage itself. In the first case, you might
+perform multiple installations and write your own wrapper to distinguish
+which path to use for a given client. Or you can step through the
+application directory by directory and determine which pieces are
+architecture dependent, then create new directories for each architecture,
+and, finally, link the application directories to the per-architecture directories by 
+using the AFS ~~@sys~/~ path.
+
+As an example, consider a hypothetical application available for Sun and SGI.
+It consists of a set of binaries in the ~~bin~/~ directory and some man pages.
+After installing the two versions in two convenient directories, you can see
+the simple application layout.
+
+PROGRAM DONE
+	$ <B>ls /tmp/new-app-sun</B>
+	bin	man
+	$ <B>ls /tmp/new-app-sgi</B>
+	bin	man
+PROGRAM
+
+You could install these applications into AFS as a single package, where the ~~bin~/~
+directory is a link to the correct architecture's binaries.
+
+PROGRAM DONE
+	$ <B>cd /afs/hq.firm/apps/new-app</B>
+	$ <B>ls</B>
+	bin	man	sgi_53	sun4m_54
+	$ <B>ls -l bin</B>
+	lrwxrwxrwx  staff   staff	bin -> @sys
+PROGRAM
+
+When examining an application, watch out for assumptions that might break in
+a single, global file namespace. Perhaps resource files 
+are expected to be stored in the installation area and yet remain writeable; this storage can cause problems
+when you replicate the package into multiple read-only volumes. 
+
+The separation of the namespace into read-only and read-write areas comes as a
+surprise to many applications. You may need to create read-write volumes
+that are mounted somewhere convenient so that applications running from
+replicated read-only areas can write into their data files.
+
+Run-time read and write access can also present a problem. Using AFS ACLs
+and group entries, you can construct areas that only the correctly
+permissioned set of users can access. But if a setuid-root server process or a
+UNIX ~~cron~/~ job expects to access that same area, it will probably fail 
+because it has only anonymous credentials. After installing any package, run 
+the application both with regular user credentials and then as an
+unauthenticated user to see where authorized file accesses are needed.
+
+Another set of problems arises in building public software from source code.
+During the building process, some path names may be hardcoded into the product,
+either into compiled object modules or simply as text in files interpreted
+at run time. Automatic installation procedures may use this same path name as
+the installation location. This use is almost always wrong because the installation
+location will most likely be a read-write path, such as
+~~/afs/.hq.firm/apps~/~, whereas the run-time path should be ~~/afs/hq.firm/apps~/~.
+You may have to fix this problem manually editing
+the install scripts or moving the products into AFS by hand.
+
+PC software often comes with its own set of assumptions which make it
+onerous to install into an AFS cell. Beware of packages that insist
+on being located in the topmost directory: most packages in an AFS cell
+will be situated in directories three or four levels below the top. You may
+need to adjust your cell directory hierarchy to make such software more
+comfortable. 
+
+Even more often, packages for PCs assume that their installation areas are available
+for saving data as well as for simply storing the binaries. Again, you can use symbolic 
+links in the AFS namespace to repoint directories used for
+scratch or per-user data over to special read-write volumes. 
+
+During the vendor's installation process, changes will often be made
+to a user's home directory. Much PC software seems to assume that the root
+directory of a local hard drive is the same thing as a home directory. To
+make such software work in a multiuser world, you'll have to study and
+capture the changes made to home directories and create mini-installation
+scripts that can be run per-user, when needed, to set up a given
+software package.
+
+And don't forget that a lot of PC software is delivered as dynamic link libraries (DLL) which need 
+to be installed in system directories. The continual management 
+of these DLLs makes it hard to construct a dataless PC.
+
+The latest releases of the differing Microsoft Windows operating systems
+include the Registry, a system database that stores desktop as well
+as user configuration information. After installing a piece of software
+locally, you should examine this registry to see what changes were made.
+You may be able to make the software available to others by just
+copying the package files into AFS and then updating another user's
+registry information, using a custom-built script.
+
+Third-party software installation is not overly difficult, at least the
+first time when a certain intellectual challenge is 
+involved. Yet as new releases and bug fixes are made available, the
+continual need to reexamine the same sets of files and to test the
+assumptions of each revision over and over again quickly becomes tiresome.
+And when releases for different architectures diverge or are delayed, you may need to revisit 
+certain choices made to create an installation package.
+
+Again, these problems are not specific to AFS; they are familiar to all
+shared, distributed file systems. But that does not make the process any
+easier.
+
+SECTION: OTHER ADMINISTRATION TOOLS
+
+Managing server disk space is a large chunk of an administrator's job. With
+AFS, this job is made much easier because of the convenience and transparency
+of the ~~vos move~/~ command. Because you can move volumes around without affecting
+any user jobs accessing those files, you may want to use a shareware tool to 
+automatically move volumes among a set of servers and partitions. Called
+~~balance~/~, the command determines where all of a cell's volumes 
+are located and also what size partitions are available. Then using some
+built-in and customizable rules, the tool moves volumes from one
+partition to another. You can customize the rules to balance volumes so that all servers have approximately equal free
+space available. Or, you can move all of the infrequently accessed volumes
+to less powerful backroom servers and disks. The public version of
+~~balance~/~ is available from Transarc's site of unsupported software.
+
+Along with this automatic volume management, many sites would like tools
+to manually delegate certain AFS operations to groups of users. Just as
+AFS delegates certain group membership operations to a group or a user,
+so should an administrator be able to say that a nonprivileged
+user could, at times, create volumes according to certain predefined
+conditions.
+
+One such tool is ADM. Once ADM is installed, a server process is started to
+listen to requests coming in from its client programs.
+As a user runs the ADM client and contacts the server, the server
+checks the authentication of the user, using the Kerberos mutual
+authentication protocol. If the user is permitted to run a privileged 
+operation, the server forks a process that authenticates to AFS as a member of
+the ~~system:administrators~/~ group and runs the request.
+
+This system gains much of its power by not having a predefined set
+of internal policies or set of delegated users listed, but by using
+Scheme, a dialect of Lisp, to define all of its actions. When the server
+is run, it reads a file of Scheme expressions which add to its repertoire
+of operations and define the users and groups who are permitted to
+use the operations.
+
+A client process can then contact the server and either request a prepackaged
+operation, for instance, make a user, or step through any available lower-level
+requests as desired. A tool of this sort makes a great deal of sense in 
+a large organization because it permits administrative authority to be
+delegated. As an example, a development group manager could be allowed to 
+create new project volumes as needed, but only on a specific subset of servers.
+
+As the standard operational toolchest, the AFS administration suite shows 
+its decade-long history with its seemingly endless list of subcommands, 
+choice of abbreviations, oddly formatted output and return codes, and 
+hodgepodge of debugging features. By this point, given the large installed 
+base of users, Transarc can hardly go back and rewrite the commands, but a 
+rigorous reimplementation of the subcommands would be very welcome. Just such 
+a rewrite is going on by a few citizens of the Net.
+The plan is to consolidate the AFS command functionality into 
+a Perl module using that language's rich set of data structures to return 
+information about AFS in a manageable fashion.
+
+SECTION: SUMMARY
+
+AFS provides a large number of administration commands, some designed
+to be used piecemeal, others which can be used only according to the
+standard conventions of a cell management. If you are running a
+standard cell, most of these commands, such as
+mechanisms to install new system binaries, are beneficial. Any deviation from the norm may
+produce heartache. Again, AFS and Transarc are in the business of
+supporting policies to help maintain central file services, not in
+the academic world of atomic mechanisms for file manipulation.
+
+As it is, the conventions do support a distributed file service extremely
+well. The ~~bos~/~ command allows easy management of remote servers, to
+the point of controlling processes, binaries, restart times, and
+event notification. The drawback is that this system is specific to
+AFS; there is little appreciation for supporting more modern 
+administration systems such as central logging through ~~syslog~/~ or SNMP.
+
+When running an AFS cell, it's easy to enlarge the administrative
+domain to include more and more files and directories that were
+formerly stored on local disks. But take care when attacking
+certain applications, such as electronic mail, the Internet NetNews
+system, or Web data. Some of the file data used by these systems
+is well suited to storage in AFS - especially their binary programs
+and any configuration data. But certain aspects of their implementations
+have been developed over the years with only local disk storage in mind.
+Installing other third-party software requires careful considerations
+of these same issues.
+
+While the AFS command suite is large and time-consuming to master, there
+are a few public-domain tools available which can help. Don't forget that
+in addition to these systems there is a large on-line community to
+which you can post questions and share results: the ~~info-afs~/~
+mailing list regularly contains informative articles on real-world
+experiences from large and small sites. 

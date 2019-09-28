@@ -1,0 +1,2376 @@
+CHAPTER 8: ARCHIVING DATA
+
+An AFS cell's files present some unique problems to choosing an appropriate
+archival strategy. Not only must the file data itself be archived, but
+additional AFS data structures such as access control lists, users and
+groups, volumes, and the AFS databases must all migrate one way or
+another onto tapes. And regarding files and volumes, remember
+that volumes can easily move from one server to another - any mechanism to
+archive volumes must be prepared to get that data from the right server
+though that server may change from day to day.
+
+Naturally, these constraints were realized early on in the development of
+AFS. True to form, the AFS answer includes another Ubik distributed database and a
+client/server system that can manage these specific issues. This
+management adds one more layer of complexity to an already large system.
+Many organizations have chosen to use only pieces of this system or even to
+use their own tools exclusively. 
+
+To add to the complexity, the terminology gets a little confusing. Up to
+now, the word <I>backup</I>has been used to denote the backup volume, the cheap,
+small clone used to snapshot a set of files in a volume. Here, of course,
+the subject is saving data by making copies onto a storage device whether the
+device is a tape, writeable CD, or whatever. In this book, the phrase
+<I>archiving</I> or <I>dumping</I> will refer to this copying process. Unfortunately, the
+command used to control volume archiving is also called ~~backup~/~ and
+the various statistics about volume archives are stored in the backup
+database. So, we will use the phrase <I>archived or dumped volume</I> to 
+denote a volume that has been copied safely to tape or some other media; 
+that way, we can make sense of such concepts as using 
+the ~~backup~/~ command to archive a backup volume.
+
+Besides the primary archive system, there are also simple volume-based
+dump commands that can perform piecemeal saving of
+volumes. These commands can help with small-scale archiving projects but are most
+useful for other administrative tasks such as duplicating parts of the
+file tree.
+
+SECTION: THE ARCHIVE SYSTEM
+
+There are three sides to the AFS archive system: the command-line archive
+jobs and queries, the processes that actually control the tape drive or
+other media, and the configuration database that tracks and remembers what
+gets archived. Figure 8-1 shows these three pieces and illustrates how the archive
+commands connect the archive processes to the AFS file system. Administration
+of the process therefore consists of instructing, based on configuration data stored in the backup database, the tape controller job to perform operations.
+
+[[Figure 8-1: Overview of the Archive Scheme]]
+
+The database holds several different tables of information: a set of dump
+schedules, a set of lists of volume names, and information about when each
+volume was dumped. The dump schedules and lists of volume names are defined
+as needed by the AFS administrators. The
+database also holds the names of the host machines to which the tape (or
+other media) devices are attached and assigns them an AFS port number with
+which to identify them. Once all these pieces are defined, the command-line
+interface can be used to store full or incremental volume archives to any of
+available storage devices.
+
+As with other archiving schemes, the configuration and care of this system is
+as important as actually performing the dumps. Briefly, configuration
+consists of the following:
+
+-- Setting up the backup database processes themselves
+
+-- Defining dump levels as an abstract hierarchy of names for full and
+partial dumps
+
+-- Defining names for sets of volumes, partitions, and file servers
+
+-- Configuring machines and ports to control the media
+
+Once this information is configured, you can command the system to
+dump a particular volume set at a specified dump level to a particular
+named archive port. This command causes all the files, directories, and ACLs which
+constitute the set of applicable volumes to be dumped on to the specified
+archive device. At the same time a label identifying the dump is written to the tape and
+the information associated with that dump - its dump schedule, actual dump
+time, and list of volumes, is stored in the backup database. This tape label
+includes an expiration date to prevent inadvertent overwriting of
+valuable data. The label can be over written only by relabelling the tape; this
+relabelling not only changes the header data on the tape but also removes the
+associated information in the backup database.
+ 
+You perform all of this configuration data and job control through the
+~~backup~/~ command, which has a multitude of subcommands. In addition to
+specifying the subcommands on the command line, you can enter an
+interactive mode by simply running the ~~backup~/~ command with no options. In
+interactive mode, the command acts like a shell program: it prints out a
+prompt, ~~backup>~~/~, and waits for the entry of a subcommand, which is then
+executed. The advantages to running interactively are that when you enter
+regular expressions that specify servers, partitions, or volume names, you do not have to quote the
+expressions to stop a UNIX shell from interpreting
+the expressions as file name wildcard characters. Additionally, you can list on-going
+dump jobs and kill them. In several examples below, we use interactive
+mode.
+
+The backup database is managed by a server process usually running on the
+AFS database machines, just like the volume location, protection, or
+authentication database processes. In Chapter 3, during the initial cell
+set up, we created ~~buserver~/~ processes on our three database servers. All of
+the archive configuration data is stored in this replicated database; because the data is replicated, the backup system can
+retrieve information as needed as long as at least one ~~buserver~/~ process is
+running.
+
+Recall that AFS databases are in their own right a distributed storage
+system. The protocol that ties them together, Ubik, tries to ensure that a
+single master database is available at all times to which all configuration
+storage requests (such as the addition of a volume set name) can be written.
+In our example cell, these processes run on their own machines so that
+administration of the file servers doesn't interfere with clients accessing
+the database information.
+
+As with the other AFS databases, once the backup database is set up, very little
+administration is needed. The most important detail for the correct functioning
+of the servers is that their clocks are synchronized.
+
+SECTION: VOLUME SETS
+
+Once the backup database is available, we can begin to configure our
+cell to perform the necessary archiving. The first step is to define which
+volumes are to be archived by grouping them together into named sets.
+Rather than specify each volume one-by-one on a dump command line, you can use these
+volume set names to archive multiple volumes in a single job.
+
+A volume set consists of a 31-character name (using
+any characters except '.') that has one or more entries associated with it.
+When a volume set is used, the system scans all available volumes, 
+matches each against all the entries in the set, and dumps all successfully matched
+volumes to tape. Note that each time a volume set is used,
+the set of volumes it refers to may change; the volume set is resolved into
+a complete list of volumes each time it is used in an archive command.
+
+Each entry in a volume set consists of a regular expression for a volume
+name, a partition name, and a server name. A single entry may resolve itself
+into zero, one, or more volumes. While simplified regular expressions are
+used to define the volume names in an entry, partitions and hosts are
+defined only by a single name or a global match to any
+partition or host. There is no built-in limit to the number of entries
+associated with a single volume set, nor is there a limit on the number of
+volume sets themselves. The result is that, given this flexible description
+language, a series of volume sets can be defined, which can then be used in
+archive commands to store all AFS file data to a series of tapes.
+
+We can easily set up some examples. As before, most of these commands
+require ~~system:administrators~/~ credentials; refer to the command summary
+in Appendix A or the AFS System Administration Guide for more information.
+When manipulating volume sets, you must create the volume set name before 
+you can edit the entries.
+
+PROGRAM DONE
+	$ <B>backup</B>
+	backup> <B>addvolset users</B>
+	backup> <B>addvolset fsOne</B>
+	backup> <B>listvolsets</B>
+	Volume set users:
+
+	Volume set fsOne:
+
+PROGRAM
+
+Using the subcommand ~~addvolset~/~, we first create two volume sets, 
+named ~~users~/~ and ~~fsOne~/~, and then list all volume sets and
+their entries. Of course, at this point, no entries have been added to
+the new sets.  You can add entries for a given volume set with ~~addvolentry~/~.
+
+PROGRAM DONE
+	$ <B>backup</B>
+	backup> <B>addvolentry users fs-one vicepa user.alice</B>
+	backup> <B>listvolsets users</B>
+	Volume set users:
+		Entry   1: server fs-one, partition vicepa, volumes: user.alice
+	backup>
+PROGRAM
+
+
+Each entry in a volume set is listed with a corresponding position
+number. As entries are added and deleted, a particular entry's position
+might change, so it is important to use the ~~listvolsets~/~ subcommand to identify entries precisely.
+
+There are four mandatory arguments to ~~addvolentry~/~, the volume set name
+to which the entry should be added and three arguments specifying the
+entry: a server name, a partition name, and a volume name. In the first
+entry added to the volume set ~~users~/~, we specified exactly which volume
+should be matched. Only a single volume, ~~user.alice~/~ if it exists on 
+the server ~~fs-one~/~ and on partition ~~/vicepa~/~, will match the entry. In
+later commands which dump a volume set to tape, the system will find and
+dump only those volumes that match any of the entries in the volume set.
+
+There's nothing wrong with this first entry, but in practice, it wouldn't be
+too useful. First, there's no guarantee that the volume won't be moved from
+one server or partition to another at any time. So, when the
+cell's machines or disks are reorganized, this type of specific volume set entry would have
+to be adjusted. The simple fix is to state that the entry should match the
+named volume when found on any server. The archive system does
+not permit entering arbitrary regular expressions for server names; we must
+use either a single, exact server name or an expression that will match
+any server name, ~~.*~/~. Similarly, for partition names, either a single, exact
+partition name must be entered or the ~~.*~/~ regular expression to match any
+valid partition on the server.
+
+The second problem with the entry is that the named volume is a user
+home directory and, as such, is not guaranteed to be in a consistent
+state at any single moment in time. Whether a given volume can be guaranteed
+to be consistent depends on the particular use of that volume;
+certainly, home directories or project development areas are subject to
+changes at almost any time of the day. Conveniently, AFS provides us
+with the tools to create consistent snapshots of a volume, the
+confusingly named backup volume. As long as we have set up our system to
+create backup volumes for areas like home directories, it makes much
+more sense to generate our archive tapes based on that stable snapshot
+rather than on the living directory area.
+
+Therefore, to continue the above example, we've added another entry; this
+one says to match any server (~~.*~/~) and any partition (~~.*~/~) as it looks
+for user backup volumes (~~user..*.backup~/~). This is a better matching
+expression for all of the user volumes we wish to archive, and the example
+finishes by deleting the overly precise first entry:
+
+PROGRAM DONE
+	backup> <B>addvolentry users .* .* user..*.backup</B>
+	backup> <B>listvolsets users</B>
+	Volume set users
+		Entry   1: server fs-one, partition vicepa, volumes: user.alice	
+		Entry   2: server .*, partition .*, volumes:  user..*.backup
+
+	backup> <B>delvolentry users 1</B>
+	backup> <B>listvolsets users</B>
+	Volume set users
+		Entry   1: server .*, partition .*, volumes:  user..*.backup
+
+	backup> <B>quit</B>
+PROGRAM
+
+The regular expressions permitted by the system are a subset of the
+expressions you may be familiar with in the ~~sed~/~ or Perl programs. Regular
+characters, such as alphabetic or numeric characters in the volume name
+expression, must match exactly. Do the following to match other
+combinations of characters:
+
+-- Use a period, ~~.~/~, to match any single character.
+
+-- Use a set of characters surrounded by square brackets to match
+any single character from that set. For example, ~~[xyz]~/~ would match only a
+single "x" or "y" or "z". If the first character inside the square brackets is a
+caret, ~~^~/~, the meaning of the match is reversed; ~~[^xyz]~/~ would match any
+single character except for "x" or "y" or "z".
+
+-- Use any of the above (an alphanumeric character, a period, or a
+square-bracketed set of characters) followed by an asterisk to match
+the expression against any number of occurrences of the expression. For
+example, ~~a*~/~ would match zero, one, or more "a" characters; ~~xa*y~/~ would match either "xy", "xay", "xaay", etc.
+
+-- Use a backslash, ~~\~/~, to take away the special meaning of
+characters such as the period, square brackets, asterisk, or even the
+backslash. In the volume set entry above, ~~user..*.backup~/~, the intent is to
+match any volume name such as ~~user.alice.backup~/~ or ~~user.bob.backup~/~. To force
+an exact match against the periods, construct the entry more precisely: ~~user\..*\.backup~/~. 
+
+Note that, as displayed by the last ~~listvolsets~/~ subcommand, the previously
+numbered entry #2 is now the new #1; the numbers associated with volume set
+entries are purely for local volume set administration and are not
+long-lived identifications.
+
+This volume set is now ready for use, but we will add another volume set to demonstrate other archiving policies. Rather than look for all the
+user backup volumes for archiving all at once, we may decide to archive all
+of a particular machine's partitions. This example adds a volume set with a
+single entry to match all the volumes on just a single server.
+
+PROGRAM DONE
+	backup> <B>addvolentry fsOne  fs-one .* .*.backup</B>
+	backup> <B>listvolsets fsOne</B>
+	Volume set fsOne
+		Entry   1: server fs-one, partition .*, volumes: .*.backup
+	backup> <B>quit</B>
+PROGRAM
+
+Volume set entries can be created to fit practically any archiving scheme you
+want to implement. Through the use of regular expressions, you are
+guaranteed to archive any matching volumes on any server and partition pair
+as they exist at the moment that the archive command is run. No matter how
+many volumes are created or deleted during the day, or where those volumes
+may get moved to, when the archive command is finally run, the system
+will generate a list of matching volumes and begin the dump process.
+
+When deciding on the structure of your volume sets, make sure that you have
+complete coverage for your cell's data. In particular, you should make sure
+that all read-write volumes are entered into a volume set by using
+their snapshot backup volume. But you need to also archive a copy of 
+read-only volumes because they potentially contain a set of data different 
+from that of the read-write volumes. When a tape coordinator process is getting data
+from volumes and writing it to tape, it uses the client's file server
+preferences to determine which servers' read-only volume it will read.
+
+Previous to AFS version 3.4a, there was no simple way to determine
+which volumes a given volume set referred to. Now, you can use the 
+~~volsetrestore~/~ subcommand; this subcommand is used to perform 
+a complete restore of all volumes in a volume set. However, the 
+~~-n~/~ option inhibits the actual restoration and will lists volumes 
+which have been archived and which match a volume set's entries. 
+
+This output is especially useful because as volumes are manipulated 
+by administrators during the normal course of events, it's important 
+to make sure that each volume of file data in the cell is taken 
+care of by at least one archival volume set.
+
+
+SECTION: DUMP LEVELS
+
+It is not common practice in archive systems to archive all data to storage
+every evening. After all, most data in most file systems doesn't
+change from day to day or even week to week. A better solution is to follow
+a full dump on one day with a series of incremental dumps - which just
+copy to tape the data which has changed since the last full dump - thus
+drastically reducing amount of data that must be stored each evening.
+
+Many archive programs use various options to determine the difference
+between a full and partial dump. AFS uses an abstract hierarchy of dump
+levels defined by the cell administrators. This approach permits an arbitrary set of
+full and partial dumps to be scheduled as needed, not only multiple
+partial dumps in between full dumps, but also partials within partials. Once
+defined, this abstract tree of dump levels is used to create timestamped
+archives. The system stores these timestamps and dump levels in the backup
+database.
+
+While sounding abstract, the creation of the dump hierarchy is much like the
+creation of file system directories. Each level name in the hierarchy can
+contain up to 28 characters (except the period), and the levels are
+separated with slashes; the total length of the entire fully qualified
+dump level must be less than 256 characters.
+
+A simplistic dump level could be created like this:
+
+PROGRAM DONE
+	backup> <B>adddump /new</B>
+	backup: Created new dump schedule /new
+	backup> <B>adddump /new/first</B>
+	backup: Created new dump schedule /new/first
+	backup> <B>adddump /new/second</B>
+	backup: Created new dump schedule /new/second
+PROGRAM
+
+You create the dump levels by simply adding each additional sublevel 
+or sibling level on a separate line, much like the UNIX ~~mkdir~/~ command
+makes subdirectories. Once you create the levels, you can display a somewhat graphical
+representation of the levels with ~~listdumps~/~.
+
+PROGRAM DONE
+	backup> <B>listdumps</B>
+	/new
+	     /first
+	     /second
+PROGRAM
+
+This hierarchy of dump levels is used during the ~~dump~/~ command itself only to
+point out which file system changes are to be written to tape. The dump level
+names themselves are meaningless to the system. The only importance
+to the system is the position of the name in the slash-separated hierarchy.
+Again, this hierarchy is arbitrary; you can see that no dates or timestamps
+are stored with these names. When you use a dump-level name to create a
+particular archive on media, the system stores the current time and date with the dump level name of that
+volume set in the backup database.
+
+A request for a ~~/new~/~ dump specifies a full dump because it is at the
+top level of the dump hierarchy. All of the files, directories, and ACLs
+stored in a particular volume set will be written to tape. Dumping that volume
+set at the ~~/new/first~/~ level specifies an incremental
+dump relative to its parent, the ~~/new~/~ dump. The system checks the
+timestamp of the ~~/new~/~ dump for that volume set and any changes to the files, directories, or
+ACLs after that timestamp will be written to the tape.
+
+A subsequent dump of that same volume set at the ~~/new/second~/~ level will
+again compare timestamps of files versus the dump level's parent, ~~/new~/~. This process implies that a dump created at the ~~/new/second~/~ level will
+contain all of the files changed and dumped at the ~~/new/first~/~ level as well.
+Each entry at a particular level will cause an incremental dump to be
+performed relative to the last dump at the next higher level.
+
+To dump only those changes relative to the ~~/new/first~/~
+level dump, you create a new level underneath it, perhaps 
+~~/new/first/other~/~. Dumps made at the ~~/new/first/other~/~ level will
+write out only file changes between it and its parent, ~~/new/first~/~.
+
+You can construct and use multiple dump-level hierarchies. Just
+remember that when asked to restore file data for a given day and time, 
+you'll have to read the tape for the closest full dump prior to that date
+and then all of the incrementals available up to that date. If your archive
+schedule consists of incrementals based on incrementals - such as
+~~/new/first/other~/~, which is based on ~~/new/first~/~, which is based on the full dump
+~~/new~/~ - you might have to read each of those three dump tapes to get back
+exactly the right set of files.
+
+On the other hand, if your incrementals are cumulative - such as ~~/new/first~/~ and
+~~/new/second~/~, both of which are based on ~~/new~/~ - then you'll just have to read
+two tapes. Which is better depends to some extent on how much data will be
+written to the tapes; and that depends on how fast the data changes and how
+many volumes are included in the volume set.
+
+For this reason, construct as many dump hierarchy
+levels as needed to suit your administrative needs. Often, this means one
+hierarchy consisting of cumulative incremental dumps (~~/new/first~/~, ~~/new/second~/~,
+~~/new/third~/~, etc.) and another to facilitate incrementals based on incrementals 
+(~~/new/first~/~, ~~/new/first/other~/~, ~~/new/first/other/more~/~). One common hierarchy 
+uses days of the week as reminders.
+
+PROGRAM DONE
+	backup> <B>listdumps</B>
+	/sunday
+		/monday
+		/tuesday
+		/wednesday
+		/thursday
+		/friday
+		/saturday
+PROGRAM
+
+Don't be fooled by these names, though; the dump-level names mean nothing to
+the system - you can perform any archive at any dump level on any day
+you like. In fact, there is not much help at all in AFS for managing regular 
+execution of the archive process. We'll see that
+dumps can be arranged to occur at a future time, but this is not the same as
+setting up a job scheduling system to perform certain dumps every Monday,
+Tuesday, etc. Thus, as you use other scheduling systems (such as UNIX ~~cron~/~)
+to initiate dump activities, you'll need to specify which dump level you'll
+want to use at any given time or day. Even with a dump hierarchy named
+after days of the week, you'll still have to specify yourself which dump
+level is needed for a given archive job.
+
+As well as defining full and incremental dump levels, you can also configure
+an expiration time for dumps. When a dump of a volume set is made to tape,
+an expiration timestamp will be calculated and stored; the expiration timestamp permits the
+system to determine when it is valid to overwrite a previously written dump
+tape without operator intervention.
+
+You can set expiration dates to either absolute or relative times. In the
+dump levels created above, the default expiration time is such that they are considered to be expired immediately. You set relative expiration
+times during dump-level creation like this:
+
+PROGRAM DONE
+	backup> <B>adddump /daily -expires in 7d</B>
+	Created new dump schedule /daily
+	backup> <B>listdumps</B>
+	/daily  expires in  7d
+	...
+PROGRAM
+
+The keyword ~~in~/~ after the ~~-expires~/~ option signifies a relative expiration
+date. The value is the number of days, weeks, and years in the future
+specified by a combination of digits and the letters ~~d~/~, ~~w~/~, and ~~y~/~,
+respectively. After a dump is made at the ~~/daily~/~ level, it will be recorded
+as having an expiration date 7 days after the time the dump was started.
+
+You set absolute expirations with the ~~at~/~ keyword.
+
+PROGRAM DONE
+	backup> adddump /offsite -expires at 12/31/97
+	backup: Created new dump schedule /offsite
+	backup> listdumps
+	/offsite expires at Wed Dec 31 00:00:00 1997
+	...
+PROGRAM
+
+Here, a dump made at the ~~/offsite~/~ full dump level will be set to expire on
+December 31, 1997. If you want a dump level never to expire, use the
+value ~~NEVER~/~.
+
+Each time a dump is made at a certain level, this expiration information
+is used to calculate the new expiration date for the tape. So, every
+dump made at the ~~/offsite~/~ level will expire at the end of 1997 whether the
+dump was created in January or December. Relative expiration dates will make
+each dump tape expire at a different date: A tape dumped at the ~~/daily~/~
+level on January 1 will expire on January 8; if dumped on July 4, it will
+expire on July 11. These expiration dates for tapes are stored in the tape
+label during dumping.
+
+SECTION: THE TAPE COORDINATOR
+
+Besides setting up the volume and dump level configuration, you must manage the physical
+archive media by designating one or more machines in the
+AFS cell as tape coordinators. To set up a tape coordinator necessitates:
+- A storage device attached to the machine.
+- An AFS dump description on the device.
+- A tape control process to perform the dump.
+- An entry in the backup database that points to this process.
+
+You can use almost any machine in the cell as a tape coordinator and, thanks
+to an improved description file in AFS version 3.4a, the actual tape drive
+can be almost any tape device, robotic jukebox, or even a plain file. The
+machine need not be one of the AFS servers, but because the tape
+coordinator process must have authenticated access to the volumes
+themselves, the machine must be, at least, a client of the cell.
+
+Once you have identified the machine and attached the hardware, configure the device
+and then initiate a coordinator process. The process is
+named ~~butc~/~, which stands for backup tape coordinator; there needs to be one
+~~butc~/~ per archive device on the system. All configuration, logs, and error
+log files are stored in a standard directory on this machine,
+~~/usr/afs/backup~/~. The file ~~/usr/afs/backup/tapeconfig~/~ contains a line for each archive
+device describing the UNIX device name, information on the available size of the
+device, and a tape coordinator port number.
+
+The first two items in the specification line are straightforward. The device name is
+simply the normal UNIX path name for the device, perhaps ~~/dev/rst1~/~. The size
+states how much room is available on the device and how much room is taken
+up by intervolume gaps. AFS includes a command, ~~fms~/~, to determine the standard capacity of the tape. For a
+tape drive attached to the UNIX device named ~~/dev/rst1~/~:
+
+PROGRAM DONE
+	$ <B>fms /dev/rst1</B>
+	wrote block: 130408
+	Finished data capacity test - rewinding
+	wrote 1109 blocks, 1109 file marks
+	Finished file mark test
+	Tape capacity is 2136604672 bytes
+	File marks are 1910205 bytes
+PROGRAM
+
+Depending on the size of the media, this command can take quite some time to
+complete. Transarc recommends that when you edit the size item in the ~~tapeconfig~/~ file, you reduce the tape size 10-15 percent to allow for variations in
+differing tapes. If you use a compression tape system, you'll want to
+configure the tape drive to a much larger figure. Note that
+two sizes are reported: the total tape capacity and the size of the file
+marks. The latter is the apparent size of the space written to the device to
+separate each volume. 
+
+The last item in a ~~tapeconfig~/~ device entry is the device's port number.
+The port number is a somewhat arbitrary number that enables the
+~~butc~/~ process to find out which device it controls. The port numbers and machine names are also entered into the backup
+database so that the ~~dump~/~ command can locate the correct ~~butc~/~ process. 
+
+The network connection between the ~~dump~/~ and ~~butc~/~ processes are implemented with ordinary IP sockets; the port numbers indicate which
+UDP port number the ~~butc~/~ process will listen to on a particular machine.
+AFS dump port numbers can run from 0 to 58,511; AFS assigns a socket for
+each port offset from a starting port number of 7025 (7025 plus 58511 equals
+65536, the maximum port number allowed on most UNIX systems).
+
+Of course, although you can use any number from 0 to 58,511 for a port offset,
+this doesn't mean you can add 58,512 dump devices to your cell. Besides the
+fact that the system can only simultaneously manage 64 dumps or
+restores, a particular UDP port may be in use by some other network process.
+
+As an example of setting up the device configuration file, 
+create the ~~/usr/afs/backup~/~ directory and make it writeable only by the UNIX
+superuser. Edit the file ~~/usr/afs/backup/tapeconfig~/~ and add a separate line
+for each tape drive. The line consists of whitespace-separated entries
+for the size of the tape, the file mark size, the UNIX device name, and the
+port offset number. The example above would result in a line in the
+~~tapeconfig~/~ file like this:
+
+PROGRAM DONE
+	2G 1M /dev/rst1 0
+PROGRAM
+
+The size entries are in bytes but can be abbreviated by appending (no
+spaces) the letter "K", "M", or "G", which mean the usual kilobytes, 
+megabytes, or gigabytes, respectively.
+
+The port numbers can be assigned as desired. For sites
+with just a single tape drive, note that port number 0 is the default 
+argument for most dump commands.
+
+Once you complete the ~~tapeconfig~/~ file, you must manually add to the backup
+database the association between the port
+number and the tape coordinator machine. In our example cell, the tape drive (and ~~butc~/~ process) are attached to our
+second file server.
+
+PROGRAM DONE
+	backup> <B>addhost fs-two 0</B>
+	Adding host fs-two offset 0 to tape list...done
+	backup> <B>listhost</B>
+	Tape hosts:
+	    Host fs-two, port offset 0
+PROGRAM
+
+An administrator must initiate the ~~butc~/~ tape coordinator program, often
+manually, on the machine that is indicated in the backup database. During 
+startup, this process reads the ~~tapeconfig~/~ file to determine the archive 
+device from which it will be writing and reading. Once running, it waits 
+for commands to be relayed to it by the ~~backup~/~ command-line program, instructing it to dump or restore AFS 
+volumes.
+
+Obviously, being able to read volume data from AFS and copy it to some
+device is an operation that requires administration privileges. Before running
+~~butc~/~, you must ensure that you have adequate credentials. If not,
+~~butc~/~ will complain that access to the backup database is denied.
+
+PROGRAM DONE
+	$ <B>butc 0</B>
+	butc: no such entry ; Can't get tokens - running unauthenticated
+	Can't access backup database
+	     budb: access to database denied
+PROGRAM
+
+You obtain credentials either from the administrator running the
+backup or, as of version 3.4a, with the ~~-localauth~/~ option which uses
+the machine's local ~~KeyFile~/~. Since only file servers and database servers have
+a ~~KeyFile~/~, this option is applicable only when the tape drive is attached to one of these AFS servers.
+Also, because the ~~/usr/afs/backup~/~ directory and files contain critical 
+administrative data (though not AFS file or user data), they should be
+write-restricted to UNIX root. In our example, the tape drive we're using 
+for archives is on our second file server, so we'll use the ~~-localauth~/~ option
+while logged in as root:
+
+PROGRAM DONE
+	# <B>butc 0 -localauth</B>
+	Starting Tape Coordinator: Port offset 0   Debug level 0   Aix Scsi flag: 0
+	Token expires: NEVER                   
+PROGRAM
+ 
+Before data is written to the tape, there remains the question of
+how to ensure that a physical tape has been inserted into the tape drive.
+When run in interactive mode, ~~butc~/~ queries an attentive operator to
+enter a tape cartridge and waits for the Return key to be pressed before
+proceeding. But ~~butc~/~ can be run in an automated, batch mode where it
+will assume that tapes are preloaded or are loaded according to some
+predefined script which it can run itself. Batch mode is useful when the
+entire process can be automated and no operator will be present.
+Either the noninteractive batch mode entered by running ~~butc~/~with
+the option ~~-noautoquery~/~ and then, normally, putting the job into the
+background.
+
+PROGRAM DONE
+	# <B>butc 0 -localauth -noautoquery &</B>
+	1483
+	# Starting Tape Coordinator: Port offset 0   Debug level 0   Aix Scsi flag: 0
+	Token expires: NEVER    
+PROGRAM
+
+Here, the process number, 1483, and prologue are printed to the terminal screen 
+interspersed with the terminal's next command prompt.
+We talk more about automating this process later in the chapter.
+
+Now that a coordinator is running on ~~fs-two~/~ and controlling a tape drive
+device, you can check that the system can interoperate with the
+coordinator by issuing a status request to a specific dump port. Note
+that this command (like most AFS administration commands) will normally be
+run from the administrator's own desktop machine or any other computer in
+the local cell.
+
+PROGRAM DONE
+	backup> <B>status 0</B>
+	Tape Coordinator is idle.
+PROGRAM
+
+The command interrogates the cell's backup database to find out which
+machine is controlling a device on port 0; in our example, the machine is
+~~fs-two~/~. The command then sends a message to that machine on the indicated port offset
+port where the ~~butc~/~ tape controller process has already been started. The tape controller 
+responds that all is well and that it is waiting for
+instructions. If no coordinator was set up, the result would look like this:
+
+PROGRAM DONE
+	backup> <B>status 5</B>
+	backup: No such host/port entry ; Can't connect to tape coordinator at port 5
+PROGRAM
+
+During the run of a ~~butc~/~ process, two files in the
+~~/usr/afs/backup~/~ directory keep a log of dumps and errors. The files are named after the devices listed in
+the machine's ~~tapeconfig~/~ file. For our example, the device ~~/dev/rst1~/~ will
+result in two files, each with the suffix ~~rst1~/~. The file containing a
+running log of information concerning the dump process has a prefix of
+~~TL_~/~, so our log file will be named ~~TL_rst1~/~. The error log has a prefix
+of ~~TE_~/~, so the file in our case is ~~TE_rst1~/~.
+
+For our current example, the tape coordinator has started successfully, so
+there is no output in the ~~TE_rst1~/~ file, and the ~~TL_rst1~/~ file contains
+the timestamped startup messages.
+
+PROGRAM DONE
+	# <B>cd /usr/afs/backup</B>
+	# <B>ls -l</B>
+	total 4
+	-rw-r--r--   1 root     other          0 Mar 30 11:30 TE_rst1
+	-rw-r--r--   1 root     other        160 Mar 30 11:30 TL_rst1
+	-rw-r--r--   1 root     other         18 Mar 30 11:30 tapeconfig
+	# <B>cat TL_rst1</B>
+	Sun Mar 30 11:30:55 1997
+	11:30:55 Starting Tape Coordinator: Port offset 0   Debug level 0   Aix Scsi flag: 0
+	11:30:55 Token expires: NEVER                   
+PROGRAM
+
+SECTION: TAPE LABELS
+
+AFS is almost ready for us to dump volume data to a tape. But before we
+examine how the total dump process works, let's look at how tapes are
+labelled for use by the archive system. <I>Labelling</I> is the process by which
+identification information is written to the tape and also stored in the
+backup database. Labelling permits the system to answer queries regarding what
+times a volume was backed up and onto what tape.
+
+When the system identifies a blank tape during a dump, it automatically writes a label to the tape. If a labelled and unexpired tape
+is found in the device when a new dump is about to be written to the tape,
+the dump is aborted. If you know what you're doing and want to reuse an
+archive tape, you should first relabel the tape. This operation causes the
+current tape label to be read so that the backup database can be adjusted to
+account for the effective erasure of this dump tape. After reading the tape
+and adjusting the database, the system writes a new default name of null to the
+tape label.
+
+PROGRAM DONE
+	backup> <B>labeltape -port 0</B>
+PROGRAM
+
+The ~~labeltape~/~ command uses the port number argument to retrieve the archive device
+host name from the backup database, contacts the waiting coordinator,
+causes the label to be written to the tape, and also stores the label
+information in the database.
+
+Of course, the tape coordinator needs to have a tape ready for this
+to happen. In batch mode, ~~butc~/~ can be told to assume that a tape is ready.
+In interactive mode, ~~butc~/~ will display on standard output:
+
+PROGRAM DONE
+	Labeltape
+	******* OPERATOR ATTENTION *******
+	Device :  /dev/rst1 
+	Please put in tape to be labelled as <NULL> and hit return when done
+PROGRAM
+
+After inserting a tape, an operator must press the Return key:
+
+PROGRAM DONE
+	Thanks, now proceeding with tape labelling operation.
+	**********************************
+	Tape blocks read in 10240 Byte chunks.
+	Labelled tape <NULL> size 2097152 Kbytes
+PROGRAM
+
+The TL_rst1 file will record this information:
+
+PROGRAM DONE
+	11:40:10 Task 1: Labeltape
+	11:40:10 Task 1: Prompt for tape <NULL>
+	11:40:13 Task 1: Proceeding with tape operation
+	11:41:36 Task 1: Labelled tape <NULL> size 2097152 Kbytes
+PROGRAM
+
+And in the interactive administration window, the finished job will be
+indicated by a message written to standard output:
+
+PROGRAM DONE
+	backup> Job 1: Labeltape (<NULL>) finished
+PROGRAM
+
+As you can see, because the design of the system separates the 
+administration process from the operational support of the tape drive, 
+two commands - ~~backup~/~ and ~~butc~/~ - must be run and monitored.  In normal 
+use, administrators would manage the backup database and would schedule dumps 
+to be made at particular times. The resulting tape operations would then
+be displayed on a display screen situated near the actual archive media. 
+Of course, at small sites, the administration staff is the same as the 
+operations staff; in these cases, it is common to view all commands on 
+the same workstation display in adjacent terminal windows. In addition, two more terminal windows might 
+be opened to continually show the latest lines in the tape log and error files.
+
+After writing a tape label, it is good practice to read back the label.
+
+PROGRAM DONE
+	backup> <B>readlabel 0</B>
+	Tape read was labeled: <NULL> size 2097152 KBytes
+PROGRAM
+
+In operator interactive mode, ~~butc~/~ does not assume that any current tape 
+is the tape you want to read, so after the ~~readlabel~/~ command is entered,
+~~butc~/~ again prompts for the tape to be inserted.
+
+PROGRAM DONE
+	Readlabel
+	******* OPERATOR ATTENTION *******
+	Device :  /dev/rst1 
+	Please put in tape whose label is to be read and hit return when done
+	 
+	Thanks, now proceeding with tape label reading operation.
+	**********************************
+	Tape label
+	----------
+	AFS tape name = <NULL>
+	creationTime = Sun Mar 30 11:40:10 1997
+	cell = hq.firm
+	size = 2097152 Kbytes
+	dump path = 
+	dump id = 0
+	useCount = 0
+	-- End of tape label --
+	 
+	ReadLabel: Finished
+PROGRAM
+
+The tape label appears to be empty but indicates that the label
+structure has correctly been written to the tape. The name stored in the
+label is a default name of null. When a dump is run, the name of the tape is
+changed to a string representing the volume set name, the dump level name,
+and a tape number index.
+
+This tape name is used by the system to track which tapes hold which
+dumped sets of volumes. After dumping, say, the user volume set, to this
+tape, the name field will be rewritten and the information about which level
+of dump along with a timestamp will all be stored in the database. Later,
+when an operator asks to restore, say, Alice's home directory volume, the
+system will scan the database to find out which dump request caused
+that volume to be dumped; the appropriate tape can then be identified by the
+labelled name and timestamp.
+
+The ~~butc~/~ output (and the ~~TL_rst1~/~ log file) shows more of the records that make 
+up an actual tape label. In this example, most of the entries
+are default null entries that will be filled in when this tape is
+used to store an actual archive.
+
+It is prudent to write this dump name and other identifying information
+on a printed label that can be physically affixed to the tape housing. When
+requested to restore a particular volume from a certain date, the system
+will prompt for a specifically labelled tape to be inserted in the tape
+drive; it'll be a lot easier to find the tape if it is correctly labelled
+than if you try to find it by trial and error. Robotic stackers often
+have bar-code readers and labels; in this case, you can associate the dump name with a bar-code number in some handy external database so that
+restoring files can also be automated.
+
+SECTION: RUNNING THE DUMPS
+
+Now that you have completely configured the archive system, you can
+finally dump any volume set at any level. The command to create a
+complete dump of all of our users volumes to the tape device on ~~fs-two~/~
+is:
+
+PROGRAM DONE
+	backup> <B>dump users /full 0</B>
+PROGRAM
+
+Note the interrelationship of the configuration data and the archiving
+processes as shown in Figure 8-2. The ~~butc~/~ process has its port number
+assigned on its command line, so it can read its configuration data in the
+~~/usr/afs/backup/tapeconfig~/~ file on its local machine to obtain the
+device name and sizes of a particular tape drive. ~~butc~/~ then opens up a socket
+connection at the specified port offset.
+
+[[Figure 8-2: Interactions of the Backup System]]
+
+The archive command, above, is told to dump a set of volumes at a given dump
+level to a given port offset. The command queries the backup database to
+find out the volume set entries - the servers, partitions, and volume
+expressions - for the named volume set. Then, by checking all the volumes in
+the volume location database, it determines which set of volumes currently
+matches the volume set specifications.
+
+Next, it checks with the backup database again to find out what level of
+dump is requested. Complete dumps, that is, any top-level dump name, will
+cause all files in all the volumes of the set to be dumped in full.
+When given a two-(or more) level dump name, the system retrieves the time of the parent-level dump
+and passes it to the tape coordinator process so that only
+the incremental changes to files in a volume (on a whole file basis) are dumped.
+
+The ~~dump~/~ command then checks the database's list of hosts and ports to find
+out which machine is associated with the port. Now the ~~dump~/~ process can connect to the
+~~butc~/~ tape coordinator on that machine to begin archiving volumes. The coordinator first 
+reads the tape label; If the tape in the drive has a null label or if the
+tape label indicates it has expired, all is well. If the tape label has not
+expired, the operator is prompted for a new tape.
+
+The names of the volumes, their locations, and the incremental time (if any)
+Are then transferred to the tape coordinator. The coordinator contacts the volume server
+process on the appropriate file server machines, retrieves the volume's
+data, and writes the appropriate files to the tape device.
+
+After the ~~dump~/~ command is started, the tape coordinator prompts 
+an operator to insert a tape.
+
+PROGRAM DONE 
+	Dump users.full (DumpID 859740951)
+	******* OPERATOR ATTENTION *******
+	Device :  /dev/rst1 
+	Please put in tape users.full.1 (859740951) for writing and hit return when done
+	 
+	Thanks, now proceeding with tape writing operation.
+	**********************************
+PROGRAM
+
+In the interactive administration window:
+
+PROGRAM DONE
+	backup> <B>dump users /full 0 </B>
+	Starting dump of volume set 'users' (dump level '/full')
+	Total number of volumes : 6
+	Preparing to dump the following volumes:
+	        user.zed.backup (536870966)
+	        user.carol.backup (536870984)
+	        user.bob.backup (536870987)
+	        user.rob.backup (536870969)
+	        user.david.backup (536870978)
+	        user.alice.backup (536870923)
+        Starting dump
+	backup: Task 3: Dump (users.full)
+PROGRAM
+
+This ~~dump~/~ operation initiates an archive job and a coordinator task. The term
+<I>job</I> refers to an operation performed by the ~~backup~/~ command, in this
+case, a particular dump to port 0. A single command session might spawn
+several jobs to several different ports. The term <I>task</I> refers to an operation
+run by a single tape-coordinator process. Normally, a ~~butc~/~ process can perform
+only one task at a time. In this example, the ~~backup~/~ command is running
+one job.
+
+PROGRAM DONE
+	backup> <B>jobs</B>
+	Job 1: Dump (users.full)
+PROGRAM
+
+And the coordinator at port 0 is running one task:
+
+PROGRAM DONE
+	backup> <B>status 0</B>
+	Task 3: Dump: 4336 Kbytes transferred, volume user.rob.backup
+PROGRAM
+
+When done, the ~~backup~/~ job writes a message to its standard output.
+
+PROGRAM DONE
+	backup> Job 1: Dump (users.full) finished. 6 volumes dumped
+PROGRAM
+
+And the coordinator writes a message to the operator.
+
+PROGRAM DONE
+	users.full (DumpId 859740951): Finished. 6 volumes dumped
+PROGRAM
+
+A simple ~~dump~/~ command, as above, creates a new <I>dump set</I>. Just before
+the volume data is written out, the tape label is adjusted so that the
+contents of the tape can be automatically verified. The label is based on
+the volume set name, the dump level path, and an index number of the tape.
+The ~~backup~/~ command above would result in a label named ~~users.full.1~/~. For
+incremental dumps, the second word of this tape label is based on the final
+dump-level path element, for example, this volume set dumped at
+~~/sunday/tuesday~/~ would be labelled, ~~users.tuesday.1~/~.
+
+When a dump causes more data to be written than can fit on a single tape,
+the operator is prompted to remove the old tape and insert a new one.
+In this case, the final word of the label, the tape index number, is used to
+identify multiple tapes if they are needed to hold the complete dump set. If a full
+dump of the user volumes takes three tapes, they would be named,
+~~users.full.1~/~, ~~users.full.2~/~, and ~~users.full.3~/~. When each tape is written to,
+if the end-of-tape marker is seen, the second half of the volume is
+correctly written at the start of the next tape in the dump set.
+
+You can add additional dumps to a dump set by running successive dumps
+requests with the ~~-append~/~ flag. Doing so can help save tapes by putting
+many smaller dump sets onto the same set of tapes. Watch out for the
+terminology used here: a <I>dump</I> is a single volume set archive, either full or
+incremental. A <I>dump set</I> can be one or more dumps; the example dump just
+performed creates a dump set with the single dump of the ~~users~/~ volume set.
+
+While being dumped to tape, a volume will be taken off-line. Hence, it makes
+sense to create volume sets composed of backup volumes. Recall that making 
+a backup volume takes very little time and space - these snapshots are ideal 
+for dumping to tape. If you specify a read-write volume to be dumped, that
+volume will be inaccessible during the dump process, which could take a
+significant amount of time; if you specify a read-only volume, one of the read-only volumes will be off-line during the
+dump, but any clients accessing
+that busy read-only would automatically fail over to another read-only.
+Generally, the preferred mechanism is to dump a backup volume.
+
+If a volume is otherwise unavailable during dumping (perhaps because it is
+being moved from one server to another), it will be ignored until the dump
+process has finished with all other volumes in the current set. The
+coordinator will then query the operator (if not in ~~noautoquery~/~ mode) to see
+if it is okay to try again. The operator could then perform any additional
+maintenance and then finish the dump of the affected volume.
+
+Other failures or interruptions to the dump process cause only a small
+problem. The volumes that were successfully written to tape will be
+recognized as such by the system; the volume being written at the
+time of the interruption and any subsequent volumes will not be recorded.
+Future queries and restoration requests will therefore retrieve only
+successfully dumped volume data.
+
+The tape coordinator writes to its log file TL_rst1.
+
+PROGRAM DONE
+	11:55:50 Task 3: Dump users.full
+	11:55:51 Task 3: Dump users.full (DumpID 859740951)
+	11:55:51 Task 3: Prompt for tape users.full.1 (859740951)
+	11:57:04 Task 3: Proceeding with tape operation
+	11:58:38 Task 3: Starting pass 1
+	11:58:51 Task 3: Volume user.zed.backup (536870966) successfully dumped
+	11:59:03 Task 3: Volume user.carol.backup (536870984) successfully dumped
+	11:59:16 Task 3: Volume user.bob.backup (536870987) successfully dumped
+	11:59:28 Task 3: Volume user.rob.backup (536870969) successfully dumped
+	11:59:44 Task 3: Volume user.david.backup (536870978) successfully dumped
+	11:59:56 Task 3: Volume user.alice.backup (536870923) successfully dumped
+	11:59:56 Task 3: End of pass 1: Volumes remaining = 0
+	12:00:09 Task 3: users.full (DumpId 859740951): Finished. 6 volumes dumped
+PROGRAM
+
+
+An administrator can use the ~~backup~/~ command's job numbers to abort 
+an operation. Only jobs initiated in the current interactive session can
+be monitored and killed. During the example dump above, the running jobs
+were:
+
+PROGRAM DONE
+	backup> <B>jobs</B>
+	Job 1: Dump (users.full)
+PROGRAM
+
+This message is customized for each operation underway. The information 
+listed includes:
+
+-- Job number
+
+-- Operation type: one of ~~Dump~/~, ~~Restore~/~, ~~Labeltape~/~, ~~Scantape~/~,
+~~SaveDb~/~, or ~~RestoreDb~/~
+
+-- For dumps still being executed, the number of kilobytes written 
+out and the name of the current volume being dumped 
+
+-- For restores, the number of kilobytes read in
+
+And optionally, a warning of pending activity or a possible error:
+
+-- ~~[abort requested]~/~, signalling that a job was requested to
+be killed but that the command was still queued for delivery to the busy
+~~butc~/~ process.
+
+-- ~~[abort sent]~/~, signalling that the ~~kill~/~ request has been
+delivered to the ~~butc~/~ process. Once killed, the job will not be listed at
+all.
+
+-- ~~[butc contact lost]~/~, indicating that the ~~backup~/~ command cannot contact the associated ~~butc~/~ process. The process has either failed or
+the network connection to the remote machine is unavailable.
+Occasionally, this message may appear simply if the ~~butc~/~ process is
+inordinately busy with its operations.
+
+-- ~~[drive wait]~/~, notifying you that the ~~butc~/~ process for this job
+is engaged; the job is waiting for the storage device to become
+available.
+
+-- ~~[operator wait]~/~, indicating that the ~~butc~/~ process has issued
+a directive requiring operator intervention.
+
+Finally, the lifetime value of the current authentication token is printed, as are any
+dumps scheduled to run at a specific time. Note that any currently running
+dumps that will run longer than the available token's lifetime or any
+dumps scheduled to start after the token's expiration will fail. The only
+recourse is to manually renew the token lifetime before the lifetime has
+been reached.
+
+An administrator can abort any running job with the ~~kill~/~ command.
+
+PROGRAM DONE
+	backup> <B>labeltape 0</B>
+	backup> <B>jobs</B>
+	Job 1: Labeltape (0) [operator wait]
+	backup> <B>kill 1</B>
+	backup> <B>jobs</B>
+	Job 1: Labeltape (0) [abort request] [operator wait]
+	backup> <B>jobs</B>
+	Job 1: Labeltape (0) [abort sent]
+	backup> <B>Job 1: Labeltape (0) Aborted</B>
+
+PROGRAM
+
+While active backup jobs can be listed (or killed) only for the currently
+invoked interactive session, any ~~butc~/~ process in the cell can be
+queried about its tasks. Here, several status requests are sent during
+a single dump.
+
+PROGRAM DONE
+	backup> <B>status</B>
+	Task 5: Dump:  [operator wait]
+	backup> <B>status</B>
+	Task 5: Dump: 4336 Kbytes transferred, volume user.carol.backup
+	backup> <B>status</B>
+	Task 5: Dump: 12874 Kbytes transferred, volume user.david.backup
+	backup> <B>status</B>
+	Task 5: Dump: 45873 Kbytes transferred, volume user.rob.backup
+	backup> <B>Job 1: Dump (users.full) finished. 6 volumes dumped</B>
+	backup> <B>status</B>
+	Tape coordinator is idle
+PROGRAM
+
+The response to the status command is one of the following:
+
+-- ~~Tape coordinator is idle~/~.
+
+-- ~~Unable to connect to tape coordinator at port N~/~. Indicates
+either that the ~~butc~/~ process is not running or hung for some reason or that the
+network connection between the two systems is down.
+
+-- Current task number. If a task is in progress, the
+response also displays the name of the operation, the number of
+kilobytes that have been transferred, either a specific volume name
+indicating the current volume being dumped or the more generic
+~~restore.volume~/~ for restore operations, and possibly additional status
+information.
+
+When ~~backup~/~ is running in interactive mode, you cannot exit your session if jobs
+are active. You must either leave the session running or kill the job
+before quitting.
+
+PROGRAM DONE
+	backup> <B>dump users /full 0</B>
+	...
+	Job 1: Dump (users.full)
+	backup> <B>quit</B>
+	backup: Job 1 still running (and not aborted)
+	backup: You must at least 'kill' all running jobs before quitting
+PROGRAM
+
+SECTION: QUERYING THE DATABASES
+
+Often, of course, a volume will have archived versions available on many
+tapes. There will likely be 7 to 14 tapes kept on-site
+representing one or two weeks of full and incremental dumps. Other full
+dumps could be kept off-site, perhaps one full dump for each of the last
+12 months. All of this information will be stored in the database and
+can be queried either by asking which dumps contain a given volume or by
+asking about what volumes are stored in a given dump.
+
+For information on where to find a volume's archives, use the
+~~volinfo~/~ subcommand.
+
+PROGRAM DONE
+	backup> <B>volinfo user.alice</B>
+	DumpID    lvl parentID creation date   clone date     tape name
+	859743005 0  0         03/30/97 12:30  03/30/97 11:55 users.full.1 (859743005)
+PROGRAM
+
+Each item of information is of critical importance when the need
+arises to restore volume data. Every line begins with a dump identification
+number that uniquely defines the tape. Because a dump may be an incremental
+dump, that is, it consists only of files changed since a previous dump was
+made, you need the dump identifier to find the physical tapes. 
+
+The ~~lvl~/~ item indicates at what level in the dump hierarchy a dump was made.
+Full dumps, such as the level ~~/sunday~/~, are at level 0. The level
+~~/sunday/monday~/~ is at level 1, indicating an incremental dump. A volume archived
+at this level would need only the corresponding full dump restored first;
+archives made to higher dump levels, such as ~~/first/second/third~/~, will need
+more ancestor dumps restored. The ~~parentID~/~ item identifies the needed parent
+dump.
+
+The ~~creation date~/~ listed is the timestamp when the archive operation was
+started. This item is not quite as accurate as you might need; if read-write
+volumes are being dumped and the dump operation involved many volumes which
+took several hours to run, the exact time a particular volume was written to
+tape could be hours later. Of course, if backup volumes or read-only volumes
+are being archived, you have much more assurance that a correct
+snapshot of the volume was written to tape. In fact, the ~~clone date~/~ column records
+the time at which the backup or read-only volume snapshot was created. 
+For read-write volume archives, the ~~clone date~/~ is the
+same as the ~~creation date~/~, even though read-write volumes are not clones and
+the actual dump time for the volume is unknown.
+
+The ~~tape name~/~ item identifies the tape according to the rules outlined above
+for tape labelling: the name consists of the volume set name, the dump-level
+name, and the tape index number. Here, the name is followed by the dump identification
+number of the initial dump in the dump set.
+
+For basic information about the latest dumps made, use the ~~dumpinfo~/~ command.
+
+PROGRAM DONE
+	backup> <B>dumpinfo</B>
+	    dumpid   parentid lv created        nt nvols dump name
+	 859743005          0 0  03/30/97 12:30  1     6 users.full
+PROGRAM
+
+Use the table primarily to check up on the most recently produced 
+archives. When you give a numeric argument, the command displays information about the N most recent 
+dumps. On each line, you see the dump identification number, the parent dump identification number (if this dump was not a 
+full dump), the dump level, the time that the dump was started, the number 
+of tapes in the complete dump set, the number of volumes that were 
+completely dumped, and the canonical name of the dump in the tape label. 
+If the number of tapes of volumes is 0, then the dump request 
+was killed or failed. Note that for the number of volumes stored in the dump ~~nvols~/~, 
+a volume that spans tapes is counted twice.
+
+For detailed information about the dump and all of the volumes stored therein,
+specify the dump identification number.
+
+PROGRAM DONE
+	backup> <B>dumpinfo -id 859743005</B>
+	Dump: id 859743005, level 0, volumes 6, created: Sun Mar 30 12:30:05 1997
+	Tape: name users.full.1 (859743005)
+	nVolumes 6, created 03/30/97 12:30
+ 
+	 Pos     Clone time    Nbytes Volume
+	   2 03/30/97 11:55      2558 user.zed.backup
+	   3 03/30/97 11:55     13983 user.carol.backup
+	   4 03/30/97 11:55      4787 user.bob.backup
+	   5 03/30/97 11:55      2489 user.rob.backup
+	   6 03/30/97 11:55   1051126 user.david.backup
+	   7 03/30/97 11:55     12010 user.alice.backup
+PROGRAM
+
+Two lines of general information are displayed. The first line shows dump
+information, including the dump identification number, the numeric depth of
+the dump level (0 for full, 1 for an incremental, etc.), the number of
+volumes archived in this particular dump, and the date the dump was
+created. The next line shows the dump's tape name followed by, in
+parenthesis, the dump identification number of the initial dump in the set.
+The next line redisplays the number of volumes in the dump and the creation
+date of the dump.
+
+The rest of the display is a table showing information about each volume as
+it is stored on the tape. The ~~Pos~/~ column lists the volume's numeric
+position on the tape (with position 1 being used for the tape label itself);
+the ~~Clone time~/~ column lists, for a read-only or backup volume, the time at
+which the clone was created, and for a read-write volume, the time at which
+the dump was made; the ~~Nbytes~/~ column lists the size of the volume in
+bytes; and lastly, the ~~Volume~/~ column displays the name of the volume.
+
+This table provides enough information to manually manipulate the tape by 
+administrators familiar with their operating system tools. For example, by
+using the UNIX ~~mt~/~ tape command to move forward over a number of files, you can recover a
+particular volume dump from the tape with the ~~dd~/~ (data dump)
+command and then restore it with the AFS individual volume restore
+command, ~~vos restore~/~. This technique is, in effect how a single volume restoration is
+performed by the archive system.
+
+You can print even more detail by adding the verbose option, ~~-v~/~. 
+Here, only the details for a single volume are show.
+
+PROGRAM DONE
+	backup> <B>dumpinfo -id 859743005 -v</B>
+	...
+	Volume
+	------
+	name = user.zed.backup
+	flags = 0x18: First fragment: Last fragment
+	id = 536870966
+	server = 
+	partition = 0
+	tapeSeq = 1
+	position = 2
+	clone = Sun Mar 30 11:55:22 1997
+	startByte = 0
+	nBytes = 2558
+	seq = 0
+	dump = 859743005
+	tape = users.full.1
+	...
+PROGRAM
+
+These queries help you to investigate the database, to understand the
+state of your available archives, and to check on the integrity of completed
+dump operations. For the most part, you will not need to run any queries
+such as these when you need to restore a tape; the restoration process itself will
+query the database and simply prompt you for the appropriate tapes,
+as we shall see.
+
+One final query permits reading the current tape in the drive and displays 
+the tape label and all volume headers found there. This is a good method for 
+ensuring that you've retrieved the correct tape from your library or 
+to check on a just-completed dump, though it may take some time to complete.
+
+PROGRAM DONE
+	backup> <B>scantape 0</B>
+	backup> <B>jobs</B>
+	Job 1: Scantape [operator wait]
+	backup> <B>status 0</B>
+	Task 10: Scantape: 
+	backup> Job 1: Scantape finished
+PROGRAM
+
+The information about the tape is available in the ~~butc~/~ operator window.
+It's similar to the verbose ~~dumpinfo~/~ command.
+
+PROGRAM DONE
+	Scantape
+	******* OPERATOR ATTENTION *******
+	Device :  /dev/rst1 
+	Please put in tape to be scanned and hit return when done
+ 
+	Thanks, now proceeding with tape scanning operation.
+	**********************************
+	Dump label
+	----------
+	tape name = users.full.1 (859743005)
+	creationTime = Sun Mar 30 12:30:50 1997
+	cell = hq.firm
+	size = 2097152 Kbytes
+	dump path = /full
+	dump id = 859743005
+	useCount = 5
+	-- End of dump label --
+ 
+	-- volume --
+	volume name: user.zed.backup
+	volume ID 536870966
+	dumpSetName: users.full
+	dumpID 859743005
+	level 0
+	parentID 0
+	endTime 0
+	clonedate Sun Mar 30 11:55:22 1997
+	...
+PROGRAM
+
+SECTION: GETTING THE DATA BACK
+
+As complicated as the process of configuring the archive system and
+coordinating the dumps might appear, getting the data back is much simpler. The only practical problem is making sure you can find the right
+tape; for that reason, when dumps are made, you are well advised to
+physically label or otherwise track the just-written media.
+
+Restoring data can be done in any number of ways. The system can
+restore either a single volume, an entire file server's ~~vice~/~ partition, or a
+volume set. It can be directed to bring a volume back on-line either as it
+was at its latest dump time or as it was at any time in the past. The
+restored data can overwrite the existing volume or can be written to a new
+volume. And when restoring an entire partition, the restoration can put all
+the volumes onto the original partition or to a new partition.
+
+The simplest restore operation is a request to recreate a volume from the
+latest version available on tape, using the ~~volrestore~/~ subcommand. To find
+which tapes must be read to perform a restoration, use the ~~-n~/~
+flag. Here's a simple volume restoration:
+
+PROGRAM DONE
+	backup> <B>volrestore fs-one a user.alice -n</B>
+	Restore volume user.alice.backup (ID 536870923) from tape users.full.1 (859743005), position 7 as user.alice.
+PROGRAM 
+
+The ~~volrestore~/~ subcommand takes several arguments, including a mandatory
+file server and ~~vice~/~ partition name. When a volume is restored, the archived
+version of the volume is recreated and stored at the file server and
+~~vice~/~ partition named on the command line. By default, all restore operations
+recreate full volumes from the previous full archive and any
+intermediate incrementals. If the volume still exists in AFS but on a
+different server or partition, that version is deleted both on disk and in the VLDB in favor of the
+newly restored version. The result is that the VLDB and the server's disk partitions are kept in strict
+synchronization.
+
+To run the command, add a port offset to indicate which tape coordinator
+should expect to read the dump tape.
+
+PROGRAM DONE
+	backup> <B>volrestore fs-one a user.alice 0</B>
+	Starting restore
+	Full restore being processed on port 0
+PROGRAM
+
+As the ~~volrestore~/~ operation runs, the backup tape coordinator process 
+prints out a request for a particular tape to be loaded into the tape drive;
+once the tape is loaded, the operator is prompted to press Enter.
+
+PROGRAM DONE
+	Restore
+	******* OPERATOR ATTENTION *******
+	Device :  /dev/rst1 
+	Please put in tape users.full.1 (859743005) for reading and hit return when done
+ 
+	Thanks, now proceeding with tape reading operation.
+	**********************************
+	Restoring volume user.alice Id 536870921 on server fs-one partition /vicepa .. done
+	Restore: Finished
+PROGRAM
+
+If necessary, you will be prompted for further tapes of a multitape set to
+be inserted. These tape operations can be automated, depending on the
+hardware tape device available with a tape configuration file and some
+device-specific scripts, as described later in this chapter.
+
+When given a read-write volume name, for example, ~~user.alice~/~, the system 
+automatically determines if the backup volume or the read-write version was
+dumped to tape most recently and restores that version instead.
+
+To restore the volume to a new volume name, use the ~~-extension~/~ option;
+~~-extension foo~/~ will restore Alice's home directory to ~~user.alice.foo~/~. This option 
+prevents the deletion or overwriting of an existing volume. After
+restoration, you can connect the new volume to any convenient path name for
+further administration.
+
+If you want to get back an
+earlier version, rather than the latest version of this volume, specify the date with the ~~-date~/~ option. Also, you can list more than one
+volume. Here, we're restoring two user volumes as archived
+awhile ago and putting the data onto a new server and partition; 
+the new volumes will each have a
+suffix of ~~.restore~/~ so that the users can peruse their old data without it
+overwriting their current home directories.
+
+PROGRAM DONE
+	backup> <B>volrestore fs-one b -volume user.alice user.bob -extension .restore -date 03/30/97 -port 0</B>
+	Starting restore
+	Full restore being processed on port 0
+	backup> jobs
+	Job 1: Full Restore, volume user.bob.restore
+	backup> status
+	Task 12: Restore: volume user.bob.restore
+	backup> Job 1: Full Restore finished
+PROGRAM
+
+The ~~butc~/~ window looks similar to previous examples.
+
+PROGRAM DONE
+	Restore
+	******* OPERATOR ATTENTION *******
+	Device :  /dev/rst1 
+	Please put in tape users.full.1 (859743005) for reading and hit return when done
+ 
+	Thanks, now proceeding with tape reading operation.
+	**********************************
+	Restoring volume user.bob.restore Id 536870991 on server fs-one partition /vicepb .. done
+	Restoring volume user.alice.restore Id 536870992 on server fs-one partition /vicepb .. done
+	Restore: Finished
+PROGRAM
+
+Once the volumes are restored, you can see that they appear in the volume location
+database and on disk.
+
+PROGRAM DONE
+	$ <B>vos listvldb</B>
+	...
+	user.alice 
+    	RWrite: 536870921     Backup: 536870923 
+    	number of sites -> 1
+       	   server fs-one partition /vicepa RW Site 
+	 
+	user.alice.restore 
+    	RWrite: 536870992 
+    	number of sites -> 1
+           server fs-one partition /vicepb RW Site 
+	...
+PROGRAM
+
+In the last example, where the restoration was to a volume name with a
+new extension, an administrator must make an explicit mount
+point for the volume somewhere in the AFS file namespace.
+
+PROGRAM DONE
+	$ <B>fs mkm /afs/.hq.firm/tmp/alice.restore user.alice.restore</B>
+	$ <B>ls /afs/.hq.firm/tmp/alice.restore</B>                      
+	file1    file2    newDir   script1  secrets
+PROGRAM
+
+In addition to restoring old user data, a frequent use of the 
+system is to restore a disk partition to recreate the state of a failed
+disk.
+
+PROGRAM DONE
+	backup> <B>diskrestore fs-one a</B>
+	Total number of volumes : 29
+	Starting restore
+	Full restore being processed on port 0
+PROGRAM
+
+This subcommand queries the file server to find out which volumes
+currently exist on a given partition. The system looks up those volumes in
+the backup database, displays a request to load the relevant tapes,
+and restores the volumes, overwriting any of the same volumes on that
+partition. You can restore the volumes to a new server and partition with
+the ~~-newserver~/~ and ~~-newpartition~/~ options, respectively.
+
+If the ~~diskrestore~/~ command is being used to fix a disk crash or other
+disaster, make sure that no ~~vos syncserv~/~ commands are run before the
+restoration; ~~diskrestore~/~ uses information in the volume location database to
+determine which volumes are affected. A ~~syncserv~/~ subcommand will try to
+update the database with the available on-disk information, which, being
+unavailable or damaged, will incorrectly edit the database. (A ~~volrestore~?~
+operation does not consult the VLDB.)
+
+After the ~~diskrestore~/~ is done, perform a ~~vos release~/~ to make sure
+all read-only volumes on all servers are equivalent. If the
+~~diskrestore~/~ is to a different server or partition, check any
+read-only sites listed in the VLDB and run ~~remsite~/~ to delete any remaining pointers to the read-write volume on the 
+original disk.
+
+As of AFS 3.4a, new subcommand ~~volsetrestore~/~, enables you to restore the entire contents of
+a volume set just by naming the volume set rather than laboriously naming the volumes one by one. 
+
+Note that both ~~diskrestore~/~ and ~~volsetrestore~/~ query the current
+databases to find out the list of volumes affected; if volumes have been
+added or deleted since the dump, you may have unexpected results, such as a
+missing volume error or a volume missed during the restore. 
+
+(This problem might be avoided if the Volume Location Database were a
+repository of historical information regarding each volume, but it
+contains only a current view of the AFS file servers and disks.)
+
+Since the backup database contains dump information based on individual volumes
+and their associated archive times and tape labels, you can create ad
+hoc volume sets to be used exclusively for ~~volsetrestore~/~ operations.
+
+Alternatively, the ~~volsetrestore~/~ subcommand can take an option,
+~~-file~/~, to name a file containing an arbitrary list of volumes to restore as well
+as restoration sites (server and partition name). The file must list one
+volume per line, with each line consisting of the server and partition name
+where the volume should be restored and the volume name itself. In this
+case, the backup database is searched to find the tapes where a given volume
+was last dumped (including the full dump and any necessary incrementals). 
+Once read off of the tapes, the volume is restored onto the named
+server and partition, being deleted from any other server and partition, if
+needed.
+
+One problem with the ~~diskrestore~/~ and ~~volsetrestore~/~ subcommands is that the
+restoration must operate against a single ~~butc~/~ process; that is, all of the
+full and incremental dump tapes must be created on the same tape
+device. If different devices were used to archive incremental dumps, then
+the volumes can only be restored with the single volume ~~volrestore~/~ command,
+which can use multiple port offsets.
+
+SECTION: AUTOMATING DUMPS
+
+Normally, the backup tape coordinator prompts an operator to remove and
+insert tapes and perform other administration. This may be a good model if
+you have a dedicated operations staff that can attend to requests displayed on a
+console. If you don't have a staff and don't want to spend your evenings
+sitting around waiting for the dumps to begin, a few options are available
+to automate the process. And if the archive device is more sophisticated
+than a simple tape drive, you can customize the actions taken by the tape
+coordinator process when certain conditions are encountered, such as the
+need to unmount and mount tapes.
+
+The simplest automation is set up by running the ~~butc~/~ process with the 
+~~-noautoquery~/~ flag. This flag causes the tape coordinator to assume that the right 
+tape is in the drive. In this case, the coordinator does not need an
+interactive window because it will not ask an operator to insert a tape.
+But if multiple tapes are needed for large volume sets or for appending
+dumps to the dump set, an operator will still be needed to insert the
+additional tapes. Also, if an error occurs with the tape drive, such as
+no tape being found in the drive, an unexpired tape being used accidentally,
+or a write-protected tape being used, an error message will be displayed and
+a request will be made to change tapes.
+
+Once you set up some automation, you can schedule dumps to occur at a
+future date. These scheduled dumps, called "timed dumps" in the AFS
+documentation, can either be a single dump command instructed to run at a
+given date or a file of multiple dump commands to run at a given date.
+Timed dumps are given a job number, which can be queried with the ~~jobs~/~
+subcommand, and can be killed prior to their start time. In interactive
+mode, the job is scheduled and a new prompt displayed:
+
+PROGRAM DONE
+	backup> <B>dump users /full 0 -at "03/30/97 17:00"</B>
+	Add scheduled dump as job 1
+	backup> <B>jobs</B>
+	backup> <B>jobs</B>
+	Job 1: 03/30/97 17:00: dump users /full 0
+	       03/30/97 18:04: TOKEN EXPIRATION
+PROGRAM
+
+Notice that the ~~backup~/~ command keeps track of the Kerberos credential
+under which it runs and can determine that its administrative
+privileges expire at 18:04. If the dump had been scheduled for
+later than 18:04, ~~backup~/~ would have warned that the token will expire before
+the dump proceeds. If no action were taken to reauthenticate, the archive process would fail because the command
+would have no authorization to read AFS volume and file data.
+
+Note that in interactive mode ~~backup~/~ immediately displays a new prompt permitting other work to proceed. In command-line batch mode, ~~backup~/~ waits 
+until the job has executed. As another option, multiple dump requests 
+can be written into a file and then processed by ~~backup~/~ with the ~~-file~/~ option.
+
+An alternate method of automating the process is to set up a
+configuration file that can specify an arbitrary set of programs or scripts
+to run, which could enable certain hardware actions to reset
+the archive device.
+
+To configure such actions, create a file in the ~~/usr/afs/backup~/~ directory
+with a prefix of ~~CFG_~/~ and a suffix based on the media device name, just like
+the tape log and error files, ~~TL_~/~ and ~~TE_~/~. Recall that upon startup, a ~~butc~/~
+process knows its port number only from its command-line argument. It uses
+that port number to find out which hardware device name it controls by
+reading the ~~/usr/afs/backup/tapeconfig~/~ file. Now that ~~butc~/~ knows its device
+name, if a file exists with a prefix of ~~CFG_~/~ and a suffix based on the device, it will read that file to turn
+on or off certain advanced coordinator features or enable extra actions to
+be performed during tape insertion or extraction.
+
+The file consists of keyword-value pairs, one pair to a line. The allowed
+keywords:
+
+-- ~~ASK~/~ and ~~AUTOQUERY~/~ - Suppress querying an operator during dump or
+restore operations
+
+-- ~~NAME_CHECK~/~ - Eliminates the coordinator's check for tape labels
+
+-- ~~BUFFERSIZE~/~ - Increases a coordinator's memory cache to improve
+performance
+
+-- ~~FILE~/~ - Directs the coordinator to read and write from a
+standard UNIX file rather than from a tape device
+
+-- ~~MOUNT~/~ and ~~UNMOUNT~/~ - Specify arbitrary executable programs to
+perform the actual tape insertion and extraction
+
+With no ~~CFG_~/~ file present, the tape coordinator will prompt for
+many operations as described above. The following example configuration
+files modify those actions.
+
+PROGRAM DONE
+	# <B>cat /usr/afs/backup/tapeconfig</B>
+	2G 1M /dev/rmt10 0
+	# <B>cat /usr/afs/backup/CFG_rmt10</B>
+	MOUNT /usr/local/bin/juke
+	UNMOUNT /usr/local/bin/juke
+	AUTOQUERY NO
+	ASK YES
+	NAME_CHECK NO
+	# <B>butc 0</B>
+PROGRAM
+
+The tape coordinator started in the above listing will read the
+~~tapeconfig~/~ file and see that, because it is assigned to port 0, it will have to
+manage the device ~~/dev/rmt10~/~. For this case, it will also see that a
+configuration file exists named after the final path name element of the
+device, ~~/usr/afs/backup/CFG_rmt10~/~. The coordinator will read the  configuration file, 
+the values of the keywords will modify the coordinator's actions.
+
+For the ~~MOUNT~/~ and ~~UNMOUNT~/~ keywords, the values specify an executable program
+that will be run whenever the coordinator specifies that a file should be loaded or
+unloaded from the tape drive. This example names the file
+~~/usr/local/bin/juke~/~ as the program to run during mount operations. This
+program - either a shell script or binary program - must be written to
+use any hardware media utilities to insert the correct tape into the
+tape reader. Because the program is spawned by the tape coordinator, it will
+have the coordinator's identity: root or the UNIX login under which the
+coordinator runs. The program will also have whatever AFS authentication credential is
+available, either a specific token indicating a member of
+system:administrators, an implicit administrator via ~~localauth~/~, or none. (The
+~~localauth~/~ option is new to AFS 3.4a).
+
+For a ~~MOUNT~/~ request, the specified program runs with five command-line arguments supplied automatically.
+
+-- The hardware device. For this example, ~~/dev/rmt10~/~.
+
+-- The particular tape operation the tape
+coordinator will be running. This operation is one of ~~dump~/~, ~~labeltape~/~, ~~readlabel~/~, ~~restore~/~, ~~appenddump~/~, ~~savedb~/~, ~~restoredb~/~, or ~~scantape~/~. The purposes
+behind these named operations are described below.
+
+-- An integer describing how many times this operation has
+been requested. After an error of the current operation, the integer will be
+incremented and the operation retried. Use this
+argument wisely and don't fall into an infinite loop of retries.
+
+-- The tape name as defined by the archive system.
+
+-- The tape identifier, again, as defined by the system.
+
+For the ~~UNMOUNT~/~ operation, only two arguments are passed to the executable:
+
+-- The hardware device name.
+
+-- The tape operation. For ~~UNMOUNT~/~, the only operation is
+~~unmount~/~.
+
+Once control passes to the ~~mount~/~ or ~~unmount~/~ program, the actions executed
+are completely up to your needs and the media device's capabilities. When
+finished, the return code of the process will indicate whether the device
+was able to mount (or unmount) the tape: an exit code of 0 indicates success
+and the dump will continue; an exit code of 1 indicates failure and the
+dump will abort; any other exit code will cause a default action to
+take place or the operator to be queried, depending on the value of the ~~ASK~/~
+keyword.
+
+The ~~AUTOQUERY~/~ and ~~ASK~/~ keywords control the amount of prompting the
+coordinator will perform. Both keywords can have values of ~~YES~/~ or ~~NO~/~. A
+value of ~~YES~/~ for ~~AUTOQUERY~/~ permits the coordinator to query an operator
+for the initial load of a tape; ~~NO~/~ implies that a tape will be in the drive.
+NO has the same effect as the ~~-noautoquery~/~ option to the coordinator
+process.
+
+The ~~ASK~/~ keyword controls which prompts are to be asked when errors are
+encountered during ~~butc~/~ operations. A value of ~~YES~/~ for ~~ASK~/~ will cause butc
+to prompt the operator to press Enter after tape loading requests; this is the
+default. ~~NO~/~ means that ~~butc~/~ will take a default action depending on which
+~~backup~/~ command was in effect:
+
+-- For errors during ~~dump~/~, the volume being dumped
+will be ignored.
+
+-- For errors during ~~restore~/~, the volume being restored is to be
+ignored.
+
+-- If ~~backup~/~ cannot be determined whether more tapes are available in a dump
+set, ~~NO~/~ implies that there are more tapes.
+
+-- If ~~labeltape~/~ is writing to an unexpired tape, ~~NO~/~ causes the
+tape not to be relabelled.
+
+~~NAME_CHECK~/~ is a keyword that controls the behavior of the coordinator when
+it encounters previously labelled tapes. A value of ~~NO~/~ permits the system
+to overwrite any tape label as long as the current date is later than the tape
+expiration date. ~~YES~/~ indicates that the tape name in the label must be null
+or the same name as that for the current dump; this is the default behavior.
+
+In summary, the above example file causes the tape coordinator to assume
+that a tape is properly loaded into the hardware device when starting
+operations (~~AUTOQUERY~/~ set to ~~NO~/~). When tapes must be loaded or ejected during multitape operations, the coordinator will use the executable program ~~/usr/local/bin/juke~/~ (~~MOUNT~/~ and ~~UNMOUNT~/~ set to ~~/usr/local/bin/juke~/~). This
+script will be executed with various arguments, depending on which backup
+command is to be run. During archive operations, the coordinator will write
+data to any expired tape in the tape drive (~~NAME_CHECK~/~ set to ~~NO~/~). Finally,
+the coordinator will prompt for operator intervention if errors are
+encountered.
+
+Two extra keywords can be used to further customize the tape coordinator: ~~BUFFERSIZE~/~ and ~~FILE~/~.
+
+During dump  and restore operations, data is temporarily stored in
+the coordinator's memory space in between reading from the volume server and
+writing to tape or reading from tape and writing to the volume server. Normally
+this memory space is limited to 1 tape block (16 kilobytes) for dumps and 2 tape
+blocks (32 kilobytes) for reads. You can set this space size to any value you deem
+appropriate for the archive device by specifying a value to the ~~BUFFERSIZE~/~
+keyword. The value should be in bytes, for example, ~~16384~/~ or ~~16k~/~ for 16 kilobytes
+or ~~1m~/~ for 1 megabyte.
+
+So far, the tape coordinator has assumed that it is dealing with a
+tape drive and will use certain operating system procedures and assumptions
+when reading and writing the volume data. You can set the keyword ~~FILE~/~ to ~~YES~/~ to
+indicate that the  path name mentioned in the ~~tapeconfig~/~ file is actually a
+regular file rather than a hardware device. The default value for ~~FILE~/~ is ~~NO~/~,
+signifying a tape drive.
+
+When dumping to files, the backup database stores positions in the 
+archive medium in terms of fixed 16 kilobyte chunks as opposed to filemarks 
+for other media.
+
+Here's an example of dumping to file:
+
+PROGRAM DONE
+	$ <B>cat /usr/afs/backup/tapeconfig</B>
+	1G 0K /var/backup/afs/fdump 1
+	$ <B>cat /usr/afs/backup/CFG_fdump</B>
+	MOUNT /usr/afs/backup/fileDump
+	FILE YES
+	ASK NO
+	$ <B>butc 1</B>
+PROGRAM
+
+Here, the tapeconfig file specifies a size of 1 gigabyte for the archive media,
+in this case, just a file, ~~/var/backup/afs/fdump~/~, associated with port 1. 
+The tape coordinator, which is attached to port 1, read the ~~tapeconfig~/~ 
+file and then read the configuration data in the file 
+~~/usr/afs/backup/CFG_fdump~/~. The configuration specifies that the archive 
+media is a file (~~FILE~/~ is ~~YES~/~) and that, to load a tape - in this case, to 
+initialize the dump file - the executable ~~/usr/afs/backup/fileDump~/~ is to 
+be run. Upon encountering errors, a default action (as listed above) will 
+be taken.
+
+The ~~/usr/afs/backup/fileDump~/~ script can take care of certain issues 
+peculiar to dumping to files. One difference between files and tapes is
+that new tapes can be inserted as needed, whereas a file named in 
+~~/usr/afs/backup/tapeconfig~/~ is static. Another difference concerns the action to take if the file grows to fill the entire local file system. In regular
+operation, when the coordinator gets to the end of a tape, it prompts
+the operator for a new tape. But if the dump is to a file and the file
+system becomes full, what should be done? In this case, the tape coordinator 
+process quickly closes the file, thereby saving whatever it has managed 
+to write. An attentive operator could move the file to another disk partition, 
+thereby allowing ~~butc~/~ to continue the dump by writing to a new, empty version 
+of the same named file. It is this type of administration that can more 
+properly be accomplished by a shell script as specified by the MOUNT 
+keyword argument.  The Transarc documentation has several examples of scripts
+for situations such as these.
+
+Automating the dump process presents a final problem regarding authentication.
+The ~~backup~/~ commands can be executed only by authorized persons. To check the
+authority, AFS uses its own credential information and not the UNIX identity
+of the user. While members of ~~system:administrators~/~ are normally permitted to
+run these commands, in fact, any AFS user or group listed in the
+~~/usr/afs/etc/UserList~/~ file is also permitted to run them as described in Chapter 9.
+
+The same permissions apply to running a ~~butc~/~ process: it must be run under
+an administrator's credentials. But watch out for the token expiration time. If you intend to start up the 
+backup tape coordinator process once, be aware that whatever credentials 
+you obtained before the process began will expire in a few days
+at best. It is extremely aggravating to find out that an overnight dump
+failed because of a token expiration in the wee small hours of the morning.
+
+One way around this authentication problem is to run the ~~backup~/~ or ~~butc~/~
+commands on an AFS server machine itself. When run under UNIX root identity
+and with the ~~-localauth~/~ flag, the processes can use the
+~~/usr/afs/local/KeyFile~/~ to create a service ticket and therefore can always
+retrieve and store privileged data to the backup databases and file servers.
+This capability is most useful when you are automating an archive system. See Chapter 9 for more
+information on this flag.
+
+SECTION: SAVING THE BACKUP DATABASE
+
+Practically all of the information about archives - dump sets, volume sets,
+tape hosts and offsets, - is stored in a Ubik database maintained on the
+database server machines by the ~~buserver~/~ processes. This database is
+therefore as precious as any other data held by the system. Because of this,
+a special subcommand, ~~dbverify~/~, performs internal integrity checks on
+the database and reports any errors. It's wise to perform this check
+regularly, especially at the beginning of any automated scripts.
+
+PROGRAM DONE
+	backup> <B>dbverify</B>
+	Database OK
+PROGRAM
+
+If the response is "not OK," there's a problem with the database. Such
+problems can be cured only by recreating the database from archived copies,
+as described below.
+
+You can give an option, ~~-detail~/~, to the ~~dbverify~/~ command
+to display additional information about the database. If 
+any nonexistent tape coordinator hosts are stored, they will be shown.
+Also, if any internal disk blocks used by the database could potentially be
+reclaimed, they are listed as well. Large cells with sophisticated archive
+needs may find that the backup database has grown quite large. The database
+will contain an entry for each volume set, dump level, and for each dump
+created, a complete list of the volumes which the dump contained. The
+problem with a large database is not only the size required but the time
+needed to archive it and the time needed for the ~~buserver~/~ processes
+to handle data insertions and queries. If the size does become a problem,
+you can reclaim the space by deleting obsolete dumps. Before doing
+so, it will be prudent to save the entire database, just in case
+certain information needs to be restored.
+
+To write out the backup database to an archive device, use the ~~savedb~/~
+subcommand:
+
+PROGRAM DONE
+	backup> <B>savedb 0</B>
+	backup> <B>jobs</B>
+	Job 1: SaveDb
+PROGRAM
+
+As usual, the tape coordinator operator may have to insert a tape.
+The ~~savedb~/~ operation will write the contents of the database to the
+desired port.  The tape will be labelled ~~Ubik_db_dump.1~/~. Note that there is 
+no dump level because all database archives are full. And note that if in an 
+extreme instance the database does not fit on one tape, the tape index 
+number will be incremented for each tape needed.
+
+If the backup database is corrupted, you can use this tape to restore
+the database. This is a cumbersome process made worse by the fact that 
+you'll have to individually add any information about each dump
+made since the last full archive of the database itself.
+
+To start, you must delete the existing (presumably corrupt) backup database 
+and allow the saved database to be written over it. First, shut down the backup 
+database processes.
+
+PROGRAM DONE
+	$ <B>bos shutdown db-one buserver -wait</B>
+	$ <B>bos shutdown db-two buserver -wait</B>
+	$ <B>bos shutdown db-three buserver -wait</B>
+PROGRAM
+
+Second, manually log in to each database server and delete the
+backup database files.
+
+PROGRAM DONE
+	$ <B>rlogin db-one root</B>
+	Password:
+	# <B>rm /usr/afs/db/bdb.D*</B>
+	# <B>exit</B>
+	$ <B>rlogin db-two root</B>
+	...
+PROGRAM
+
+Next, restart the backup databases on each server.
+
+PROGRAM DONE
+	$ <B>bos startup db-one buserver</B>
+	$ <B>bos startup db-two buserver</B>
+	$ <B>bos startup db-three buserver</B>
+PROGRAM
+
+You should wait a minute for the ~~buserver~/~'s distributed database logic to 
+settle down. Then, so that the ~~backup~/~ command can find the tape 
+coordinator, you must bootstrap the database by adding the tape machine and port offset back into the new, 
+and empty, database. Only then can the backup database be restored.
+
+PROGRAM DONE
+	$ <B>backup</B>
+	backup> <B>addhost fs-two 0</B>
+	Adding host fs-two offset 0 to tape list...done
+	backup> <B>restoredb 0</B>
+	backup> <B>jobs</B>
+	Job 1: RestoreDb
+	backup> Job 1: RestoreDb finished
+PROGRAM
+
+Again, as usual, the ~~butc~/~ operator will be prompted for the insertion
+of the appropriate tape.
+
+PROGRAM DONE
+	RestoreDb
+	******* OPERATOR ATTENTION *******
+	Device :  /dev/rst1 
+	Please insert a tape Ubik_db_dump.1 for the database restore and hit return when done
+ 
+	Thanks, now proceeding with tape reading operation.
+	**********************************
+	RestoreDb: Finished
+PROGRAM
+
+These steps restore the database as it was at the moment the ~~savedb~/~ operation
+was performed.
+
+PROGRAM DONE
+	backup> <B>dumpinfo</B>
+    	dumpid   parentid lv created        nt nvols dump name
+ 	859746941          0 0  03/30/97 13:35  1     0 Ubik_db_dump
+	backup> <B>dumpinfo -id 859746941</B>
+	Dump: id 859746941, created: Sun Mar 30 13:35:41 1997
+ 
+	Tape: name Ubik_db_dump.1 (859746941)
+	nVolumes 0, created 03/30/97 13:36
+PROGRAM
+
+Any volume sets that were archived after the time the database was saved will 
+not be reflected in the database. This additional data can be restored only 
+by reading all of the intervening tape labels and adding that data to 
+the database. One by one, insert the dump tapes into an available tape 
+controller device and run:
+
+PROGRAM DONE
+	backup> <B>scantape -dbadd -port 0</B>
+PROGRAM
+
+This command is similar to the ~~scantape~/~ query shown previously, except that the tape
+label information and volume data are also stored back into the database.
+
+Once you have saved a copy of the backup database, you can choose to
+delete old dump set data from the database. Delete old data only
+when you truly want to never again access the archive media. Deleting old data can help 
+maintain a clean and small backup database. Deleting a dump set is easy:
+
+PROGRAM DONE
+        backup> <B>dumpinfo</B>
+            dumpid   parentid lv created        nt nvols dump name
+         859743005          0 0  03/30/97 12:30  1     6 users.full
+	backup> deletedump 859743005
+	The following dumps were deleted:
+		859743005
+PROGRAM
+
+To delete multiple dumps, you can specify a start and end date; all dumps created between those times will be deleted.
+
+SECTION: COMMON STRATEGIES
+
+The AFS archiving utilities can be used in a variety of ways to save data
+and restore it in the event of misadventure. Many sites simply use the
+tools as suggested in the manuals for archiving volume data, but others
+have implemented highly customized strategies.
+
+First, don't forget that all AFS volumes can have a cheap snapshot, 
+the backup volume, available and mounted in the file system. Colleagues can 
+trivially recover accidentally deleted data in their home or project 
+development directories from yesterday's snapshots.  This not only makes 
+life easier for users but reduces the administrative burden of 
+maintaining a large distributed file system. 
+
+Unfortunately, only one backup volume per read-write volume is permitted.
+To archive successive sets of a cell's file data requires saving volumes
+to tape.  A typical problem for administrators is deciding which volume sets
+to dump at what schedule. The use of regular expressions to define sets
+of volumes is a reasonable system for very well managed cells but in
+a less-organized organization, the proliferation of volume names and
+dump preferences can present difficulties for the dump scheduler.
+
+A way around this dilemma is to construct an external database of volume names. You can regularly check this
+database against the contents of the volume
+location database to make sure that all volumes are accounted for; each
+volume can have a field specifies which dump schedule it needs.
+You can then scan this database and run commands 
+to generate a new and accurate list of volume sets. Then, you can link the policies
+to automatically start up dump jobs to complete the
+dump process.
+
+One AFS site manages its dump schedules by using special characters at
+the beginning of the volume name to help schedule the dump process. For
+example, a volume set can easily be defined for all volumes that begin with the
+letter "D", and another set for volumes that begin with the letter "W". Batch
+scripts can then be written to dump the "D" volumes every day and the "W"
+volumes once a week. The advantage of this scheme is that changes to the
+dump schedule for a particular volume can be made just by using the volume
+~~rename~/~ command without having to change anything associated with the backup
+database. The disadvantage is that there are only 22 characters available
+for volume names and, also, as a volume name is changed, all mount points
+to that volume in the file system have to be changed.
+
+Some organizations have found that the backup utilities are too concerned with
+individual volumes and tape media. In their estimation, the existence
+of the snapshot backup volumes provides a good on-line archive for
+most user mistakes. The only other situation that needs to be handled
+is that of disk disasters. Rather than use the AFS archive system, you can survive disk
+disasters by grouping read-write or read-only volumes
+together on well-known disk surfaces and then using the UNIX data dump
+command ~~dd~/~ to save a complete copy of all the disk blocks to tape. This copy
+could then be quickly read off tape and written to a fresh disk, which would
+then be swapped into position; a simple file server restart will attach
+the volumes found there without any awareness that this is a retrieval
+of archived data.
+
+Another way to increase the efficiency of the process is to
+create a higher-speed network connection between the file server
+and the client hosting the backup tape coordinator. Because AFS file
+servers can now have multiple network connections, it makes sense to
+use an improved network topology to optimize archiving. If the ~~butc~/~
+host has multiple network connections, you should use client file server
+preferences to make sure that the higher-speed link is used during
+archiving; if the host has only a single high-speed link, that will
+be correctly used without any further administration.
+
+A continuing problem with Transarc's archive system is that it
+is designed to be used by administrators alone. Many sites want
+the administrators to manage the archive processes but the users themselves to run
+some sort of interface to search for dumped data and perform the 
+restores. For this and other reasons, AFS sites are either
+using AFS's single volume dump tools or looking to third-party 
+software to supply other solutions.
+
+SECTION: VOLUME DUMPS
+
+The ~~vos~/~ command suite includes commands for taking the contents of a single
+volume, flattening out the contained files, directories, and ACLs, and
+storing that data in a file. This mechanism can certainly be used as the basis of an
+archive system, but because there is no integration 
+volume sets or dump levels, this per-volume dump is usually used only for
+quick administrative tasks.
+
+The simplest form of the ~~dump~/~ command writes the contents of a volume to a
+file.
+
+PROGRAM DONE
+	$ <B>vos dump user.alice 0 /tmp/dumpFile</B>
+	Dumped volume user.alice in file /tmp/dumpFile
+PROGRAM
+
+During the process, the volume being dumped is locked out to any
+read or write access. For this reason, while you can dump the contents of
+either a read-write, read-only, or backup volume, it is more common to dump
+a backup volume. If the backup volume is out of date or doesn't exist, it can
+be created just before the volume dump.
+
+The argument after the volume name tells the dump command whether to make a
+full or incremental dump of the volume. In this example, 0 specifies a complete dump. You can also dump only those files and directories that have
+been modified since a certain date. These incremental dumps are specified
+with either a date, in the format ~~mm/dd/yy~/~, or a date and time, in the
+format ~~mm/dd/yy hh:mm~/~. The hours in the time format should be in 24-hour
+notation; without a time format, the time of the incremental dump is assumed to
+be 00:00, the beginning of the day for that date.
+
+The final argument is the name of the dump file. When no file is specified,
+the dump goes to standard output.
+
+The dump file's contents contain an ASCII representation of the volume,
+including all directories, files, ACLs, and volume mount points. If you are
+curious, you can examine the file with an editor, though there is little
+editing that you can do that would be useful. The next example demonstrates
+an incremental dump saved to standard output.
+
+PROGRAM DONE
+	$ <B>vos dump user.alice.backup "3/29/97 14:00" > /tmp/dump2</B>
+	Dumped volume user.alice in stdout
+PROGRAM
+
+Dumping a read-only volume is done similarly and normally doesn't require
+any extra effort. However, if you're in the middle of a disk disaster and
+you suspect that some read-only volumes are not equal to all others, be aware that
+~~vos dump~/~ will pick the read-only server from the list of available
+servers as stored in the volume location database. Read-write and backup
+volumes are stored only on a single server, so you can be sure that the data
+comes from that server. For a read-only volume, the only way to demand that
+a specific server be used as the source of the dump is by either deleting
+information from the VLDB or, more simply, by changing the file server
+preferences on the local desktop.
+
+While any of the three volume types can be dumped, the ~~vos restore~/~
+command can restore only to a read-write volume, either an existing
+read-write volume or a brand-new one. Using the first dump file we've made,
+we can recreate Alice's home directory.
+
+PROGRAM DONE
+	$ <B>vos restore fs-one a user.alice /tmp/dumpFile</B>
+	The volume user.alice 536870921 already exists in the VLDB
+	Do you want to do a full/incremental restore or abort? [fia](a): f
+	Volume exists; Will delete and perform full restore
+	Restoring volume user.alice Id 536870921 on server fs-one partition /vicepa .. done
+	Restored volume user.alice on fs-one /vicepa
+PROGRAM
+
+Note that just as with the volume ~~create~/~ or the backup ~~restore~/~ commands, you
+must specify a physical location - a server and partition name - for the
+restored volume. If you specify a different server and partition for a read-write volume that already exists in the cell, the existing volume will be
+deleted in favor of the newly restored volume. As a side effect of the ~~vos
+restore~/~ operation, the new volume is given a new volume
+identification number; the only way to retain the old number is with the ~~-id~/~
+option. Once this volume is restored, you may want to create a new backup volume or
+release the volume to its read-only replicas.
+
+Incremental dumps of a volume can be restored either to a new volume
+or as overlays to an existing volume. If the restore is to a new volume,
+only the intermediate data in the incremental dump can be
+installed into the new volume. But if the incremental restore is to a 
+previously restored version of the volume, then the incremental changes
+between the first dump and the incremental dump are applied to the
+previously restored volume.
+
+Only since AFS version 3.4a could you correctly restore an incremental dump. Such a restoration requires no extra options on the
+command line because the information labelling the dump as incremental 
+is stored in the dump file itself. A dump taken on February 1st that was 
+made incremental to January 1st will contain all the files and 
+directories changed in January: including the new files, and information on the deleted files. 
+Given a volume fully restored from the January 1st dump file,
+restoring the February 1st incremental will correctly add and subtract the
+necessary data to fully recover the volume.
+
+Of course, incremental restores work only when restoring an incremental dump to an
+existing volume; if the restore operation is to a partition that does
+not contain a version of the volume, then the incremental is, in effect, 
+a full restore. The incremental changes will affect only a preexisting
+version of the volume; when the incremental dump is to be overlaid on
+such a volume, you'll be prompted as to whether you want to perform
+a full or incremental restore or just to abort the process.
+You can set this preference on the command line with the ~~-overwrite full~/~
+or ~~-overwrite incremental~/~ option.
+
+Clearly, managing these dumps and restores for each volume in a large cell
+is an enormous task. That's exactly the purpose of the backup database; a
+repository for information on groups of volumes and all the dump dates.
+Only occasionally will it be necessary to use the ~~vos dump~/~ and ~~restore~/~ subcommands.
+
+One occasion to use these commands is when making changes to critical volumes
+such as ~~root.afs~/~. Because the ~~root.afs.readonly~/~ replicas are distinct from
+the read-write master, it is simple enough to make changes safely to the read-write
+and ensure that it has exactly the right subdirectories and volume mounts.
+But the paranoid administrator might want to make a quick manual volume dump
+just before making changes, in case some link or byte gets lost in the process.
+Backing out of the change is as simple as restoring the volume from the
+(thankfully) saved dump file.
+
+Note that interrupted volume restore commands can result in corrupt 
+read-write masters that will be taken off-line by the AFS ~~volserver~/~
+and will need to be salvaged and reconnected to the file system as discussed in Chapter 9.
+
+SECTION: AFS DATABASE ARCHIVING
+
+Now that you have archived the file data and the backup database, what about the
+other databases: the volume location, the protection, and the Kerberos database? 
+Transarc provides no particular tool to checkpoint these
+files, but the operations are simple. Because all database operations are
+serialized against the sync site, any other site becomes a perfect candidate
+from which to take a snapshot. In our hypothetical cell, our sync site
+happens to be ~~db-one~/~, so we can turn to ~~db-two~/~ or ~~db-three~/~ to grab a copy of
+the data. The plan will be to shut down the database servers there and then
+to simply copy the files to a suitable location, and later, archiving them to
+tape.
+
+PROGRAM DONE
+	# <B>hostname</B>
+	db-two
+	# <B>bos shutdown db-two -localauth</B>
+	# <B>cd /usr/afs/db</B>
+	# <B>tar cf /tmp/savedb.tar *</B>
+	# <B>bos restart db-two -all -localauth</B>
+PROGRAM
+
+This sequence of commands takes only seconds to complete. When the 
+read-only database server restarts, it checks with the sync site,
+and if any write operations have occurred, a database transfer will occur,
+bringing ~~db-two~/~ up to date with the other servers. Note that the ~~/usr/afs/db~/~
+directory has permission such that only the UNIX root user can read the
+files.
+
+With a coherent version of the databases now copied into a convenient
+package, you should store the data onto other media - certainly onto tape or
+some other device that can be kept local and also archived off-site. In the
+event of a disaster, these archives will be the only way to recreate the list
+of users and groups (the volume location information can be recreated more
+laboriously with ~~vos~/~ synchronization subcommands). Just be 
+especially careful of the Kerberos database: it contain encrypted
+information about every principal in your AFS cell and, while decryption is
+hard, you should presume that bad people could be able to read the database.
+
+Restoring the databases is almost as easy as archiving them. This time, you
+must perform the operations on the sync site. Retrieve the databases from
+tape and store the files in a handy location. Stop the databases on the
+sync site, copy over the saved database files to the database directory, and
+then restart the database processes. 
+
+PROGRAM DONE
+	# <B>hostname</B>
+	db-one
+	# <B>bos shutdown db-one -localauth</B>
+	# <B>cd /usr/afs/db</B>
+	# <B>tar xf /tmp/savedb.tar</B>
+	# <B>bos restart db-one -localauth</B>
+PROGRAM
+
+Now, the sync site will wake up, look for its peers, possibly engage in an
+election to regain the master read-write status, and then force its version
+of the database on the other read-only database sites. In a minute or
+two, the elections and propagations will have settled. If you use this technique to restore the backup database, you'll still have to use the
+backup ~~scantape~/~ command with ~~-dbadd~/~ option to add any information
+from dumps made after the backup database was saved.
+
+Although no special-purpose tools perform these
+procedures, the above command examples should enable you to archive the AFS
+database with ease. Since the databases maintain their stability through a
+variety of outages, performing a restoration from tape should be
+required only after a catastrophe. Other techniques for managing this information
+are presented in the next chapter in the discussion of Ubik database
+mangement.
+
+SECTION: THIRD-PARTY SOFTWARE
+
+Truthfully, Transarc's archive system is not beloved of AFS administrators.
+It certainly manages volume-based archiving. But for larger sites that need
+more customization, the flexibility of the system tends to result in
+more places where errors can creep in. By its very nature, such a system
+is unwieldy, taking several hours to laboriously write data to tape. As
+this activity inherently interferes with the file systems (at least by
+imposing a bandwidth and server load), it is most often done at night. Any errors
+in the process are therefore discovered many hours after the fact and often
+result in the need to start the entire process over again.
+
+Being a software company, Transarc cannot mandate any
+particular hardware storage device. Hence the need for the ~~fms size~/~
+discovery command, the ~~tapeconfig~/~ file, and the automated configuration
+file. Yet all these aids do is shift the burden of writing the interface between
+AFS and the storage device onto the cell administrator. And writing
+bulletproof scripts amid the tangle of interrelated backup processes more
+often results in subtle bugs discovered only when critical volumes need to
+be restored.
+
+Smallish cells with relatively flat growth rates will often need only a few
+tape drives and a fairly unchanging backup configuration. For these sites, the
+Transarc solution works well. Other, larger sites, with more frequent
+changes in configuration and size, need a flexible system that is
+also more tolerant of faults. This generally means a system with a
+strongly integrated set of hardware and software, plus all the attendant
+reporting and configuration tools.
+
+Over the years, the AFS community was chicken-and-egged to despair by
+commercial archive vendors. The vendors didn't see a large enough market to
+warrant adapting their software to deal with AFS data, and the absence of
+robust, large-scale, easy-to-administer archive software suggested to 
+potential customers that AFS was not production-ready.
+
+Now, happily, the situation has changed, with several commercial
+solutions becoming available, including ~~vosasm~/~ provided by BoxHill
+Systems Corporation that works with Legato's Networkerª archive system,
+IBM's ADSMª, and PDC's BudToolª. The following information is not an
+endorsement of any or all of the products but is listed to demonstrate 
+the available support of AFS by archive vendors.
+
+SECTION: LEGATO'S NETWORKER
+
+Legato Systems' Networker software has been a major archival system
+for UNIX systems for many years and has support for a variety of storage
+devices. In 1994, BoxHill Systems, a leading supplier of disk drives, produced
+a software product that permitted Networker to correctly dump AFS volumes. 
+
+The mechanism consists of a program, ~~vosasm~/~, that uses the standard ~~vos dump~/~
+command to create the archival data stream. That stream is then connected to
+Networker's ~~nsrfile~/~ program, which dumps the data to the correct media.
+The result is a volume-oriented archive system. When Networker is configured
+to dump files in an AFS file server's ~~vice~/~ partitions, it recognizes
+these partitions and identifies the AFS volumes stored there. When
+these volumes are set to be dumped up, ~~vosasm~/~ creates new backup volume
+snapshots and then dumps the volume contents through Networker, which catalogs
+the archive activity and stores the data on the preconfigured tape.
+
+The drawback to this architecture is that while it is volume-centric, it is not
+based on any attributes of the volume, such as name or purpose, but rather
+just on the collection of volumes currently located on a given server.
+As far as Networker is concerned, it is just storing large, oddly named files; 
+it has no knowledge of the structures or files stored in the volumes.
+This works well for organizations with enough servers that individual servers
+and vice partitions can be allocated to different volume types. 
+
+Recovery is also based solely on volume location. Given a file or directory
+which is to be recovered, you must determine which volume
+has stored that data and also which server that volume resides on. Once
+logged in to that server, you can use Networker recovery commands to read
+the archived data file off the correct media and convert it back into an
+AFS volume.
+
+Although there is no user-level, graphical front end to the recovery process, 
+this mechanism does integrate AFS archives with the already strong Networker 
+support of a variety of media devices. This, in addition to Networker's strong
+market presence, makes the solution attractive and sufficient. Legato Systems
+can be reached at ~~http://www.legato.com~/~.
+
+SECTION: IBM'S ADSM
+
+IBM (which, after all, owns Transarc) has added support for AFS and DFS to 
+their archival system, the Adstar Distributed Storage Manager, or ADSM. 
+This system can dump straightforward AFS file data as 
+well as interface to the  system backup and can dump AFS volumes.
+
+The straightforward file archives are run, as they must be, from an AFS 
+client. With the ADSM user interface, you can assign simple AFS path names to dump schedules. As we said at the beginning of the chapter, this 
+would not be good enough were it not for two features added by IBM. When 
+archiving file data located in AFS, ADSM will take care to dump 
+ACL and volume mount point information correctly.  Additionally, you can specify an option in the configuration so that the dump process does not cross AFS 
+mount points.  While not going as far as to keep track of some volume 
+information, these two features do provide you with useful functionality.
+
+More conventionally, you can install an ADSM-ready tape coordinator process, ~~buta~/~. This coordinator looks to AFS much like a normal ~~butc~/~ process;
+once ~~buta~/~ is running, you can query the status, dump, or restore volume sets to
+and from the coordinator. The advantage is that this coordinator uses
+ADSM as its complete media manager. The coordinator, rather than 
+managing individual tape mount and unmount requests, can now rely on
+the built-in hierarchical storage system of the system. In fact, most of the 
+volume dumps are made to an ADSM server disk farm. Once the volumes are buffered on disk, 
+ADSM transparently migrates the data to archive media as needed. These servers
+can range in scale from an OS/2ª or Windows NT system to a large-scale Sun 
+Solaris, IBM AIX, HP-UXª, or even an AS/400ª or mainframe MVSª machine. 
+Configuring ADSM is a complex process but one that makes AFS volume archiving
+trivial. Additionally, you can use ADSM to dump UNIX file systems with
+similar automatic media management. IBM can be reached at ~~http://www.ibm.com~/~.
+
+SECTION: PDC'S BUDTOOL
+
+One final archive product that supports AFS is BudTool, made by PDC,
+Inc. This tool is not designed to be a soup-to-nuts file archiving
+system but is rather targeted at administrators who need a flexible
+engine that can be integrated with any given file storage architecture.
+Besides providing an open framework into which many different data
+devices can be incorporated, the lightweight nature of the tool also enables
+operators to retrieve information from archive media, using regularly
+available utilities.
+ 
+BudTool's primary role is to associate a dump scheduling system with
+a media management interface. The media supported include all of the
+major archive devices as well as the automatic or robotic media
+changers. To use BudTool, you define a request to archive a fixed set
+of volumes and, when the schedule called for it, BudTool dumps those volumes to media via the ~~vos dump~/~ commands. Once the volumes are archived, the tool's backup
+history database stores information about the dump event; later,
+you can browse this database and retrieve the specific tape holding a given
+dump. BudTool would then issue the appropriate media commands to find the correct tape and restore the volume.
+ 
+Because the volume data is stored in a standard format, you can use a regular ~~vos restore~/~ command to retrieve the data. In extreme
+circumstances, this feature will make disaster recovery much easier.
+ 
+When used to archive an ordinary disk, BudTool can run 
+commands to discover the available partitions on the disk.
+Unfortunately, the earliest releases of the product do not perform a
+similar action for AFS volumes: you cannot register a set of volumes by
+prefix or regular expression that will be expanded at run time into the
+current set of volumes matching the expression. Instead, you must
+register volumes individually and schedule them collectively. For
+large sites, with, for example, user home volumes constantly being
+added and deleted, this requirement will quickly prove burdensome. There are,
+however, some contributed utilities that can help to simulate volume
+sets, and PDC may be persuaded to provide more support for this function
+in the future.
+ 
+Sites wanting a lightweight archive system that performs
+automatic media management will probably find that BudTool is a step
+above Transarc's configuration-file-based system, without the additional
+overhead of a completely proprietary dump architecture. PDC can be reached at ~~http://www.pdc.com~/~.
+
+SECTION: SUMMARY
+
+The AFS archiving system solves the fundamental problem facing cell
+administrators: storing consistent copies of file data onto tape.
+And it does this with care to keep track of the peculiarities of AFS,
+such as the containment of file data to volumes, volume mount points, 
+and ACLs that would otherwise be lost.
+
+As far as this system goes, it works. Indeed, most sites will find that
+this system is all that is needed. But there is a lack of fine-grained control
+and flexibility on restorations that is occasionally irksome. Luckily,
+some third-party products can help solve some 
+of these problems, especially with respect to large-scale tape systems.
+
+The AFS solution is client/server based, as is typical in their system.
+It takes some training to understand the relationship between the
+server providing resources, such as the backup database, and the clients,
+such as the ~~backup~/~ command. In some cases, one process is both a service and
+a client: the tape coordinator serves requests from the backup 
+command suite but also requests data as a client of the volume and
+file servers.
+
+It is important to understand this model and to create an archival
+mechanism which will fit your needs. There are enough ways to set
+up volume sets, dump levels, and media ports to solve almost every
+backup problem.
+
+At this point, we've learned almost everything there is to know about
+the basic management of an AFS cell from the administrative as well
+as the user perspective. The next few chapters will discuss some
+of the finer points of administration and debugging of AFS.

@@ -1,0 +1,842 @@
+CHAPTER 6: MANAGING USERS
+
+So far, we've seen how to build a volume and install it as a directory
+into the AFS namespace. While file management is certainly a large part of
+AFS administration, of equal importance is managing user identities
+and data security. This chapter addresses the tasks needed to set up and manage user identities.
+The AFS identification programs - logging in and
+confirming authentication - are described in Chapter 7. The next several sections 
+discuss the tasks needed to integrate users into an AFS cell. Like all AFS 
+cell administration, these tasks can be performed from any desktop in the 
+cell but only by a properly authenticated administrator.
+
+SECTION: KERBEROS
+
+Before you learn the administrative steps to control user identity and security, you should understand the basics of the Kerberos system. Kerberos was designed at
+the Massachusetts Institute of Technology in the mid-80s as a mechanism
+to authenticate, or securely demonstrate the identity of, users of their
+campus distributed computing environment. It is based on a private key distribution
+model devised by Needham and Schroeder in 1978; <I>private key</I> means
+that some part of the system, a trusted server, shares a secret (an encrypted 
+key) with a single user.
+
+The knowledge of this private key is sufficient for a Kerberos server to agree that 
+users are who they say they are. This admission is encapsulated
+in a ticket of information which the user can offer to other services,
+as if to say, I claim to be a certain user; if you don't believe me take
+this ticket and ask the Kerberos server to check that that ticket
+confirms my identity. Several good papers (two are listed in the Bibliography) describe the exact 
+protocol steps needed to establish this authentication, and the details are 
+not difficult to understand. What makes the Kerberos wire protocol interesting 
+for us is that no information is passed in the clear, and tickets can be 
+judged authentic or not only by asking the Kerberos system about their validity.
+
+A significant feature of Kerberos is that not only are users permitted
+to prove their identity, but server processes can do so as well. Thus, the system
+is most often referred to as providing mutual authentication: not only
+does my ticket prove I am who I say I am, but seeing your ticket proves
+to me that you are who you say you are. For AFS, this means that the
+file server knows that you're you, and you know that you're talking to the
+one and true server storing your files.
+
+Even though the local- or wide-area networks may be insecure and may even
+have somewhat untrustworthy client operating systems, the Kerberos protocol 
+provides users and servers with trustworthy authentication. Previously,
+a user's identity had only to be demonstrated on a local desktop.
+Standard UNIX systems would then have little recourse but to accept that
+local identity as a given; Kerberos permits a user to offer a ticket
+containing authentication information that can be <I>proven</I> valid.
+
+Some of the assumptions of the system are worth examining: First, the
+Kerberos server and database must be highly trustworthy. Large organizations
+should take any means necessary to ensure this. 
+
+¥ Put the server
+in a secure room. 
+
+¥ Use combination locks or smart-cards to restrict access.
+
+¥ Eliminate almost all other processes, and certainly all unnecessary network
+connectivity to that server. For example,
+the Kerberos server should not also be the e-mail server. 
+
+¥ Load system software from the vendor's own media and check it
+to make sure that no changes have been made to critical executable files.
+
+¥ Scrutinize any operating system or application security updates 
+and prudently install them.
+
+It is accepted that it is practically impossible to steal or subvert
+Kerberos security by examining the network protocol itself. But the client 
+desktop is another story. Given that the operating system and Kerberos 
+software has not been tampered with, there is little that needs to be 
+trusted. However, on a public workstation with insufficient security, the Kerberos login program itself be replaced with software that snoops 
+keystrokes or passwords in the clear. This possibility is one reason why the thin desktop
+model is important: it's easy to reboot and reinstall all
+operating software that will effectively clean and resecure a desktop.
+
+Here's an introduction to Kerberos terminology as used in the rest of this book.
+
+-- realm - A domain of control. A single Kerberos database of user
+and password information is a unique authentication domain and a single
+administrative unit. Users query that database to obtain authentication 
+tickets; those tickets indicate that the user's identity had been 
+validated against that Kerberos database - that realm - alone. Each realm
+is given a name, usually based on the organization's DNS name, much as is
+the AFS cell name.
+
+-- principal - A Kerberos identity, whether it is a user or a server 
+process. Principals are simply strings similar to regular user identifiers. 
+Often, they are composed of two parts separated by a "~~.~/~" to specify
+different principals shared by a single user. As an example, user Alice
+could have a regular principal ~~alice~/~ and also a special principal
+instance, ~~alice.admin~/~. A fully qualified principal name includes the
+realm name; in our hypothetical realm, Alice's principals would
+be ~~alice@hq.firm~/~ and ~~alice.admin@hq.firm~/~.
+
+-- password - A string of characters used to prove an identity
+to the local system. Note that the Kerberos database (like the traditional 
+UNIX password file) does not store passwords directly. Instead, only
+an encrypted form of the password is stored. This encryption is performed
+by cryptographically modifying the user's password with an internally
+generated string. The output of this modification is the user's key.
+
+-- ticket - A data packet that stores some information which can
+be used to validate a principal's authentication by a particular service.
+A user's ticket contains the user's principal, the service name, an 
+expiration time, a randomly generated session key, and some miscellaneous 
+bookkeeping data. Once a user and a service have agreed to accept each other's
+identity, the session key will be known to each and can therefore be used by 
+either to encrypt significant data that must be transmitted between them.
+
+-- ticket-granting ticket - A particular ticket granted by Kerberos
+as a bootstrap so that other service tickets, such as the file server
+or the AFS group database server, can be obtained without requiring additional entering of
+a user's password.
+
+-- authorization - Kerberos makes a distinction between authentication,
+the process of proving identities, and authorization, the act of deciding
+what objects or actions are permitted to a user or system. The Kerberos
+system is concerned only with authentication; it is up to application servers,
+which include most of the AFS servers, to implement policies and procedures
+for storing and manipulating permissions.
+	
+-- Kerberos - In Greek mythology the name for the 
+three-headed dog that guards the gates of Hades.
+
+SECTION: AFS'S KERBEROS
+
+During the development of AFS, the CMU engineers were interested in using
+a better authentication system than that traditionally provided by UNIX
+systems. Their networked campus of thousands of workstations required a 
+security model far different from that of a single time-sharing system
+designed for only dozens of directly attached terminals. Luckily, at
+about the same time, MIT was exploring the use of the Needham-Schroeder
+algorithms as the basis of their distributed security system.
+
+AFS's Kerberos is based on the work started at MIT but is a separate
+implementation with slight and significant differences and certain added
+administrative functions. While both MIT and Transarc's server use what 
+is now referred to as the Kerberos version 4 protocol, there are a few 
+problems when trying to use one set of clients with another's server.
+
+One assumption made by AFS is that a standard AFS cell is 
+equivalent to a Kerberos realm. For any sites not running Kerberos, this is 
+a safe assumption: introducing AFS into an organization will by default create 
+the first Kerberos realm. So, it makes sense that only those clients attaching
+to the file servers will be concerned with AFS security. As of version 3.3a,
+Transarc's clients and servers can use any realm name you specify.
+
+Normally, an AFS client will use the cell name as part of the local password
+encryption stage. This usage is different from MIT Kerberos, which uses a different
+name as an encryption seed. The problem with mismatched seeds arises only
+if an organization wants to use or is already running MIT's Kerberos version 
+4 or 5. 
+
+If you're not already using MIT's version, there are a few reasons to adopt
+it. Many public-domain and commercial software applications have been adapted to use Kerberos
+authentication services based on this publicly available implementation,
+and consulting firms and independent software vendors 
+provide other value-added services on top of the standard Kerberos.
+
+Transarc's Kerberos makes the most sense when no other Kerberos
+implementation is running at a site. And, naturally, the administration of the Transarc
+system is optimized for their file services. In addition, AFS's Kerberos server offers some
+built-in features, such as automated database replication and other
+administrative commands, that are not available in the
+standard MIT version 4.
+
+An interesting technical difference between the two systems is the
+choice of locations for storing user tickets. At MIT, the goal was a portable
+authentication system for all platforms. The only logical storage
+location for the user tickets was the local file system. CMU, on 
+the other hand, had already made the choice to install pieces of their
+file system in the client's running kernel. Therefore, it was a simple matter 
+to associate ticket information with the kernel's per-user data structure. 
+Because of the special nature of these tickets, they are referred to
+as <I>tokens</I> in AFS.
+
+Placing tokens in the kernel makes sense because the kernel is the only 
+intrinsically protected domain on desktop. It is conceivable that tickets 
+stored in files are less secure than those stored in the kernel. However, 
+in reality, if a hacker has a mechanism to become root, steal a ticket, and 
+somehow use that to gain privileges, it's not that much harder to get the 
+necessary information out from the kernel versus a file. In both cases,
+however, the ticket will be valid only for requests originating from
+that particular workstation.
+
+For full details of using MIT Kerberos version 4 or 5 with AFS, contact 
+Transarc product support. Briefly, the suggested steps are:
+
+1. Install an initial AFS cell on a machine as usual. The AFS Kerberos 
+server, ~~kaserver~/~, can then be stopped and its job deleted by using 
+~~bos~/~ commands.
+
+2. Install a principal named ~~afs~/~ in the MIT Kerberos database with
+an instance named after the AFS cell name. In our example cell, the principal
+would be named ~~afs.hq.firm@hq.firm~/~. Notice that the principal name is ~~afs~/~
+and the instance name is ~~hq.firm~/~; the additional dots in the instance name
+can confuse some standard Kerberos commands.
+
+3. Use the standard Kerberos ~~ext_srvtab~/~ program to extract the AFS service
+key. ~~ext_srvtab~/~ is one of the commands that does not handle the extra dot characters in an instance name, so you'll need to compile
+a new version of this command that doesn't erroneously check
+for such instances.
+
+4. Use the Transarc ~~asetkey~/~ command to install this extracted service key
+into AFS's key file ~~/usr/afs/etc/KeyFile~/~ on each of your AFS servers. The 
+~~asetkey~/~ command is a replacement for the ~~bos setkey~/~ process. You can pick up the source 
+for the command from Transarc's FTP site.
+
+5. Put the MIT Kerberos realm name in the AFS configuration file 
+~~/usr/afs/etc/krb.conf~/~. If you wish, you can make a symbolic link from this file to the
+standard ~~/etc/krb.conf~/~ file.
+
+Now that the AFS servers have been converted to contact and use the MIT
+Kerberos servers, users will have to use MIT commands to authenticate
+with Kerberos: after running a normal MIT ~~kinit~/~ program to obtain
+authentication credentials, they must run ~~aklog~/~ to convert those file tickets
+into AFS kernel-based tokens. Since you'll be able to obtain the source
+code for all of these commands, you will probably want to try and integrate
+the ~~kinit~/~ and ~~aklog~/~ programs into a single command.
+
+Similarly, users must use the MIT ~~kpasswd~/~ command to change their passwords. 
+And administrators must use the MIT ~~kadmin~/~ administrative suite rather 
+than AFS's ~~kas~/~. Transarc's user authentication system is described in 
+more detail in Chapter 7; the ~~kas~/~ suite is described below.
+
+For compatibility, Transarc ships with AFS versions of certain commands 
+that communicate with MIT Kerberos. These commands can be installed
+and used as substitutes for the standard versions that understand only
+the Transarc Kerberos implementation. The commands are:
+~~klog.krb~/~, ~~tokens.krb~/~, ~~pagsh.krb~/~, and ~~login.krb~/~.
+
+SECTION: USER DATABASES
+
+Whereas a standard UNIX user name is stored only in the
+password file or NIS map, an AFS identity must be included in
+the UNIX password map, the Kerberos authentication database, and the 
+protection group database. Because the information is stored in three databases, there is the potential for the databases to disagree. 
+Administrators must follow strict procedures to ensure that all users 
+are represented in all three systems. 
+
+The simplest reason for insisting that all databases agree can be seen with a 
+directory listing program like ~~ls~/~ or a file browser. When displaying the 
+owner of a file, each program extracts the numeric user identifier from the 
+file system and, in UNIX, utilizes the password file or NIS map to convert 
+that number to a user name. But in AFS, a user's Kerberos principal is used 
+by the file system as the owner of newly created files. When a program
+tries to display the textual equivalent of the owner identity, if the
+identifier in the password map does not match the principal, the wrong user 
+will be displayed as the file owner.
+
+As an example, in the previous chapter, we obtained Kerberos authentication
+as ~~afsadmin~/~, the AFS administrator principal created during system
+installation. When we created files in AFS, we showed the file details
+by using the ~~ls~/~ program.
+
+PROGRAM DONE
+        $ <B>ls -ld /afs/example</B>
+        drwxr-xr-x   2 afsadmin staff       2048 Mar 29 09:15 /afs/example
+PROGRAM
+
+The output of the ~~ls~/~ program looks correct only because we had previously
+entered the name ~~afsadmin~/~ into our password maps. When unauthenticated
+users create files in open areas of AFS, AFS will assign the numeric
+identifier 32766 as the file's owner. Unless you want to see that number
+displayed as the owner in directory listings, you should enter a name
+with that identification number in the password maps. Any name will do;
+most sites choose ~~anonymous~/~ or ~~noauth~/~.
+
+In a fully functioning AFS organization, the different pieces of information
+contained by the three databases are:
+
+-- Password file or NIS map - Contains the user
+login name as a lookup key, a numeric user identifier, a numeric group 
+identifier, an encrypted UNIX password, the user's full name and home 
+directory, and the choice of tty-based shell program to run. This database is 
+maintained with the native tools, such as an 
+NIS map, of the client operating systems.
+
+-- Kerberos database - Contains the name and
+password for each user. This database is maintained by AFS itself.
+
+-- Protection database - Contains the numeric identifiers of
+all users and groups and maintains the list of group membership used
+to calculate access control privileges. This database is also maintained by
+AFS.
+
+This chapter deals primarily with Kerberos database administration. The 
+Transarc version of this database stores the following information for each user:
+
+-- Principal - The login name of the user or the name of the server,
+such as ~~afs~/~.
+
+-- NOADMIN flag - grants permission to issue privileged ~~kas~/~ commands.
+Default is NOADMIN; can be set to ADMIN.
+
+-- CPW flag - Permits user to change the password. Default is CPW;
+can be set to NOCPW.
+
+-- TGS flag - Allows the Kerberos ticket-granting server to grant tickets
+to the user. Default is TGS; can be set to NOTGS so that a request to obtain
+tickets for a user will fail.
+
+-- SEAL flag - Permits the ticket-granting service to use this entry's key
+field as an encryption key. When the flag is set to NOSEAL, the ~~kaserver~/~ will not
+create service tickets for this principal. A service ticket is a ticket
+that enables processes rather than users to authenticate.
+
+-- Key and version number - The principal's encrypted password. Previous
+versions are available to the system. They can be used to ensure that
+passwords are not reused.
+
+-- Date of last change of password.
+
+-- Entry expiration date - After this date, no authentications will be permitted.
+
+-- Password's expiration date.
+
+-- Limit on number of consecutive failed authentication attempts.
+
+-- Lockout time - Specifies for how long no user is permitted to authenticate
+to this principal after the limit on the number of consecutive
+failed logins has been reached.
+
+-- Maximum ticket lifetime - The longest length of time for which this
+principal's credential will be good.
+
+-- Last modify time - Time of the last change to the principal's entry and person who made the change (except 
+for password changes).
+
+SECTION: SETTING UP A USER ACCOUNT
+
+Given a user with an existing UNIX identity, the following steps 
+set up a user's authentication and protection identity in AFS.
+First, we can query our local services to find out basic information
+on the user.
+
+PROGRAM DONE
+	$ <B>ypmatch david passwd</B>
+	david::1235:24:David::/afs/hq.firm/user/david:/bin/sh
+PROGRAM
+
+In this case, we use the NIS map to confirm that the user's login name is 
+david, his UNIX ID is 1235, his full name is David, and the home directory has 
+been set ahead of time to the AFS path name ~~/afs/hq.firm/user/david~/~.
+
+The empty password field in the entry indicates that the standard 
+UNIX login programs will not be used with this login. In this case, we've 
+replaced the system's login program, ~~/bin/login~/~, with one provided by 
+Transarc for each client platform.  This new login performs Kerberos 
+authentication against the password stored in the AFS databases and 
+automatically creates a credential token upon success. As an administrator,
+we'll now begin the installation of credential information into the databases:
+
+PROGRAM DONE
+	$ <B>pts createuser david 1235</B>
+	User david has id 1235
+PROGRAM
+
+First, use a ~~pts~/~ command. This command initializes a user's 
+name and identification number. We must do this first because AFS 
+keeps only vital authentication information, such as the user name and
+password, in the Kerberos database. All other user data, such as a
+numeric identity, real user name, and other group information is stored in
+a separate system, the protection database. (The protection database and
+the ~~pts~/~ suite are discussed in Chapter 7.) The ~~createuser~/~ subcommand of 
+~~pts~/~ stores the user's numeric identifier in the database;  as discussed, we 
+enter the same ID as that stored in the UNIX password file to force AFS 
+and UNIX to show the same name for the same identifier in both file systems. 
+
+Problems sometimes surface when you try to merge different UNIX administrative
+domains into a single AFS cell. With multiple UNIX servers, your organization
+may have two users who happen to share the same numeric identifier. As long
+as they are not both using the same server, there's no problem. If both
+sets of users are to be entered into the same, single AFS Kerberos database,
+one of their identifiers will have to change. This may mean that you will have to 
+search the existing file systems;
+any files owned by one user may have to have their numeric ownership changed
+to the new identifier.
+
+If no number is entered via the ~~createuser~/~ subcommand, the next available
+number is used. In the protection database, the system tracks the available 
+numbers with an internal counter named ~~UserMax~/~. When no number is mandated on 
+the command line, the value of ~~UserMax~/~ is used and the counter is incremented. 
+If a number is entered that is larger than any previously issued 
+identification number, ~~UserMax~/~ is automatically bumped up so that the next 
+automatically generated number will be one more than the entered number. This method ensures that 
+the system can always determine a valid new identification number without 
+having to search through all of its entries. You can even manually set ~~UserMax~/~ 
+to a higher value if you want to set aside a portion of the numeric space 
+for your own assignments.
+
+Now that the user name is a user in the protection database, we can create
+a Kerberos principal with the same name and give it an initial password.
+
+PROGRAM DONE
+	$ <B>kas create david -admin afsadmin</B>
+	Administrator's (afsadmin) Password: 
+	initial_password: 
+	Verifying, please re-enter initial_password: 
+PROGRAM
+
+You can see that the ~~kas create~/~ command has an additional option, ~~-admin~/~,
+to specify an AFS administrator's name. The command immediately responds
+with a request for the administrator's password. If no name is given, the 
+command prompts for the password of the user issuing the command; unless
+you're logged in as an administrator, you won't be able to run administration
+commands. AFS makes a strong guarantee that the user running the
+command is an administrator.
+
+All communication between the ~~kas~/~ command and the ~~kaserver~/~ process is
+encrypted.  One note on this administration command: when executed with no
+subcommand arguments, it runs a mini-shell with its own prompt. This feature is 
+useful when you execute multiple ~~kas~/~ commands as it limits the need to type in a system password for each command.
+
+PROGRAM DONE
+	$ <B>kas -admin afsadmin</B>
+	Administrator's (afsadmin) Password: 
+	kas> <B>create david</B>
+	initial_password: 
+	Verifying, please re-enter initial_password: 
+	kas> <B>create harry</B>
+	initial_password: 
+	Verifying, please re-enter initial_password: 
+PROGRAM
+
+There are a few restrictions on user names stored in the database: the name 
+can't be longer than eight characters, and the name can't contain certain 
+punctuation characters. And, because the system uses the name ~~afs~/~ for its 
+own identity, if you have a user with a login name ~~afs~/~ (perhaps a user with 
+those initials), that user will have to have a different login to work with 
+AFS.
+
+The next few commands are simple volume manipulation commands, 
+similar to those described in the previous chapter, used to create
+a suitable home directory volume.
+
+PROGRAM DONE
+	$ <B>vos create fs-one a user.david</B>
+	Volume 536870976 created on partition /vicepa of fs-one
+	$ <B>fs mkm /afs/.hq.firm/user/david user.david</B>
+	$ <B>vos release cell.user</B>
+	Released volume cell.user successfully
+	$ <B>ls /afs/hq.firm/user</B>
+	david  zed
+PROGRAM
+
+User volumes are not required for each and every Kerberos identity, however, 
+depending on your site policies.  Users may have their home directories on 
+local disk or accessible through NFS or NetWare. Users with home directories not in
+AFS should still be given an appropriate Kerberos credential; this
+credential enables the  user to access the AFS file system as permitted and to run 
+other Kerberos-enhanced applications.
+
+SECTION: KERBEROS AND PASSWORDS
+
+When David's user name was created, the Kerberos administration command ~~kas~/~ was
+used. In practice, there is very little day-to-day administration of the
+Kerberos database. As long as each user has an identity in Kerberos, then
+that user can get an authenticated credential which can be used by various
+clients and servers to make guarantees about that identity. This is just
+like an employee identity card: it takes a minute to set up and the employee can use
+the card every day, but otherwise, no one fiddles with it.
+
+Like all of the AFS databases, the information in all the entries is
+replicated to all running server processes and stored on each server
+machine's disk. One of these server processes is designated as the master
+copy, or sync site in the Ubik protocol parlance, and all writes are
+registered at that site before replication to other servers. Lookup requests
+are sent to any available server. Until there is a catastrophe with a server
+CPU, disk drive, or network, no manual administration is required to keep
+all of this running smoothly. 
+
+Permission to run many Kerberos administration commands is restricted to
+those logins that have been set up with special privileges. During
+installation, at least one login has exactly that privilege. Chapter 9
+presents some more details on how to extend that privilege.
+
+Once authenticated, users can change their own passwords.
+
+PROGRAM DONE
+	$ <B>kpasswd</B>
+	Changing password for 'david' in cell 'hq.firm'
+	Old password:
+	New password (RETURN to abort):
+	Retype new password:
+PROGRAM
+
+The ~~kas setpasswd~/~ subcommand permits an authorized administrator to reset
+any user's password. When run, it first challenges the existing administrator to
+reauthenticate. Here, the administrator running the command is ~~afsadmin~/~.
+
+PROGRAM DONE
+	$ <B>kas setpasswd david -admin afsadmin</B>
+	Administrator's (afsadmin) Password: 
+	new_password: 
+	Verifying, please re-enter new_password: 
+PROGRAM
+
+Note the difference between ~~kpasswd~/~ and ~~kas setpasswd~/~: ~~kpasswd~/~ challenges for 
+the old password of the issuing user and will reset that user's password. ~~kas 
+setpasswd~/~ challenges for the issuing user's password only if the user is 
+permitted as an AFS administrator; it can reset any user's password.
+
+Most people will acknowledge that choosing a new password is not to be taken
+lightly, yet few go through much effort to create a good password. With the
+Kerberos system, it is more difficult to guess passwords than with
+conventional UNIX passwords, but guessing can be made even more unlikely if
+users could be forced to pick a good password. Transarc's implementation of
+Kerberos allows user passwords to be up to 1024 characters in length.
+If users consistently use long passwords, the ability to crack encrypted
+data on the network will practically vanish.
+
+To help guard against poorly chosen passwords, the Kerberos administration
+system includes an external program which can check password 
+guessability and reject proposed passwords that fail arbitrary criteria.
+
+Transarc provides a simple version of a password-checking program with the
+AFS product; your site can engineer its own version to perform any checking
+desired. The only requirements are that the program be named ~~kpwvalid~/~, that it 
+be stored in AFS in the same directory as the ~~kpasswd~/~ program, and that the
+directory have no write permission for anyone. These restrictions deny anyone the opportunity to install a Trojan Horse. Password checking
+is turned off by simply removing or renaming the program, for example, to
+~~kpwvalid.off~/~.
+
+The program must accept as input two lines of data. The first is the old
+password, the second is the new password. Transarc's version of ~~kpwvalid~/~
+simply checks that the new password consists of at least eight characters.
+Whatever the algorithm for checking passwords is, the result must be printed
+onto the standard output; a single zero indicates the password is acceptable, any other
+numeric output indicates rejection. If you write your own program, 
+make sure the program is thoroughly debugged before installation; it would
+also be somewhat more secure if the passwords, which are sent 
+via interprocess communication from ~~kpasswd~/~ to ~~kpwvalid~/~, are themselves encrypted
+in the password validation program's memory before any lengthy processing is performed.
+
+Traditional password mechanisms are sometimes called <I>claim/knowledge systems</I>
+because they are based on two pieces of information the user provides: an
+identity that the user claims and knowledge of a secret (the
+password) that only the user is supposed to know. One drawback to this is
+that the identity claim is unsupported by any other piece of information such as a
+physical identity card or other external confirmation. This flaw permits an
+attack on a cell's security by someone claiming to be a legitimate user and
+then attempting to guess the secret password.
+
+AFS provides a mechanism by which consecutive failures to log in will cause
+the account to be unavailable for further logins for a specified interval. 
+Once locked out, the user will have to wait for the interval to elapse
+before any new login attempt will be allowed. Anyone trying to guess the
+user's password will be forced to spend an inordinate amount of time waiting
+for new chances to guess rather immediately trying another password.
+
+PROGRAM DONE
+	$ <B>kas setfields david -attempts 10 -locktime 30</B>
+PROGRAM
+
+Because the attack vector relies on an exhaustive search of the password
+namespace, an attacker will normally be trying thousands of passwords.
+This suggests that the number of failed attempts can be set fairly high and
+the lockout penalty can be rather severe. With the number of failed attempts
+set to 10, a legitimate user with a mental block will either remember the
+correct password or give up and call an administrator for help, whereas a
+programmatic attempt to guess the password will be stopped every 10 tries
+and, in this case, forced to wait 30 minutes. The number of failed attempts
+can be set anywhere from 1 to 254; a value of 0 turns off this
+defense completely.
+
+The lockout time is specified in minutes or hours:minutes. Due to the
+mechanism by which the time is stored in the databases, the time is actually
+rounded up the next highest multiple of 8.5 minutes; the minimum lockout is
+8.5 minutes, the maximum is 36 hours. A lockout time of
+0 indicates an infinite lockout.
+
+The implementation of the lockout process is interesting. Along
+with each Kerberos server's normal database files in ~~/usr/afs/db~/~
+is an auxiliary file, ~~/usr/afs/local/kaserverauxdb~/~, in which
+are stored the current number of failed login attempts. Given a cell
+with three Kerberos server instances, each instance is allocated one-third 
+of the number attempts. When attempting to log in, if a user fails to
+enter the correct password more than the allotted number of tries for that
+server, that server will refuse to answer any more requests for the
+lockout-time interval. The next time the client login program tries
+to contact that server, it will react to that refusal by failing over to
+one of the other two Kerberos servers and attempting the login there. Eventually,
+if the password continues to be entered incorrectly, all the servers would 
+have been contacted and all of them would have locked out the user.
+
+If a user does get locked out, an administrator can unlock the account.
+
+PROGRAM DONE
+	$ <B>kas unlock david</B>
+PROGRAM
+
+For additional security, passwords can be given a time limit for their existence.
+Once the password lifetime is exceeded, the password will not be valid.
+Administrators can set this with:
+
+PROGRAM DONE
+	$ <B>kas setfields david -pwexpires 30</B>
+PROGRAM
+
+The argument is the number of days, from 1 to 254 days, that a new password
+is valid. An argument of 0 indicates that passwords never expire. 
+
+One last mechanism to secure AFS accounts is to forbid the
+repetition of previous passwords. The previous 20 passwords are
+stored and compared against new passwords. To prevent reuse:
+
+PROGRAM DONE
+	$ <B>kas setfields david -reuse no</B>
+PROGRAM
+
+On the other hand, a ~~reuse~/~ value of ~~yes~/~ permits the user to reuse
+passwords.
+
+After the above three administrative polices are set, the Kerberos
+database entry for ~~david~/~ now looks like this:
+
+PROGRAM DONE
+	$ <B>kas examine david</B>
+	User data for david
+	  key (1) cksum is 1630388111, last cpw: Sat Mar 29 15:36:39 1997
+	  password will expire: Mon Apr 28 16:36:39 1997
+	  10 consecutive unsuccessful authentications are permitted.
+	  The lock time for this user is 34.1 minutes.
+	  User is not locked.
+	  entry never expires.  Max ticket lifetime 25.00 hours.
+	  last mod on Sat Mar 29 15:39:06 1997 by afsadmin
+	  don't permit password reuse
+PROGRAM
+
+Only a checksum of the key is normally displayed. The checksum permits administrators
+to compare keys between ~~kaserver~/~ instances to check for inconsistencies
+without providing information that could be used for a brute-force attack.
+To display a list of instances stored in the database:
+
+PROGRAM DONE
+	<B>kas list -admin afsadmin</B>
+	Administrator's (afsadmin) Password: 
+	AuthServer.Admin
+	krbtgt.HQ.FIRM
+	afsadmin
+	david
+	afs
+	carol
+	alice
+PROGRAM
+
+There is also a command to report on the internal statistics collected
+by the Kerberos servers. You can use the ~~-server~/~ option to direct the
+query against a particular server.
+
+PROGRAM DONE
+	$ <B>kas statistics -admin afsadmin -server db-two</B>
+	Administrator's (afsadmin) Password: 
+	6 allocs, 0 frees, 0 password changes
+	Hash table utilization = 0.150000%
+	From host c0a8030b started at Sat Mar 29 11:44:31 1997:
+	  of 16 requests for Authenticate, 9 were aborted.
+	  of 2 requests for CreateUser, 0 were aborted.
+	  of 1 requests for SetPassword, 0 were aborted.
+	  of 4 requests for SetFields, 0 were aborted.
+	  of 2 requests for GetEntry, 1 were aborted.
+	  of 14 requests for ListEntry, 2 were aborted.
+	  of 1 requests for GetStats, 0 were aborted.
+	Used 0.510 seconds of CPU time.
+	1 admin accounts
+PROGRAM
+
+The output is somewhat arcane but lets you know that the server is
+up, responding to requests, and shows how many of which requests it
+has performed. The last line shows one interesting tidbit of information: only one account has the ADMIN administration flag turned on. 
+
+SECTION: TICKET LIFETIMES
+
+When users authenticate themselves with the AFS Kerberos servers,
+credentials are returned, stored, and automatically presented to other
+servers when access checks must be made. Normally, these credentials, or
+tokens, have a valid lifetime of 25 hours. To determine the actual value,
+AFS checks the lifetimes of three different principals and uses the shortest
+lifetime; thus cellwide defaults can be easily maintained.
+
+The three principals checked and their default ticket lifetimes are:
+
+-- The user's principal - 25 hours
+
+-- The principal ~~afs~/~ - 100 hours
+
+-- ~~krbtgt.<I><CELLNAME></I>~/~ - 720 hours, which is 30 days
+
+AFS administrators can reset the default lifetimes with the ~~kas setfields~/~ command. The
+~~afs~/~ principal permits a cellwide maximum lifetime to be set; the
+~~krbtgt.<I><CELLNAME></I>~/~ maximum is hardcoded as part of the AFS Kerberos system. 
+A user's tickets are therefore by default 25 hours; administrators can extend
+this ticket lifetimes to 30 days. An option to the user authentication command permits
+users to request shorter, but not longer, ticket lifetimes. To change a
+user's ticket lifetime:
+
+PROGRAM DONE
+	$ <B>kas setfields david -lifetime 168:00</B>
+PROGRAM
+
+The value assigned is in seconds; if the value includes a ~~:~/~, then the
+value is the number of hours and minutes: 100 is one hundred seconds, 100:30 is
+one hundred and a half hours.  Here, David's tickets have been assigned a 
+lifetime of 168 hours, equivalent to one calendar week. For David to actually
+receive tickets with this lifetime, the ~~afs~/~ principal's ticket lifetime
+will have to be increased as well, in keeping with the system's minimal
+lifetime policy outlined above.
+
+Longer ticket lifetimes have the potential to be misused. On the other hand,
+shorter lifetimes require users to run the login authentication process more often. Hence,
+users can request shorter ticket lifetimes than the security policy set up by
+the administrator allows, but not longer lifetimes. In general, user tickets
+are configured with either one-day or one-week lifetimes; administrator
+tickets are often reduced to only one or two hours to lessen the chance that
+an unlocked workstation will be left with powerful tickets lying around.
+
+SECTION: THE uss UTILITY
+
+For each user at your site, you'll usually have to add a home volume, create
+credentials and group info, and install some standard login profile files.
+Transarc provides the ~~uss~/~ utility for automating the process of adding users.
+The utility is based on an optimized and very terse language with which to describe a
+standard set of AFS commands to run when a user is to be given an AFS
+identity, home directory, etc. This utility allows you to set up a template for 
+new user initialization; once set up, this template can be used
+to create and install all of the above listed information for one 
+or a hundred users in a single action.
+
+As we've seen, a normal user in a simple cell will be given a Kerberos
+principal, a protection service name, a volume, and often a set of common
+login profiles. For each of these items, you can write a single line in a template file and then feed the complete template file to the ~~uss~/~ command. For example:
+
+PROGRAM DONE
+	V user.$USER $SERVER.hq.firm /vicep$PART 5000 /afs/.hq.firm/user/$USER $UID $USER all system:anyuser rl
+	D $MTPT/Mail 0700 $UID $USER all system:anyuser none
+	F $MTPT/.cshrc 0755 $UID /afs/hq.firm/sys/setup/cshrc
+	F $MTPT/.mwmrc 0755 $UID /afs/hq.firm/sys/setup/mwmrc
+	A $USER 90 noreuse 5 10
+	X vos backup user.$USER
+	X fs mkm $MTPT/.oldFiles user.$USER.backup
+PROGRAM
+
+Let's assume that this template is in the file ~~uss.template~/~. When you run the 
+following command, each line causes one or more AFS administration 
+tasks to be run.
+
+PROGRAM DONE
+	# <B>uss add -user carol -realname Carol -uid 2347 -server fs-one -part a -pass carol</B>
+PROGRAM
+
+The arguments to ~~uss~/~ set variables that are used in the template
+to specify the exact value of various options to each command line. The first 
+line of the template, which begins with the letter V, creates a volume 
+named ~~user.carol~/~ on the server ~~fs-one~/~ and partition ~~/vicepa~/~. The
+quota of the volume is 5 megabytes, and the volume will be mounted at 
+~~/afs/.hq.firm/user/carol~/~. After being mounted, it is given an
+access control list, which permits Carol to read and write in the directory
+but permits any other user only to read. (See Chapter 7
+for more information on access control lists.)
+
+The next three lines install various standard directories and files into 
+Carol's new home directory. The D line creates a directory, 
+~~/afs/.hq.firm/user/carol/Mail~/~, with UNIX permissions and AFS access controls
+that permit only Carol to read and write into the directory. The two
+F lines copy files from a standard set up directory to Carol's home directory.
+
+The A template line sets up Carol's authentication information in the
+Kerberos database. The name of her Kerberos login will be ~~carol~/~, and the
+password will be set to the one mentioned on the ~~uss~/~ command line. In addition,
+each password will have a lifetime of 90 days, cannot be reused, and if 
+someone tries to log in to Carol's account but fails to get the password
+right five times in a row, the login will be locked out for 10 minutes.
+
+The final two lines run commands that are appropriate for our example site. An AFS
+backup volume is immediately made of Carol's home volume and is mounted
+in her home directory under the subdirectory ~~.oldFiles~/~.
+
+A typical V line, as shown previously, performs all the volume
+manipulation commands needed to connect a user's home directory to the
+namespace. For AFS sites with a large number of users, it is inconvenient
+to put all users (potentially thousands) into a single directory. In the
+template file, you can specify several parent directories that will be
+used to spread out users: ~~uss~/~ automatically chooses the directory with 
+the fewest existing entries as the destination of the volume connection.
+
+As you can see, this system is highly optimized for user account creation in 
+an AFS cell. This system can be used for other standard, well-known volumes 
+but isn't quite powerful enough for all circumstances. For other volumes, 
+you'll have to decide whether ~~uss~/~ is sufficiently flexible or simply write a shell 
+script that runs the various AFS administration commands one by one. 
+The AFS System Administration Guide has many more details on additional template 
+definition lines and usage notes. 
+
+Even within the standard use of ~~uss~/~, some steps still must
+be performed externally to the system. After you run ~~uss~/~, you must install the user's
+name, identity number, and home directory path name into the UNIX password file or map. You must also release the parent
+volume to the user's home mount point, ~~vos release cell.user~/~.
+
+Before adding users, you can also use ~~uss~/~ to delete a user. Doing so will
+delete the user entry in the Kerberos identity database, the protection 
+database, the user's home directory volume, and volume mount-point.
+Rather than use a configuration file, this command simply uses command-line 
+options to specify the volume and mount point.
+
+To run many additions or deletions at once, you can create a file containing
+all of the options to the ~~uss~/~ commands you want to run, and ~~uss~/~ will perform
+the add or delete user operations. Using the file method is slightly better than simply running 
+these commands in a simple shell script because, if an error occurs, the commands 
+are automatically retried up to three times and if the problem persists, the
+error conditions are correctly flagged and reported.
+
+SECTION: SUMMARY
+
+Kerberos administration may be the most arcane aspect of AFS administration.
+This is a shame because plenty of available information 
+describes the protocol in bit-by-bit detail. As the system has been
+around for almost a decade, many improvements have been
+integrated, and the security issues raised by the protocol are well
+understood.
+
+If Kerberos is new to your organization with AFS, you would do well
+to discuss the system with an outside vendor or consultant. The authentication
+credentials can be used for many more purposes other than providing secure
+access to files. Either the Transarc or the MIT Kerberos database can
+be the foundation for a new security infrastructure.
+
+As for administration, the new tasks outlined here are likely
+to be used fairly often as users join and leave an organization. One
+of the more important aspects of the system is making sure that the
+Kerberos database, the protection database, and the UNIX password
+maps are all kept in synchronization. 
+
+In typical fashion, Transarc supplies a tool, ~~uss~/~, that can help you
+add users to your AFS cell. Whether this particular tool fits
+your purposes is up to you. If not, the AFS administration commands
+are not difficult to run manually or in your own scripts and procedures.
+
+Now that we have got a functioning cell and users, we can take a look at how users can actually make use of the distributed
+file system.

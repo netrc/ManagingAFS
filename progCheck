@@ -1,0 +1,6 @@
+#! /bin/sh
+
+egrep "[ 	][ 	]*[\$\#]" | egrep -v "[<]B"
+egrep "[ 	][ 	]*kas>" | egrep -v "[<]B"
+egrep "[ 	][ 	]*bak>" | egrep -v "[<]B"
+

@@ -1,0 +1,125 @@
+
+BIBLIOGRAPHY
+
+Preface
+
+PROGRAM
+Transarc Corporation
+http://www.transarc.com
+PROGRAM
+
+PROGRAM
+Richard Campbell
+http://www.netrc.com
+PROGRAM
+
+Chapter 1: Architectural Overview
+
+PROGRAM DONE
+"Scale and Performance in a Distributed File System"
+John H. Howard, Michael L. Kazar, Sherri G. Menees, David A. Nichols, 
+M. Satyanarayanan, Robert N. Sidebotham, Michael J. West
+ACM Transactions on Computer Systems,
+Vol. 6, No. 1, February 1988, pp 51-81.
+PROGRAM
+
+PROGRAM
+"Synchronization and Caching Issues in the Andrew File System"
+Michael Kazar
+USENIX Conference Proceedings, Dallas Winter 1988, pp. 27-36.
+PROGRAM
+ 
+PROGRAM
+"A Usage Profile and Evaluation of a Wide-Area Distributed File System"
+Mirjana Spasojevic, M. Satyanarayanan
+USENIX Conference Proceedings, San Francisco Winter 194, pp. 307-323
+PROGRAM
+ 
+PROGRAM
+"A Survey of Distributed File Systems"
+M. Satyanarayanan
+Carnegie-Mellon University, Computer Sciences Department Technical Report
+CMU-CS-89-116, Februrary 1989
+On-line references
+PROGRAM
+
+PROGRAM
+AFS-FAQ
+http://www.transarc.com/afs/transarc.com/public/www/Product/AFS/FAQ/faq/html
+PROGRAM
+
+PROGRAM
+Linux-AFS FAQ
+http://linux.wauug.org/umlug/linuxafsfaq.html
+PROGRAM
+
+Chapter 2: AFS Technology
+
+PROGRAM
+"Rx: A High Performance Remote Procedure Call Transport Protocol"
+Bob Sidebotham
+Information Technology Center, CMU, February 23, 1989
+PROGRAM
+
+Chapter 3: Setting Up An AFS Cell
+
+PROGRAM
+<I>Ubik</I>
+Philip K. Dick
+Vintage Books, 1991
+PROGRAM
+
+Chapter 6: Managing Users
+
+PROGRAM
+"Using Encryption for Authentication in Large Networks of Computers"
+R.M. Needham, M.D. Schroeder 
+Communications of the ACM 
+Vol 21(12), December, 1978 pp.993-999.
+PROGRAM
+
+PROGRAM
+"Kerberos: An Authentication Service for Open Network Systems"
+Jennifer G. Steiner, Clifford Neuman, Jeffrey I. Schiller
+Usenix Conference Proceedings, March 1988
+PROGRAM
+
+Chapter 8: Archiving Data
+
+PROGRAM
+"The AFS 3.0 Backup System"
+Steve Lammert
+LISA IV, Proceedings of the Fourth Large-Scale System Administration Conference
+October 1990
+PROGRAM
+ 
+Chapter 11: Large-Scale Management
+
+PROGRAM
+"Morgan Stanley's Aurora System: Designing a Next Generation 
+	Global Production UNIX Environment"
+Xev Gittler, W. Phillip Moore, and J. Rambhaskar
+LISA IX, Proceedings of the Ninth Large-Scale Systems Administration Conference
+Sept 1995 p. 47-58.
+PROGRAM
+
+PROGRAM
+"Institutional File System at the University of Michigan"
+Ted Hanss
+<I>In Distributed Computing: Implementation and Management Strategies</I> 
+Raman Khanna, Editor, Prentice Hall, 1993
+PROGRAM
+
+PROGRAM
+"An AFS-Based Supercomputing Environment"
+Jonathon S. Goldick, Kathy Benninger, Woody Brown, Christopher Kirby, 
+Cristopher Maher, Daniel S. Nydick, Bill Zumach
+Pittsburg Supercomputing Center
+PROGRAM
+ 
+PROGRAM
+"An AFS-Based Mass Storage System at the Pittsburg Supercomputing Center"
+Nydick.D, ~~et al~/~. 
+Proceedings of the Eleventh IEEE Symposium on Mass Storage Systems, October 1991
+PROGRAM
+

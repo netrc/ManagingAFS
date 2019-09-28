@@ -1,0 +1,1576 @@
+CHAPTER FIVE: CLIENT ADMINISTRATION
+
+At times, server management may seem like keeping a dozen plates spinning on
+sticks. Happily, that's not quite accurate. Even so, client administration is much
+simpler, though there are still several details that can be managed to optimize
+performance and reliability. The following sections describe the
+management needed to keep AFS clients well connected to their local and
+other cells.
+
+In the previous chapters, the administration process managed pieces
+of the entire AFS cell directly; however, in much of the following, AFS commands manipulate the state of a
+single desktop machine. As such, the authentication process is less
+demanding: cell management needs a Kerberos-authenticated AFS administration
+credential, but client administration requires only the local superuser
+(UNIX root) access. There's no danger of breaking the AFS security model
+because all that can be accomplished with UNIX root is local process and
+file manipulation. Commands that require root privilege are noted in
+the text: the examples indicate root usage
+with a ~~#~/~ prompt rather than the regular prompt ~~$~/~ used for
+nonprivileged users. 
+
+
+SECTION: CONFIGURATION
+
+Running an AFS client consists mainly of setting up a few small
+configuration files, setting aside a cache area, installing the dynamically
+loaded kernel module supplied by Transarc, and then starting up the client
+AFS daemon, ~~afsd~/~. The configuration files and cache area are one-time
+administration issues; loading the kernel module and starting ~~afsd~/~ must be
+done during every reboot. These two steps can be done almost whenever desired during
+booting. However, because many sites like to store as much data as possible in
+the file system, including many administration tasks, it is most common to
+run ~~afsd~/~ as soon as possible during booting. For most UNIX-based systems,
+this means right after the configuration of the network interfaces, after the first few lines of the system ~~rc~/~ files
+have run.
+
+The configuration files include ~~/usr/vice/etc/CellServDB~/~,
+~~/usr/vice/etc/ThisCell~/~, and ~~/usr/vice/cacheinfo~/~. (Remember that all the client
+configuration files are located under ~~/usr/vice~/~, and those of the server are
+located in ~~/usr/afs~/~.)
+
+The client's ~~CellServDB~/~ file is similar to that of the servers, with this exception: rather
+than just requiring the names and addresses of the local cell's database
+machines, any other cells the client will need to talk to must also be listed. This list includes any other of your organization's cells and any external
+sites, such as Transarc. The format of the file is the same as on the
+server:
+
+PROGRAM DONE
+	>hq.firm	# our example cell
+	192.168.3.11	#  db-one
+	192.168.3.12	#  db-two
+	192.168.5.13	#  db-three
+	>transarc.com   # Transarc Corporation
+	158.98.14.3     #oscar.transarc.com
+	158.98.3.2      #ernie.transarc.com
+	158.98.3.3      #bigbird.transarc.com
+PROGRAM
+
+This file's contents must be laid out correctly with no blank lines permitted. 
+The line's beginning with the "~~>~/~" character signal a new stanza of 
+information for a cell; that sentinel is followed by the cell name, some 
+blank spaces, and finally a "~~#~/~" character followed by a comment, 
+typically a readable version of the cell name. 
+
+Each of the following lines of cell information specify one of the database 
+servers. The Internet address of the server in dotted-quad format is listed, 
+followed by a "~~#~/~" character and the DNS host name of the server. 
+<I> The DNS host name is not a comment -- it is a required field.</I>
+
+Other than the formatting of the specification lines, the order of the
+database servers in a cell and the order of the cells in the file are
+irrelevant.
+
+The ~~ThisCell~/~ file contains just a single word, the name of the local cell.
+This file is examined by most user-level commands to define the local cell. In our
+example it would contain:
+
+PROGRAM DONE
+	hq.firm
+PROGRAM
+
+To make the cache area, first decide whether to have a memory- or a disk-based cache. Putting the cache into the kernel memory may be the easiest
+option, but it is unlikely that this solution will result in the best performance of
+the system. Though the in-memory cached data can be stored and read quickly,
+the small size of the cache will likely cause many more cache misses, and
+therefore more frequent requests to the server, which in turn leads to
+greater server load.
+
+Even so, memory caches work well enough that they can certainly be useful in
+certain circumstances, and certainly if the desktop machine has no disk.
+When a memory cache is used, all of the cache configuration information is
+passed to the kernel on the command line of the client daemon process. On a Sun 
+workstation running Solaris, the command lines would look like this:
+
+PROGRAM DONE
+	# <B>modload /kernel/fs/afs</B>
+	# <B>afsd -memory</B>
+	afsd: All AFS daemons started
+PROGRAM
+
+Here, the ~~modload~/~ command installs the new AFS kernel module, which includes the
+AFS client file system operational code and the new system calls used to
+initiate client services. During the installation of the client, the
+kernel module is usually copied from ~~/usr/vice/modload/libafs.o~/~ into the 
+correct location, depending on the type of the operating system.
+
+UNIX vendors will provide one or more ways to do this: by statically
+building a new kernel with the desired functions, by dynamically loading a
+module into a running kernel, or by loading all kernel modules at boot time.
+Under SunOSª you can either build a new kernel or dynamically load the
+module; Under IBM's AIX, you must dynamically load the module; under
+Digital UNIX, you must build a new static kernel. For dynamic loading,
+Transarc provides a program, ~~dkload~/~, for several platforms. 
+Read the installation manual and the latest release notes for information on
+correctly updating the kernel.
+
+There's not too much difference in the administration overhead for 
+building a new kernel versus dynamically loading the module during 
+the booting process. For the kernel internals, the result is
+almost exactly the same: the AFS procedures are link-edited into the kernel
+address space, and certain system tables are adjusted to include the new
+file system type. If your site distributes customized or bug-fixed
+kernels as a matter of course to desktops, then compiling a static kernel
+with AFS extensions may be straightforward; otherwise, performing the
+dynamic module load during every reboot is a fairly quick and reliable
+process.
+
+In any case, the effect is to add new functionality into the operating
+system. When the ~~afsd~/~ command executes, it forks itself four times and in each runs one of the new system calls.
+When you examine the system process table, you'll see four ~~afsd~/~ processes
+running, one for each of the kernel-based execution threads necessary for
+AFS.
+
+Besides their generally larger sizes, disk-based caches have one important
+advantage over memory caches: the file data cached on disk survives a
+machine reboot. A user who has run a large program stored in AFS will have
+it transferred to the local disk and will execute it from cache no matter
+how many times the user logs off or shuts off the machine. Since the
+file will be recached whenever it is updated, the automatic file caching
+process immediately solves many software distribution problems.
+
+Disk-based caches usually place their cache files in the directory ~~/usr/vice/cache~/~. 
+In general, bigger is better, though larger caches take longer to initialize 
+the first time around. Some studies have reported that most of the benefits 
+of a cache are reached at around 70 megabytes. It seems reasonable, given the larger 
+internal disks now routinely installed by vendors, to make client caches 
+anywhere from 100-300 megabytes large. You configure the location and size of the cache by entering the data into a one-line file, ~~/usr/vice/etc/cacheinfo~/~. 
+The file stores three pieces of information: the initial entry point into the AFS file name 
+space (normally ~~/afs~/~), the location of the cache directory (normally 
+~~/usr/vice/cache~/~), and the size of the cache in kilobytes (100000 would 
+equal almost 100 megabytes). The ~~cacheinfo~/~ file would therefore look like this:
+
+PROGRAM DONE
+	/afs:/usr/vice/cache:100000
+PROGRAM
+
+The daemon startup commands would look like this:
+
+PROGRAM DONE
+	# <B>modload /kernel/fs/afs</B>
+	# <B>afsd</B>
+	All afsd daemons started.
+PROGRAM
+
+During the very first startup of the daemon, the kernel will initialize the
+cache area by making file entries in the cache directory. If you list the
+contents of the cache directory, you'll see several hundred files named V1
+through perhaps V1000 or more, depending on the specified size of the cache.
+These empty files are created and their internal disk positions stored in
+memory so that the AFS client code can access the cache's disk blocks as
+efficiently as possible. Initial ~~afsd~/~ startup is somewhat proportional to the
+number of V-files which need to be created.
+
+On initial startup, don't use the daemon's ~~-verbose~/~ option as a separate console message
+will be printed for each V-file created in the client cache. You may want to
+run this option if you suspect that the ~~afsd~/~ program or kernel module is
+completely corrupted. Otherwise, for any decently sized cache, this option
+will only serve to substantially delay the initial startup configuration 
+of the client. One way around the long startup time is to create the 
+cache V-files on one machine. Then, use a UNIX disk dump/restore 
+mechanism to copy over the information directly onto a new client's local 
+partitions rather than having ~~afsd~/~ formally create each file one at a time.
+
+Once the cache files are created, the client daemon attaches to the cache area quickly enough.
+The main job of the ~~afsd~/~ daemon is to mount the AFS file system onto the
+local machine. As with other UNIX mount commands, the top-level directory,
+~~/afs~/~, must exist before the mount executes. Because ~~afsd~/~ may take a second or two
+to begin (especially during the first initialization), it will help to add a
+dummy file underneath the UNIX directory. 
+
+PROGRAM DONE
+	# <B>mkdir /afs</B>
+	# <B>touch /afs/AFS_NOT_RUNNING</B>
+	# <B>ls /afs</B>
+	AFS_NOT_RUNNING
+PROGRAM
+
+When ~~afsd~/~ is started as a background process, you can check for the existence of the dummy file and, when it is no longer visible, you can assume that 
+AFS is up and running. Here's an example, using the shell command language. 
+
+PROGRAM DONE
+	# <B>afsd &</B>
+	# <B>while [ -f /afs/AFS_NOT_RUNNING ]</B>
+	> <B>do</B>
+	> <B>   sleep 5		# loop while the local file is visible</B>
+	> <B>done</B>
+	# <B>ls /afs		# AFS is now available</B>
+	hq.firm   transarc.com
+PROGRAM
+
+Once the ~~afsd~/~ daemon has finished mounting the AFS file system on the ~~/afs~/~
+mount point, examining ~~/afs~/~ will retrieve the AFS file and not the UNIX
+sentinel file. In normal use, this mount will happen right away, but if a machine
+has been misconfigured or the AFS kernel module is corrupted, then no mount
+will occur and ~~/afs/AFS_NOT_RUNNING~/~ will continue to be visible.
+
+
+SECTION: CACHE MANAGER
+
+On subsequent startups of the disk-based cache manager, you'll see 
+slightly different output.
+
+PROGRAM DONE
+	# <B>afsd</B>
+	Starting AFS cache scan...
+	Found 1690 non-empty cache files (29%)
+	All afsd daemons started.
+PROGRAM
+
+After the first use of AFS on a client, there will be some number of remote files cached
+locally. As the ~~afsd~/~ process starts, it reads through these files,
+notes that this cached data could be reused, and prints a message 
+showing how many files it discovered. 
+
+These are files and directories that have valid FIDs and data blocks 
+and are potentially up to date and usable. But because the client may 
+have missed a callback from the server saying the file is out of date, 
+each file will need to have its version number checked via a quick, 
+small RPC call to the server. This check is done as the files are 
+accessed; if the server agrees that the local file is up to date, the 
+client reestablishes a callback promise with the server and returns 
+the data to the calling application.
+ 
+Besides having files under ~~/afs~/~ available, there is little evidence that AFS
+is running on a client. If you examine the standard UNIX process status
+output, you can find the cache manager daemon, seen here on a Solaris machine:
+
+PROGRAM DONE
+	$ <B>ps -ef</B>
+	UID    PID  PPID  C    STIME TTY      TIME CMD
+	root   237     1  0 17:16:37 ?        0:00 /usr/vice/etc/afsd 
+	root   238     1  0 17:16:37 ?        0:00 /usr/vice/etc/afsd
+	root   239     1  0 17:16:37 ?        0:03 /usr/vice/etc/afsd
+	root   240     1  0 17:16:37 ?        0:00 /usr/vice/etc/afsd
+	...
+PROGRAM
+
+The ~~afsd~/~ program is actually quite small and does little more than copy some
+configuration information into the kernel and then run some newly installed
+system calls, each of which usually just schedules some threads of execution
+inside the kernel. It is these nonreturning threads that you see as the
+multiple ~~afsd~/~ processes in the output of the ~~ps~/~ command.
+
+These kernel operations are collectively known as the <I>cache manager</I>. The
+job of the manager includes:
+
+-- Requesting data from the servers on behalf of user applications
+and storing it locally
+
+-- Answering callbacks from the server to identify out-of-date data
+and to respond to periodic probes from file servers
+
+-- Probing the file servers regularly, flushing the volume mappings
+once every hour, and freeing up kernel memory as needed for data structures
+used to maintain the system
+
+-- Some background processing to pre-fetch file data and perform
+delayed writes 
+
+Because the threads continue forever once started, ~~afsd~/~ never exits; 
+it is impossible to kill the process. Certain pieces of information
+transferred into the kernel, such as the name of the local cell, cannot be
+changed once the cache manager is running. As the process cannot be
+restarted, a client machine must be rebooted if the local cell name is to
+change.
+
+As mentioned, disk-based caches appear to be many, many files in the cache
+directory. The cache directory is normally readable only by the superuser, although there's nothing that can be done to the cache except through AFS 
+administration tasks. If you insist on looking in the cache, you'll see 
+it looks something like this:
+
+PROGRAM DONE
+	# <B>ls -l</B> 
+	-rw-------   1 root     other          0 Aug 13  1996 AFSLog
+	-rw-------   1 root     other     462816 Apr  5 13:44 CacheItems
+	-rw-------   1 root     other          0 Aug 13  1996 VolumeItems
+	-rw-------   1 root     other          0 Aug 13  1996 V0
+	-rw-------   1 root     other          0 Aug 13  1996 V1
+	-rw-------   1 root     other          0 Aug 13  1996 V2
+	-rw-------   1 root     other          0 Aug 13  1996 V3
+	-rw-------   1 root     other          0 Aug 13  1996 V4
+	...
+	-rw-------   1 root     root          10 Mar 30 17:11 V8993
+	-rw-------   1 root     root          29 Mar 30 17:01 V8994
+	-rw-------   1 root     root          29 Mar 30 17:00 V8995
+	-rw-------   1 root     root          29 Mar 30 16:36 V8996
+	-rw-------   1 root     root          11 Mar 30 16:35 V8997
+	-rw-------   1 root     root        2048 Mar 29 16:55 V8998
+	-rw-------   1 root     root        2048 Mar 29 16:55 V8999
+PROGRAM
+
+The ~~CacheItems~/~ file holds the mappings between the V-files and the AFS 
+files stored by the V-files; it is flushed from kernel memory to disk once a minute. The ~~VolumeItems~/~ 
+file holds mappings between the volume names the manager has traversed, 
+their identification numbers, and any file server sites that store the 
+volumes' files.
+
+The files in this directory are, of course, owned by the cache manager.
+Any careless administration here, such as deleting data or using space which has been
+reserved by the client cache, can result in a kernel panic. This area must
+also be restricted to any access by nonprivileged users. The file data is
+stored on the local disk in the V-files; anyone who can read the files can
+reconstruct the file data (though identifying which files hold what data can
+be difficult).
+
+Each V-file stored one file or one piece of one file. By default,
+the size for a V-file is 64 kilobytes; this value can be set to a power-of-2-sized number of kilobytes on the ~~afsd~/~ command line. The size of the V-file 
+is referred to as the <I>chunk size </I>of the cache. This size is the same as the 
+amount of data retrieved from the server with one request.  Figure 5-1
+shows how the V-files and chunk sizes are used by the cache manager.
+
+[[Figure 5-1: How the Client Cache Stores Data]]
+
+In the example, the chunk size has been drastically lowered to 64 kilobytes. You can see two files are cached, ~~fileA~/~ is 100 kilobytes and ~~fileB~/~ is 
+10 kilobytes. The smaller file was retrieved in a single client request 
+and stored into a single V-file; the larger file took two requests and 
+is stored into two V-files. Though it may look like the empty space in 
+the first and third V-file is wasted, be assured it is not. The example 
+has artificially set the cache size to just 256 kilobytes, 6 V-files, and a 64 kilobyte chunk size. 
+The two stored files are using 110 kilobytes of the total cache size; therefore
+there are three more V-files in which to store another
+146 kilobytes of available cache space.
+
+The ~~-chunksize~/~ argument to ~~afsd~/~ changes the maximum size of each 
+V-file and the amount of data retrieved from file servers on each request. 
+The argument to this option is not the actual size in kilobytes. To force the chunk
+size to be a perfect power of 2, the argument expresses the size as the log
+to the base 2 of the chunk size: 10 indicates a chunk size of 1024 bytes or
+1 kilobyte, 11 indicates 2 kilobytes, 16 is the default size of 64
+kilobytes, and 20 would create a large chunk size of 1024 kilobytes or 1
+megabyte.
+
+Larger chunk sizes make sense when clients will be fetching data from file
+servers close to them on the network or when attached by fast links, such as
+100 megabit Ethernet or FDDI. Smaller chunk sizes might be appropriate for
+slower network's connectivity, such as 56 kilobit serial links. Unfortunately,
+this chunk size is set for the entire cache and cannot be tuned on a per-cell or per-volume basis. Inasmuch as directory listings tend to be much smaller
+on average than files but are cached in V-files too, the chunk size
+will always be a compromise.
+
+Once the chunk size is specified on the command line and the cache size is defined in 
+the ~~cacheinfo~/~ file, the manager can compute the number of V-files that will 
+be created. The algorithm is constructed to create many more V-files than 
+you might expect.  The number created will be the larger of:
+
+-- 1.5 times the cache size divided by the chunk size
+
+-- The cache size divided by 10,240
+
+-- The value of the ~~-files~/~ option
+
+-- Or 100, as a minimum
+
+For a 100-megabyte cache and the default, 64-kilobyte chunk size, there 
+will be 10,240 V-files created according to the second rule listed.
+(The AFS System Administration Guide wrongly reports that the divisor is 10,000.) The equation is really the cache size in kilobytes divided 
+by 10; this value is equal to the cache size in bytes divided by 10 * 1024,
+or 10,240. The algorithm is derived from file system studies that show
+that the average file size is around 10 kilobytes.
+
+The purpose is to build a cache that can hold as many average-sized files as will fit into the total cache size. If the average size
+of your files is small, then you will underuse your cache. Looking
+back at Figure 5-1: if your files averaged 1 kilobyte each, then, after the sixth
+file, your cache would start to invalidate previously cached files, even 
+though only 6 kilobytes out of 256 kilobytes are stored.
+
+While AFS clients try to store as many average-sized files as possible,
+the client also tries to take care of large files by retrieving them in
+large chunk and storing each chunks in a single V-file for easy access. This
+is an attempt to have the best of both worlds, and only experimentation with
+your environment and your file usage patterns will show whether the cache 
+is being effectively used. Because a single folder or directory is considered
+a file and takes up a single V-file, clients that constantly traverse
+hundreds of directories might see lower than expected performance.
+
+The first option to adjust is the total size of the cache: raise it
+generously and see how that helps your local performance. Next, try
+increasing the chunk size; some sites with small cells and good networks
+find that 1-megabyte chunks work well. If you recognize that the cache 
+is woefully underutilized, increase the number of V-files by 
+supplying a larger number as argument to the ~~-files~/~ option of ~~afsd~/~.
+
+Normally, a UNIX administrator would be wary of extremely large numbers
+of files in a directory as looking up any individual file would be a
+time consuming operation. When the AFS cache area is allocated upon initial
+startup, pointers to each V-file are stored in an internal hash, thereby
+bypassing normal UNIX directory searches and making individual cache file 
+lookup extremely fast.
+
+The ~~CacheItems~/~ file holds information about each V-file, such as the AFS file
+identification number and the chunk's position in the file. There are exactly
+as many entries in this file as there are V-files. A portion of this
+information is cached in kernel memory for efficient lookups. Normally, the
+kernel will cache half the number of entries up to a total of 2,000. Use the option ~~-dcache~/~ to set this value exactly. If desired, you can configure more
+than 2000 entries but this practice is not recommended. AFS version
+3.4 had a bug which required the number of dcache items to be set on the command line; as of 3.4a,
+the cache manager will be able to calculate a best value on its own.
+
+One other set of data stored inside kernel memory is a cache of status
+information about the locally cached AFS files. Use the ~~-stat~/~ option 
+to set this number exactly; by default, the number of entries cached is 300.
+
+As you can see, it's possible to set values for different cache parameters,
+some of which can contradict each other. The most important item to administer 
+is the total size of the cache because most of the other values can be automatically
+determined. Table 5-1 shows how the cache size and other optional values
+will result in a working cache. 
+
+[[Table 5-1: Possible Cache Configuration Options]]
+
+The number of background daemons dedicated to pre-fetching file data and delayed writing is by default 2. Machines that will be heavily used by many processes
+or many users may benefit from an increased number of background
+daemons (to a maximum of 6). Use the ~~-daemons~/~ option.
+
+Two other options to ~~afsd~/~ allow you change some of the client cache manager's
+assumptions about the initial connection to AFS. You can use the ~~-mountdir~/~
+option to mount the AFS file system at a different directory than ~~/afs~/~, and 
+the ~~-rootvol~/~ option to specify that that directory is to be connected to a 
+different root volume than the default, ~~root.afs~/~. Having AFS mounted at 
+a different directory is a small convenience, though you could just create 
+a symbolic link from anywhere on the client to ~~/afs~/~. 
+
+In-kernel memory caches work exactly the same as do disk-based caches, except
+that certain parameters are
+interpreted differently because of the normally reduced size of the cache. 
+For example, no cache directory is
+created, even though it is still specified in the ~~cacheinfo~/~ file, and rather
+than storing data into V-files, cached data is stored in contiguous chunks
+of kernel memory with the default size of 8 kilobytes for each chunk. There is also no
+~~CacheItems~/~ file nor a ~~VolumeItems~/~ file as all entries are in memory.
+
+As users proceed with their day-to-day work, files, directories, groups, and
+various other data will be cached by the client. You can quickly check how
+large the cache is and how much is being used with the command
+
+PROGRAM DONE
+       $ <B>fs getcacheparms</B>
+	AFS using 81487 of the cache's available 100000 1K byte blocks.
+PROGRAM
+ 
+The cache size can be adjusted on the fly if desired.
+ 
+PROGRAM DONE
+	# <B>fs setcachesize 120000</B>
+	New cache size set.
+	# <B>fs getcacheparms</B>
+	AFS using 81487 of the cache's available 120000 1K byte blocks.
+
+PROGRAM
+
+When you configure the cache, be aware that it will help in the long run for the cache
+to reside in its own disk partition. The AFS kernel module makes many 
+assumptions about its cache, not the least of which is that the cache is 
+solely under its control. Giving the cache its own partition helps to ensure that 
+no other processes can inadvertently use up cache disk space.
+
+The size of the cache indicated in the ~~cacheinfo~/~ file or on the command line
+should be about 95 percent of the actual size of the partition. As mentioned, the
+cache area holds many large data structures that manage the AFS
+client protocol and also holds the space for the file cache itself. The cache size
+parameter describes only the area of the file chunks, so some
+leeway must be made for other data. If you set aside a 100-megabyte
+partition, you should only configure 95 megabytes of file cache.
+
+Memory caches need to be large, but because the space is needed for running
+programs and other non-AFS kernel structures, you will have to experiment to
+find a good balance between cache and application performance. Memory caches of
+less than 1 megabyte will not be functional; at least 5 megabytes
+should be available. Chapter 10 describes some tools you can use to determine
+the cache hit ratio.
+
+Note that even disk-based AFS caches use the kernel's memory
+buffer pool when reading and writing data to disk. For example, during an
+application write request, the written data is really stored in the
+operating system's buffer cache or memory-mapped file segment. Regularly,
+this data will be swept out of the cache by the kernel and stored on disk, 
+but this is only an optimization used by the kernel to speed up disk writes. 
+As far as the cache manager is concerned, when
+it re-reads newly cached file chunks the manager
+reads the data off the disk. If the client is lucky, the data will still
+be in a memory segment which will further speed up operations.
+
+One final comment about the client cache: Multiple users on a single 
+workstation will share their cache but authorization checks are 
+performed separately for each user. If one user reads a publicly 
+available file, the next user will find and use that data in the cache. 
+If the file is not public but only permitted to the first user,
+the next user will find the item in the cache, the authorization check 
+will be performed, and that read or write access will be denied.
+
+SECTION: FINDING AFS SERVERS
+
+Managing the client's database of cells is usually a simple process.
+The ~~CellServDB~/~ file must be a local file; it is read once by ~~afsd~/~ which passes the data into the kernel as AFS is starting up. You can see the 
+cells that the kernel knows about with this command:
+
+PROGRAM DONE
+	$ <B>fs listcells</B>
+	Cell hq.firm on hosts db-one db-two db-three
+	Cell transarc.com on hosts oscar.transarc.com ernie.transarc.com bigbird.transarc.com
+PROGRAM
+
+To administer changes to a client ~~CellServDB~/~, simply edit or copy over a new
+version of the file. But because the cache manager reads the file's contents only at
+startup, you can't just edit the file and leave it at that. To make changes 
+to a running client, you should make the changes first to the file and then 
+run an ~~fs~/~ command to install the new data into the kernel module.
+
+PROGRAM DONE
+	# <B>fs newcell transarc.com oscar.transarc.com ernie.transarc.com bigbird.transarc.com</B>
+	# <B>fs listcells</B>
+	Cell hq.firm on hosts db-one db-two db-three
+	Cell transarc.com oscar.transarc.com ernie.transarc.com bigbird.transarc.com
+PROGRAM
+
+One nice feature of the ~~newcell~/~ subcommand is that you can give DNS names
+as arguments to the command rather than having to determine the absolute IP
+addresses and edit them into a file. Indeed, you could dynamically add the majority of
+the cell server database to a client's kernel rather
+than relying on the static ~~CellServDB~/~ file. You'll still need to
+bootstrap the process with your own cell's entry in the file, though.
+
+As a machine contacts file and database servers, it constructs a table
+of preferences which it uses when determining which servers to prefer.
+The value runs from 1 to 65,534; a lower value indicates 
+a stronger preference. The values can be thought of as the cost or 
+distance to a server - a lower value is cheaper or closer to a client. 
+
+File server machine preferences are calculated as the systems are
+discovered during volume lookups.  Default values are assigned on the basis 
+of implicit network address information:
+
+-- 40,000 - If the server is on a different network than the client or
+the server's network data is unavailable
+	
+-- 30,000 - If the the server is on the same network as the client; also
+if the server is at the end of a point-to-point link from the
+client
+
+-- 20,000 - If the server is on the same sub-net as the client
+
+-- 5,000 - If the server is running on the client
+
+As can be seen, these preferences will generally encourage a client to access 
+the closest server according to the network topology. File servers which are 
+seen to be closer, that is, on the same subnet as the client, get numerical 
+values higher than other file servers. During an outage, if a file server fails to respond 
+to a file access request, its preference value will be made greater than any other server.
+If the request was for a file in a read-write volume, the client is out
+of luck; if the request was for a file in a read-only volume, the client will try
+to contact the next closest server that is storing a copy of the same 
+read-only volume.
+
+
+Administrators can manually adjust the preferences used by a client to 
+predetermine which replica sites it chooses to use.
+The current preferences can be viewed with the ~~fs~/~ command:
+
+PROGRAM DONE
+	$ <B>fs getserverprefs</B>
+	fs-one		20014
+	fs-two		20008
+PROGRAM
+
+To have a client prefer the server ~~fs-two~/~ over all other servers, use the
+~~setpreferences~/~ subcommand with a suitable value (from 0 to 65,534):
+
+PROGRAM DONE
+	# <B>fs setserverprefs fs-two 1000</B>
+	# <B>fs getserverprefs</B>
+	fs-one		20014
+	fs-two		1004
+PROGRAM
+
+From now on, if a read-only is available from multiple servers, the client will prefer to retrieve file data from ~~fs-two~/~.
+
+The preferential value for ~~fs-two~/~ is not exactly 1000 because the client
+kernel numerically ORs the desired value with a random 4-bit number. When preferences are calculated automatically, this technique ensures that
+each client sees slightly different preferences by default and therefore
+automatically distributes the load from a set of clients across all replica
+servers.
+
+Similar preferences can be set for access to database servers. Rather than
+having a client pick a volume location or protection database server at
+random, you can adjust the preferences.
+
+PROGRAM DONE
+	# <B>fs getserverprefs -vlservers</B>
+	db-one		20006
+	db-two		30012
+	db-three	30008
+	# <B>fs setserverprefs -vlservers db-one 6000</B>
+PROGRAM
+
+Actually, clients are proactive in their search for inaccessible servers.
+Every 10 minutes a client will send a probe message to each database
+server in its list and to all file servers which have established
+callbacks for it. If no response is received, the client 
+assumes the worst and marks the server as being down. The next requests
+to be sent to that server will be redirected to either another
+database or file server, as needed, but the client will also assume
+that this failure will be quickly corrected; it will probe the
+down servers every three minutes waiting for their resurrection.
+Users may notice messages to this effect on the system console.
+
+Server preference rankings are the standard mechanism by which a central 
+administrator can begin to control the network traffic from a client. In a 
+typical wide-area network, there may be high-speed LANs at the departmental 
+level, with medium-speed links between separate buildings. A natural AFS 
+architecture would position file servers with standard sets of replicas and 
+a database server in each building. This locality will benefit clients as 
+long as they are aware of the logical distances between themselves and 
+the servers. The server preferences metric provides that measure but at 
+the same time is only a hint to the client. If the cheapest or closest 
+servers are unavailable, the cache manager will move on to the next 
+available system, even if that system is located elsewhere on the WAN. 
+In a working environment, AFS therefore provides optimizations to maximize 
+the distributed file system; if that environment begins to fail, AFS will 
+try to work around the faults.
+
+As with the ~~CellServDB~/~ file, there is no mechanism in AFS for the centralized
+control of this information. To extract the best values for a client, you might want 
+to keep a file in a well known location. A program could easily read the file 
+and compute preferences on the basis of known network or geographic indexes. 
+You should also note that numerical preferences for a cell are reset to default 
+values when the ~~fs newcell~/~ command is used.
+
+Adventurous administrators could deliberately have different machine entries
+for the same cell in the ~~CellServDB~/~ file on different clients. If client A's
+~~CellServDB~/~ file listed only the ~~db-one~/~ machine for our cell, the effect
+would be similar to ~~db-two~/~ and ~~db-three~/~ having an infinitely large
+numerical preference and ~~db-two~/~ and ~~db-three~/~ would never be contacted by this
+client. The only benefit to this arrangement is that it guarantees that the
+client could never contact certain database servers; with a fully populated
+~~CellServDB~/~, no matter what preferences were initially set, the client might
+eventually fail over to using ~~db-two~/~. This technique would effectively forbid a particular network path to a client.
+As long as the AFS servers' ~~CellServDB~/~ contains the complete set of database
+servers, there's no danger of the server data becoming inconsistent: all clients
+will still see the same data. This client-side-only solution simply helps
+to direct traffic in a deterministic fashion.
+
+Another way to manipulate the AFS namespace on a per-client basis is
+to have different clients mount AFS using different root volumes. The
+standard convention is to have all clients mount the well-known ~~root.afs~/~ 
+volume with multiple, second-level mounts of the local and various remote 
+cells' ~~root.cell~/~ volume. Some enterprises might want to have certain client
+populations - perhaps a set of production users - connect to a different
+root volume, maybe, ~~root.prod~/~. The benefit is that their namespace could
+be deliberately constrained so that access to certain volumes would be
+difficult. However, maintaining strict administrative control
+over two or more root level volumes may outweigh any perceived benefits;
+and anyway, restricting access can be performed more reliably with AFS
+access control lists.
+
+Even with AFS replication and fail over, there is one
+failure mode that is not handled perfectly. Normally, when a file is requested 
+and the request times out due to either a network failure or server
+crash, the client will try to perform the same read request from another
+server. When the file is not replicated, the client will have to report this failure as an 
+error to the user. If the requested file is a running binary and the read request
+was intended to page-in a program text segment, the result will be a process 
+crash. If the file is a replicated binary, this situation is highly
+unlikely because at least one of the read-only server will probably be
+available. Still, the problem could arise if, say, the client's network
+interface card failed.
+ 
+An NFS client can specify the elasticity of the protocol connection
+with the ~~-soft~/~ or ~~-hard~/~ option to the NFS ~~mount~/~ command. Soft connections return errors on failures; hard connections will hang, repeating the operation until, once the underlying failure has been corrected, the request succeeds. 
+
+In AFS, all access is essentially soft which means that an error will be returned if 
+there is no server response. The problem is that in extraordinary circumstances when 
+all all replicated read-only
+copies are temporarily unavailable, running processes may fail. This is contrary to 
+the goal of a highly available file service. The lack of a hard-retry
+option for read-only volumes - which admittedly would only come into effect
+under very rare circumstances - is an oversight of the AFS design.
+
+SECTION: PROTOCOL OPTIMIZATIONS
+
+Up to now, the AFS file access protocol has been discussed at a somewhat
+high level. For practical reasons, certain optimizations have
+been added to the system to improve its performance without changing the
+essential architecture. The simplest improvement is that when a client
+fetches a chunk of a file from a server, it will return with that data and
+then go ahead and get the next chunk from the file, prefetching it from the
+server in anticipation of a user's subsequent read request.
+
+As previously described, when a client accesses a file in a read-write
+volume, the server keeps track of that access in order to send a callback to the
+client if the file is ever changed. The problem with this noble policy is
+that the server will have many thousands of files and clients and therefore, the server will potentially have to track a tremendous amount of information. To reduce the size of this table, each server timestamps the access
+and after 30 minutes deletes the client from the list of accessors
+for that file.
+
+Naturally, clients are aware of this optimization. They know that if they haven't
+been called back about a file in 30 minutes, the server has deliberately
+forgotten about them. So, if a user needs access to file later than 30
+minutes after the previous access, the client cache manager knows that it
+can't rely on the absence of a callback to assume the file is unchanged. In
+this case, the client sends a brief query packet to the server to check
+on the file's version, using the uniquifier number. If the local copy is still
+the most current, the server and client reestablish another callback
+guarantee; if a new version is available, the client will quickly
+bring over the new file and set up the usual callback. This optimization
+keeps the spirit of the general callback architecture alive while saving
+considerable bookkeeping effort on the server.
+
+When accessing a file in a read-only volume, servers do not do
+much bookkeeping at all, under the assumption that read-only volume
+data changes infrequently. So rather than keep a per-file list of client
+accesses to read-only data, servers track only per-volume accesses. When 
+the read-write master is released over to all read-only versions, the server 
+calls back just those clients that have read from the volume.
+
+This optimization was introduced with AFS 3.4a, but its importance cannot be overstated. Previously, read-only data would unilaterally be
+invalidated by clients every two hours. Because read-only data is presumably some set
+of production binaries released from a read-write staging, it was assumed
+that the data would not change frequently and so a two-hour timeout would
+suffice to keep it fresh. If a user needed to see the latest data,
+a command was available to flush data.
+
+This assumption sounds reasonable but in practice caused precisely the problem
+that AFS tried to guarantee would never happen: different files seen by
+different clients. Now that AFS servers send messages to clients when read-only
+data changes, all clients know that they will always see the latest
+data all the time. 
+
+You can still use the ~~flush~/~ subcommands if you'd like. One version,
+~~fs flush~/~, marks the named file's local copy as invalid, thus causing 
+the client to retrieve the data from the server on the next access.
+With the aid of the ~~getcacheparms~/~ subcommand, we can see precisely
+how flushing invalidates cached file data.
+
+PROGRAM DONE
+	$ <B>fs getcacheparms</B>
+	AFS using 50467 of the cache's available 120000 1K byte blocks.
+	$ <B>ls -l bar</B>
+	-rw-r--r--   1 afsadmin staff    10485760 Mar 29 15:06 bar
+	$ <B>fs flush bar</B>    
+	$ <B>fs getcacheparms</B>
+	AFS using 40227 of the cache's available 120000 1K byte blocks.
+PROGRAM
+
+Another subcommand, ~~flushvolume~/~, causes all file data associated
+with a volume to be invalidated. However, there is no command available to flush
+the entire file cache. If an entire client flush is required, it can be simulated
+by resizing the cache to zero bytes momentarily.
+
+PROGRAM DONE
+	# <B>fs getcacheparms</B>
+	AFS using 40227 of the cache's available 120000 1K byte blocks.
+	# <B>fs setcachesize 0</B>
+	New cache size set.
+	# <B>fs setcachesize 120000</B>
+	New cache size set.
+	# <B>fs getcacheparms</B>
+	AFS using 0 of the cache's available 120000 1K byte blocks.
+PROGRAM
+
+As mentioned, the current release of AFS keeps clients informed of changes to
+both read-write and read-only file data. The only data that is not invalidated 
+when it changes is information on volume locations and mappings between volume names 
+and identifiers. But the lack of an explicit invalidation protocol for this data
+does not cause any problem. For example, the first time a client notices a volume
+connection, the volume identification number and location data is retrieved from 
+the VLDB and cached for further use. If the volume is moved, a client will not 
+be told of the new location or that the cached data is invalid. 
+The reason is simply that volume moves are rare events, rarer even than changes 
+released to read-only volumes.  Clients only learn that a volume has moved when 
+they try to access its old location; the ~~volserver~/~ on that server will respond 
+with an error and that will cause the client to turn to the VLDB server and 
+retrieve the new location information. Hence, no user or application will see
+a location inconsistency.  
+
+Although there is a small delay as the correct data is fetched, it's really not 
+much more of a delay than would be needed even with some sort of callback. And it is
+reasonable for the client to bear the burden of correcting the data rather
+than forcing the server to keep track of yet another set of callbacks.
+However, to reduce the number of wrong requests, cached volume data is marked
+invalid once an hour, forcing the client to retrieve the latest location and volume name
+to identifier mappings reasonably often.
+
+One small inconsistency can still slip through, though it is mostly noticed by 
+administrators. Let's create a volume and make a volume mount point; 
+the mount point is only a directory and volume name stored in the file system, 
+but the client cache manager will need to cache the mapping between the volume
+name and its identifier number.
+
+PROGRAM DONE
+	$ <B>vos create fs-one a vol.1</B>
+	Volume 536871010 created on partition /vicepa of fs-one
+	$ <B>fs mkm vol.1 vol.1</B>
+	$ <B>ls vol.1</B>
+	$
+PROGRAM
+
+All works as expected and the client has now cached the mapping between the name ~~vol.1~/~ and the volume number ~~536871010~/~. Now, we cause that
+volume identifier to change by deleting the volume and creating
+a brand-new volume with the same name.
+
+PROGRAM DONE
+	$ <B>vos remove fs-one a vol.1</B>
+	Volume 536871010 on partition /vicepa server fs-one deleted
+	$ <B>vos create fs-one a vol.1</B>
+	Volume 536871013 created on partition /vicepa of fs-one
+	$ <B>ls vol.1</B>
+	vol.1: No such device
+PROGRAM
+
+As you can see, when accessing the mount point, the client tries to
+retrieve data from the file server but is told that the volume, by
+that number, no longer exists. When the client queries the VLDB by using
+the old identification number, the VLDB also responds that that
+volume doesn't exist. This result is returned to the directory listing 
+program as a prominent error.
+
+The problem is that the mapping between the volume name, vol.1, and
+its identification number was never invalidated. In the unlikely
+event that this situation occurs, you can use the ~~checkvolumes~/~
+subcommand to invalidate all data, such as volume-identifier mappings,
+which has no callback mechanism. After invalidating the mapping, the
+client will have to fetch the up-to-date data.
+
+PROGRAM DONE
+	$ <B>fs checkvolumes</B>
+	All volumeID/name mappings checked.
+	$ <B>ls vol.1</B>
+	$
+PROGRAM
+
+Again, this situation is rare as clients flush all such mappings from their 
+cache once an hour.
+
+Manually flushing the file cache is not needed at all because it is the client cache
+manager's job to occasionally flush files on its own in order to free up
+space in the disk area reserved for the cache. Inevitably, a client's cache 
+may be filled with data: both cached chunks being read and chunks that
+have been written by some application but not yet shipped back to the server.
+When the cache is filled in this way and a user process wants to read some data not yet cached,
+the cache manager must choose which local chunks can be
+invalidated and overwritten with new chunked data. 
+
+When choosing data to free up, the client first flushes any files from 
+read-only volumes. As this data is readily available, it is considered to be 
+cheap and hence not much of a burden to retrieve. This read-only data is 
+further prioritized by timestamp: file data with the oldest timestamp will be flushed first. After all the read-only data has been 
+flushed, if the cache manager needs still more local space, files from
+read-write volumes will be flushed. In this case, while it is presumably more important than
+read-only data, it can still be retrieved as needed. Again, the oldest
+files are flushed first. 
+
+At the extreme, on machines with a very small cache, there may be a case
+where there are only write chunks in the cache - chunks which a
+process is perhaps still in the act of writing. Here, the cache
+manager will not be able to make room for read chunks, so it returns an I/O error to the requesting application. This behavior is quite rare,
+usually requiring pathological circumstances and memory caches less than 5
+megabytes. Applications that are reading file data and observe I/O errors
+will have to either retry the requests internally or be rerun by the user.
+
+One final cache optimization concerns writing large files. The protocol states
+that as an application is writing file data, the data is stored locally.
+When the file closes, all the data is shipped to the server, which can then
+store the whole file as a single transaction. But if the file is larger than
+the local client cache, the client is forced to send the file to the server
+in pieces. It would violate the protocol to overwrite the current version of
+the file with the new data before the close occurred, so the server writes
+the data to its ~~vice~/~ partition under the new version number of the file. If
+other users need access to this file while the writing is still in
+progress, they will be accessing the correct, previous version. When the
+file is finally closed, the previous version is discarded, the new version put in place, and interested
+clients are called back. The effect is exactly the same as with the regular protocol,
+though it takes some additional work by the client and server.
+
+As of AFS release 3.4a, some additional options have been added to the client side to
+help manage the timing of write requests. One problem is that because files 
+are only normally written back to the server when they are closed, large files can 
+cause an apparent performance bottleneck.
+
+A new option permits 
+files to have a different behavior: the file is written back to the server 
+at close, but the ~~close~/~ system call returns before the write operation is 
+finished. This behavior allows the process to continue, although it introduces a 
+potential point of error. But even though the ~~close~/~ system call returns earlier than expected, the AFS 
+protocol is maintained; this user process continues to hold a lock 
+to the file during the write, and no other write-on-close operation on 
+another machine will interfere with this version of the file. The primary drawback is that with the ~~close~/~ system call immediately 
+returning, the program will most likely not be notified of any failures 
+during the write processing.
+
+This <I>storebehind</I> behavior can be turned on for all files greater than a 
+certain size or for a set of named files. The benefit with 
+this option is that it can be used by any users for any file to which they 
+have write permission; all other storebehind options require root privilege.
+
+Alternatively, the exact behavior of the ~~close~/~ system call can be set with 
+the ~~-allfiles~/~ option. Normally, any ~~close~/~ system call returns only when all
+bytes have be sent to the server, in other words, when zero bytes remain on 
+the client. The ~~-allfiles~/~ option specifies the different number of
+kilobytes which could remain on the client still waiting to be sent to the server 
+when the close system call returns: ~~-allfiles 100~/~ would return control to the 
+calling process when any file of any size had
+sent all but 100 kilobytes back to the server.
+
+At some point, a client machine might crash due to either a hardware or
+an operating system fault. If the crash occurs with no open
+files, then, upon reboot, the cache manager will realize that server callback
+notices may have occurred while the client was unavailable. So, after a
+reboot, the client does not assume that any cached files are valid and therefore 
+checks each file open request against the file's version number on the server.
+
+If a client crash occurs when a file is open for writing and data has not
+been shipped back to the server, the newly rebooted client simply
+discards the locally written data; because the process that was writing the data
+is no longer available, there's no way to send a coherent copy of the file
+to the server. For this reason, application writers using AFS to store 
+critical file data via a long-running process should regularly close or otherwise
+force recently written data to the server's disk.
+
+If the crash occurs during a close request, all of the data may be stored correctly
+on the local disk and some will have been written to the server. On the
+server, this data will be stored in a new, partially completed file. After
+the write connection to the server is lost, the server will assume that the
+client has crashed and will delete the partial file. The client
+on reboot will not be able to recreate the state of the system, and the data
+will be lost.
+
+During a client reboot, the local operating system's disk consistency check 
+program runs to maintain the integrity of the internal file and directory 
+data structures. Unlike AFS file servers, the ~~fsck~/~ program on the client
+should remain the vendor's standard executable.
+
+SECTION: WINDOWS NT CLIENTS
+
+PCs running Windows NT version 3.51 or greater are now able to use a native
+port of the AFS client to access a cell's files. This port makes available
+to the NT desktop all the benefits of the AFS caching protocol: highly
+reliable read-only data access, location transparency for data stored on
+any AFS server on the Internet, and the integrated security model. The
+only concession in this release is that only memory caches are supported so
+that the cache is not persistent across reboots.
+ 
+The installation and configuration steps are similar to the ones described
+above for UNIX clients, with some PC-like flourishes. But Transarc does not
+support file or database servers on PCs, nor are any server or cell
+administration commands ported to the PC client. The Windows NT port is
+solely concerned with those items that will configure the client properly,
+connect the desktop to the AFS cell, and authenticate the user.
+
+Once AFS is installed onto a PC, two additions are made to the standard NT administration
+toolset: an AFS Client Configuration
+tool in the Windows Control Panel and, in the Control Panel Services list, an AFS daemon entry. Additionally, a program group labelled Transarc AFS
+is added to the program manager or "Start" menu.
+
+During initial set up, you'll be asked if you want to configure the client
+immediately. When the client configuration tool runs, a dialog box enables the NT client administrator to change certain parameters
+of the client. These parameters are similar to the ones managed by
+the UNIX ~~cacheinfo~/~ file and ~~afsd~/~ command line options. Figure
+5-2 is a snapshot of this dialogue.
+
+[[Figure 5-2: NT Client Configuration Dialog Boxes]]
+
+The dialog box has two tabs to allow you to modify basic AFS client
+parameters and to set up a list of cells available to this client. The following parameters must be set:
+
+-- <B>Cell Name</B> - Enter the name of the local cell into this field.
+
+-- <B>Cache Size</B> - Enter the size of the cache you want the AFS client to
+use. The Windows port uses reserved areas of the NT virtual-memory page
+space to store the cached file data. Although the cache uses virtual-memory
+which uses the local disk as a backing store, this is not a disk cache -
+cached data is not persistent across machine reboots. 
+
+Because other NT programs
+use large amounts of virtual-memory space too, you may need to change your
+NT operating system configuration to allocate more virtual-memory space
+before resetting the AFS cache size. After installation, the default size is
+20 megabytes, indicated as 20,480 one-kilobyte blocks. You can enter any
+size as long as it is not greater than the virtual-memory
+available on the machine. If you can, adjust your memory configuration
+to allow for 50-100 megabytes of cache. While AFS is running, you can increase, but not decrease, the cache size. 
+
+This field also displays the size of the cache currently being used.
+
+-- <B>Reset Cache</B> - Pressing this dialog button sets the cache back
+to the installation default of 20 megabytes.
+
+-- <B>Page Size</B> - Enter the page size used by the AFS client. The client
+cache manager keeps file data in chunks of the virtual-memory space. Each
+chunk, called a page, is by default 4 kilobytes large. You can set
+the page size to any power of 2, say, 2, 4, 8, 16, etc., kilobytes.
+
+Unlike those of a UNIX AFS client, these page sizes are not the same as the chunk
+size used when retrieving data from an AFS server. NT clients use a fixed
+chunk size of 32 kilobytes.
+
+-- <B>Sys Name</B> - Enter an alternate AFS system name. When
+navigating through path names that contain elements named ~~@sys~/~, the local
+client cache translates the ~~@sys~/~ element name into this name. The default
+value is ~~i86_nt~/~. This value can only be reset once the client is running.
+
+-- <B>Stat Entries</B> - Enter the number of files for which the client will
+cache status information. This information is cached in addition to the data
+cache size set above. By default, 1,000 files can have status records cached.
+
+-- <B>Short Names Only/Long and Short Names</B> - This pair of radio buttons
+determines how this client will translate long names of files in AFS. With
+"Short Names Only" checked, any file name in AFS that does not conform to
+the 8.3 convention - 8 characters followed by an optional three character
+extension - is displayed with some of the rightmost eight characters
+replaced with a tilde and some unique, randomly set characters: a file named
+~~longFileName~/~ could be displayed as ~~longF~x1~/~. Additionally, suffixes longer than
+three characters are simply truncated: an HTML file named ~~index.html~/~
+will be displayed as ~~index.htm~/~.
+
+When "Long and Short Names" is checked, no translations are
+used. In most cases, this is the preferred option. Now that current versions of Windows can understand long file names, it makes sense to have PCs
+access the same files in AFS with the same names as other UNIX systems.
+
+-- <B>Set Probe Interval</B> - Enter an alternate value for the client cache
+probe interval. In normal operation, a PC AFS client (just like a UNIX AFS
+client) will send off an RPC query to the file servers it has
+encountered during the client's running lifetime. When an RPC fails to return,
+the client can guess that the server (or the network) is down and will take
+steps to work around the problem if possible. The interval can be set, in
+seconds, from 10 minutes to 1 second.
+
+The second tab in the configuration dialog box enables you to manage the
+list of available cells similar to the list in the ~~CellServDB~/~ file on a UNIX system. This
+list is kept in the file ~~afsdcell.ini~/~ and can be maintained and downloaded
+separately. The dialog box presents a graphical interface to edit the
+entries as illustrated in Figure 5-3.
+
+[[Figure 5-3:  NT Cell Configuration Dialog Box]]
+
+The "Cells" button pops up a scrolling list of all the cells that have
+been entered into the cell/server mapping. This dialog box permits editing 
+this list with an additional set of buttons.
+
+-- <B>Add</B> - This button activates a further dialog box in which you
+can enter the name of a new cell and the set of database servers
+associated with that cell.
+
+-- <B>Delete</B> - After a verification pop-up, the selected cell is
+deleted from the local mapping.
+
+-- <B>Edit</B> - This button displays a dialog by which you can change
+the name of a cell or make modifications to the list of database servers
+associated with a cell.
+
+Most changes to these configuration parameters will require a
+reboot in order to take effect.
+
+Once AFS is configured, you can run the Services tool in the Control Panel to enable
+the AFS cache manager. This tool can also set up the cache manager to
+start upon every reboot if you select the "Automatic" type from the startup
+button.
+
+Once the cache manager is set to run, you can attach the AFS cell file namespace to any drive letter desired, either by issuing a command or by
+connecting to a network drive in the File Manager. Before connecting, you
+need to know the host name of the PC; 
+run the ~~hostname~/~ command if necessary. Also, even though user authentication is
+performed later (see Chapter 7), a user name must be presented
+at connect time. Given a PC desktop named ~~clientpc~/~ that Alice is using, she
+can attach the AFS cell to her Z: drive by entering at a command prompt:
+
+PROGRAM DONE
+	C:> <B>net use z: \\clientpc-afs\alice</B>
+PROGRAM
+
+Internally, the NT AFS client cache accepts normal Windows Server Message
+Block requests from the NT kernel. These SMB requests are examined by the
+AFS client code with, as on a UNIX client, some requests 
+satisfied locally and others requiring that further requests be sent to an
+available server by means of AFS's regular Rx protocol.
+
+The only difference in the caching system is this: currently, directory
+caching is not supported because of the difference in UNIX versus NT style
+caching: NT wants to cache whole-path lookups, whereas UNIX wants to cache
+individual path element data.
+
+Windows NT supports a universal name convention for file names, beginning with
+a double backslash. When the ~~net user~/~ command is run, the NT client's operating system will check with the
+installed distributed file systems to see if they have encountered the universal
+name ~~clientpc-afs~/~. Even though AFS does not use a universal or domain-based
+naming scheme, the ~~-afs~/~ suffix is recognized as the signal for AFS to start up and use the other configuration information to attach to the local AFS
+cell.
+
+If you are more comfortable using the File Manager interface rather
+than the command line, simply open a File Manager and select "Connect
+Network Drive" from the Disk menu button. Using the same PC host name and user
+as above, in the resulting dialog box, enter ~~\\clientpc-afs\alice~/~ in the
+Path field and press the OK button.
+
+After you run either the command line or File Manager interface, you can 
+gain access to the top of the local cell's file namespace
+by changing to the Z: drive.
+
+PROGRAM - nt ls /afs demo
+	C:> <B>z:</B>
+	z:> <B>dir</B>
+	 Volume in drive Z has no label.
+	 Volume Serial Number is 70AF-4815
+
+	 Directory of Z:\
+
+	05/14/97  09:20p        <DIR>        HQ.FIRM
+
+	05/14/97  10:01p        <DIR>        TRANSARC.COM
+PROGRAM
+
+From here on, file navigation and access is straightforward. 
+As you move between files and directories, you'll notice a slight time lag on the
+first reference to a file. Then, once the file is cached, the performance will be
+practically equivalent to local performance. The PC client behaves in
+this respect much like its UNIX counterpart: When files are accessed in
+read-write volumes, all data is read and cached; all saved file data is
+written to the server and other clients are informed of the changes.
+Read-only data is accessed by contacting any of the available servers.
+
+If your local cell includes connections to other cells on the Internet,
+there's no extra configuration needed to get to that data; the connections
+will have been stored in the top-level directories of AFS itself. All
+files and directories your desktop UNIX box can see are visible
+all the time from this NT desktop (permissions permitting).  Simply by
+accessing files with path names like ~~z:\transarc.com\public~/~, you can read
+public data stored at Transarc headquarters, just as you can from UNIX
+clients.
+
+Though AFS provides access to files from either UNIX or NT clients, it
+doesn't know anything about the files or their contents, nor does
+it understand what the applications using the files are trying to do.
+Differences between UNIX and NT will continue to be a sore point; 
+file and directory naming rules may be different, and text files
+will still use different conventions to signal end-of-line and end-of-file.
+As for file names, the NT client will perform translations as 
+needed through its native SMB-based, name-lookup module. 
+
+The Windows port comes with several executables, libraries, and DLL files, 
+which are all stored in the general support directory ~~C:\Trans32~/~. In this
+directory, some AFS commands are provided that are similar to their counterparts on UNIX. Among the command-line executables 
+ported to NT are: ~~fs.exe~/~, ~~klog.exe~/~, ~~tokens.exe~/~, and ~~unlog.exe~/~. Some
+functionality, such as server preferences, is not currently supported. 
+Other AFS commands are available from a new menu option in the File Manager 
+tool bar; some of these commands are discussed in Chapter 7.
+
+SECTION: PC-ENTERPRISE
+
+Another software package is available to help connect PC clients
+to AFS. Platinum Technology offers PC-Enterprise for the Windows 95, Windows
+3.11, straight DOS platforms and even Macintosh System 7.0+.
+Previously known as PC-Interfaceª from Locus, it provides authenticated
+access to the AFS file system as well as access to UNIX domain printers.
+
+The PC-Enterprise server process runs on an AFS UNIX client. 
+A downstream client of this machine will contact the PC-Enterprise server 
+process when reading or writing files. The actual data movement into or out 
+of AFS is therefore mediated by the AFS UNIX client; this client acts as a 
+sort of translator from the PC-Enterprise client's protocol into the AFS 
+protocol. The AFS servers and data do not see or hear the PC-Enterprise 
+client directly.
+
+For authenticated access, software that permits local user authentication against the AFS cell's security system is installed on the downstream client. When run on this client, the procedure spawns a subprocess on 
+the AFS client with the given authentication credential. This subprocess can 
+then access any file permitted to the user on the AFS client, which 
+can include the local UNIX file system, any NFS mounted systems, etc.
+
+Note that because a PC-Enterprise client is not an AFS client, there
+are no ~~CellServDB~/~ or cache size issues to manage. All access to
+the distributed file system takes place through requests sent to an
+intermediate workstation that is running the AFS client code.
+
+Once PC-Enterprise is installed, the PC client side immediately attaches the translator
+machine's file namespace to an available drive letter:
+
+PROGRAM - pcenterprize
+	C:> <B>login</B>
+	username: alice
+	password:
+
+	C:> <B>d:</B>
+
+	D:> <B>cd \afs\hq.firm</B>
+
+	D:> <B>dir</B>
+	 Volume in drive D has no label.
+	 Volume Serial Number is 419E-7320
+
+	 Directory of D:\
+
+	05/15/97  11:21a        <DIR>        GROUP
+
+	05/15/97  11:17a        <DIR>        SYS
+
+	05/15/97  11:18a        <DIR>        TMP
+
+	05/15/97  11:15a        <DIR>        USER
+PROGRAM
+
+
+SECTION: INSTALLING CLIENTS AND AFS PATHS
+
+Although the AFS file system is an ideal repository for much file data used
+by users and processes, you may wish to store certain data
+on the client disk itself. Some sites may desire to prune this
+set of client-side files to the absolute minimum; others may want to
+have relatively disk-full clients. In either case, AFS can still
+be used as the ultimate storage area for these files. As needed, you
+would copy the appropriate set of 
+client-side files from some standard location in AFS to the local disk.
+
+Transarc provides a utility, called ~~package~/~, that automates
+this copying process. The system permits you to define the files,
+directories, links, and devices to be installed on a client. You can run the
+~~package~/~ command on each client, perhaps during the booting
+sequence, to check for new versions of the files stored in AFS and to install them
+if necessary on the local disk.
+
+In the package definition files, you can use variables
+to define common paths and file permissions and to resolve file
+names, depending on the hardware architecture and operating system
+version a particular client is running. This prototype file
+is then processed by a Transarc-supplied utility, ~~mpp~/~, to produce a
+configuration file specific to a given client. See the AFS System 
+Administration Guide for a full discussion of this system.
+
+A public domain system, called ~~depot~/~, performs a
+similar function. Transarc's FTP site contains some information
+on where to find the latest version of ~~depot~/~.
+
+Without automatic fail over to redundant file data and without the caching of
+frequently used files, most administrators of desktop computing sites try
+to put many important programs and libraries on a client's local disk. 
+With AFS's fail over and aggressive caching, manually copying files to a 
+desktop is somewhat of a  wasted effort. Because AFS has matured to the point that
+the performance of cached files approaches access to purely local files, it
+is an unnecessary administrative burden to decide which users on which
+client machines need which subsets of all available files. Better to let AFS
+automatically and silently keep the appropriate files cached locally, based
+on the current user's particular access patterns.
+
+This caching strategy suggests that almost all normally local files be
+stored in AFS: the user's home directory, application files, software
+development environments, and even the majority of system files. It is a
+fairly straightforward exercise to pare down to a few dozen the number of files that absolutely must be installed onto a computer. On UNIX
+systems, these are most likely the kernel, ~~/etc/init~/~, some ~~/etc/rc~/~
+files, and, of course, the AFS client daemon and configuration files. The
+system boots in much the usual way, but as soon as the network is
+configured, the AFS client starts up. Strategically placed links from the local
+disk into a suitable area of the AFS namespace then give the illusion that
+all the other startup files are available. And since these files are most
+likely cached, the overhead to get to the data is negligible. Also, because
+these files will be replicated, the booting client is guaranteed that the
+files will always be available.
+
+With the advent of the World Wide Web, there is a lot of talk of "thin
+clients" getting their data from the network. AFS provides this
+functionality now. An aggressive administrator can streamline the
+installation of an AFS client to just the few minutes that 
+it takes to copy the right kernel and related files onto local disk. 
+Not only are all other system files stored in AFS so
+that updating system software is trivial, but a desktop's specific
+configuration data is also stored primarily in the centrally managed file
+system where it can be coordinated, backed up, and managed easily.
+
+Typically, the ~~@sys~/~ path name element is used to link from a standard
+path name to a platform-specific one. When the AFS kernel module is loaded
+at system boot time, it includes a hardcoded value that is substituted
+every time the path name component ~~@sys~/~ is seen. This procedure enables users on different
+machine types to use the same path - any file or directory path name that
+includes an ~~@sys~/~ element - to access suitable binaries for their architectures.
+
+For example, Transarc suggests installing a set of their software tools 
+in a standard directory in AFS. Because each machine type Transarc supports
+requires its own set of binaries, a path which includes ~~@sys~/~ allows all clients 
+to use the same path to retrieve the appropriate set of binaries.
+
+When installing the Sun version of the software built for the
+Solaris 2.5 platform, you could copy the programs into a directory named
+~~/afs/hq.firm/os/afsws/sparc_sunos55/bin~/~; you would copy the IBM version into 
+~~/afs/hq.firm/os/afsws/rs_aix41/bin~/~. Note that the exact name of the 
+architecture is embedded as a single element in the path name. These
+names are preset as the respective translations of the ~~@sys~/~ element 
+in the Sun and IBM cache managers.
+
+To use this automatic translation, create a symbolic link from
+~~/afs/hq.firm/os/afsws/bin~/~ to ~~@sys/bin~/~. Now, no matter if a user's system is a Sun
+or an IBM machine, the path ~~/afs/hq.firm/os/afsws/bin~/~ will be automatically directed to
+the correct architectural subdirectory.
+
+That path name is somewhat long and difficult to remember, so you could install one more symbolic link on each client from 
+~~/usr/afsws~/~ to ~~/afs/hq.firm/os/afsws~/~. Finally, a user can configure the PATH variable to include ~~/usr/afsws/bin~/~. On a Sun machine, this link will 
+evaluate to ~~/afs/hq.firm/os/afsws/bin~/~, and then to ~~/afs/hq.firm/os/afsws/@sys/bin/~/~, and then, finally, to ~~/afs/hq.firm/os/afsws/sparc_suno55/bin~/~; on an IBM machine, the link will point to ~~/afs/hq.firm/os/afsws/rs_aix41/bin~/~.
+
+Transarc's default names for ~~@sys~/~ paths are usually good enough for most
+organizations. As ports to new hardware and operating system levels are
+produced by the company, they add a new value only when their AFS software
+needs a nontrivial change. If their code (which uses many kernel
+and networking interfaces) doesn't need a new ~~@sys~/~ value, your application
+program probably doesn't either. But if you do need your own values, use
+the ~~fs sysname~/~ command. In normal use, you would run this command 
+immediately after loading the AFS kernel module so that all accesses to
+files in AFS will be translated the same way.
+
+The drawback to ~~@sys~/~ paths is that they usually require a few symbolic links 
+on the client and server side. The benefit is that executables for multiple
+architectures can be installed and managed in a single file namespace
+through the use of simple directory utilities, links, and path names.
+
+Another common convention is to install a symbolic link at the top
+of the ~~/afs~/~ tree so that a machine's local cell can be determined
+easily: for example, ~~/afs/@cell~/~ is installed as a symbolic link pointing to ~~hq.firm~/~. The ~~@cell~/~ name has nothing to do with per-client ~~@sys~/~ lookup but is intended
+to remind users of the ~~@sys~/~ convention. 
+
+SECTION: CONVENIENT PATH NAMES
+
+It's quite likely that even if you use AFS today, you'll be using another
+file system tomorrow, perhaps DFS or even NFS. This possibility makes it unwise to
+construct all of your administration procedures with embedded path names
+that include the ~~/afs/~/~ prefix. It may be better to use a neutral name as your
+own suffix. That way, you can point it to whatever system you choose and even
+construct more convenient top-level directory namespaces. For example, you could make
+~~/hq/~/~ a symbolic link to ~~/afs/hq.firm~/~, thus making the global AFS namespace available and providing an easier-to-type day-to-day equivalent. That
+way, a user's home directory could be just ~~/hq/home/alice~/~. Different
+divisions of an organization might want a similarly abbreviated namespace, for example, 
+~~/sales~/~ could point to ~~/hq/sales~/~ or ~~/afs/hq.firm/sales~/~.
+
+These abbreviations, however, will probably have to be maintained on the
+local disk of all client machines. Yet with a little creativity, file namespaces that are easy to
+remember and type can be constructed to fit almost any
+purpose. And sometimes, this convenience is important not just for typing
+but for the program's execution.
+
+As an example, let's compare how NFS and AFS deal with home directories. With
+the NFS ~~automount~/~ daemon, it is common enough to have everyone's home directory available from either ~~/u~/~ or ~~/home~/~. But because of the architecture of 
+~~automount~/~, if you list the ~~/home~/~ directory, for example, you'll
+see nothing. You must explicitly ask for an individual's home before it
+will be mounted. This makes it very difficult to browse for information;
+if you don't know a user's exact login name, you can't scan the
+directories because they are not yet mounted. You also can't expand a path name 
+with wildcards, as in ~~ls /home/*/.mail~/~, for example, to see
+who's using a particular software package.
+
+On the other hand, AFS presents a totally consistent image of the file system to
+all clients. Once an administrator has connected a user's volume to a name
+like ~~/hq/home/alice~/~, everyone can see it. So, browsing is made very easy.
+The price of this consistency is that for large organizations, putting all
+the users in one directory makes for a very long directory listing. Having a
+thousand users get their home via ~~automount~/~ is no big deal because only
+one or two homes will be mounted on a given desktop at any time. But in AFS,
+~~/hq/home~/~ could be filled with a thousand names; while this is not a
+problem technically, many programs, including ~~ls~/~ and graphical directory
+browsers, want to get file information for each and every entry in the
+directory so they can display appropriate information, such as a folder or
+file icon. This process can take a lot of time: each entry in 
+such a directory must have its status information read and,
+possibly, some of the initial bytes of file data examined, just so some
+graphical navigator can display a pretty picture of the file. Of course,
+once cached locally, this access will be quick, but the initial access
+will be slow and will cause much network traffic.
+
+To speed up access, you might divide the home directories among several subdirectories. Almost any such scheme will do. Many organizations have chosen
+to use completely arbitrary subdirectories: ~~/hq/home/user1/alice~/~,
+~~/hq/home/user2/bob~/~, etc. Others set up directories that reflect
+the organization's internal structure: ~~/hq/sales/home/alice~/~ and
+~~/hq/research/home/bob~/~. The drawback here is that for every reorganization
+and personnel change, home directory path names have to change.
+
+Another solution is to use a simple algorithm based on the user's name: use
+a subdirectory named after the first letter of the login name:
+~~/hq/home/a/alice~/~, ~~/hq/home/b/bob~/~. This solution is similar to the arbitrary
+method in that the subdirectory has no intrinsic meaning but has the
+benefit of being completely predictable. This one-level of indirection 
+reduces the size of each home directory area to a manageable number; from a random 
+list of 1,000 common login names, a single directory containing all 1,000 entries 
+is broken down to 26 subdirectories, the largest being ~~/hq/home/s~/~ with 300 
+and ~~/hq/home/m~/~ with 200 names. Some large sites, such as the University of 
+Michigan, which supports over 60,000 home directories, have gone to the extreme of 
+using the first two letters as keys to subdirectories, as in
+~~/hq/home/a/l/alice~/~, ~~/hq/home/b/o/bob~/~. This plan may seem
+silly, but the largest subdirectories now turn out to be ~~/hq/home/s/a~/~ with
+30 entries and ~~/hq/home/m/e~/~ with 20 entries; the paths are easy to use,
+and the small number of directory entries can speed up many applications.
+
+A compromise is to offer more than one solution, perhaps having a primary
+path based on an algorithmic-style name, while making other directory
+structures available, such as an organization tree, implemented with either
+symbolic links to the home directory or additional mount points to the home
+volume.
+
+SECTION: SET-USER-IDENTIFIER PROGRAMS
+
+Programs can be installed in the UNIX file system such that when
+executed, the user running the program will be able to obtain a different 
+user rights. This capability to set a new user identity is stored in
+an extra permission bit in the file system, the setuid bit. When any user 
+runs a setuid programs, the program will execute using the identity of the 
+file's owner - often root. That way, for example, certain programs will be 
+able to write into secure areas of the local file system no matter who 
+runs the program. 
+
+Creating and permitting the execution of setuid programs is a serious 
+security issue because a fundamental unit of control, a user's identity, 
+is being automatically delegated. Only the owner of a file may set the
+setuid bit; thus, only the UNIX root user may create a program which
+will set its user identity to root.
+
+As an example of such a program, the UNIX substitute user program, ~~su~/~, 
+is installed as setuid-to-root so that, when run by a someone who knows a 
+different user's password, the program can substitute the new user's 
+privileges.  Here, the ~~su~/~ program has been copied into AFS so that we 
+can examine how to grant or deny access to setuid programs. You can see 
+its setuid status by examining the owner execute-bit.
+
+PROGRAM DONE
+	$ <B>ls -l /afs/hq.firm/sys/bin/su</B>
+	-r-sr-xr-x   1 root staff      15820 Jul 25 21:07 su
+PROGRAM
+ 
+AFS client's naturally see a global file namespace, so there is a security risk 
+when running a remote call's setuid programs. Normal attacks on AFS are
+barred by the use of Kerberos to manage user credentials; you cannot read
+or write file AFS data from servers to which your identity has not been mutually
+authenticated, and neither can any other AFS user on the Internet read or
+write your cell's data without your specific access control.
+ 
+However, when another cell's files are accessed, there is a danger that a remote
+executable was installed as a set-user-id to root, and you'll have
+no assurance that that binary won't damage your local UNIX system. The
+worst that such a program could do is delete local client files and
+crash the machine, it could not attack files in the AFS namespace.
+Crashing a desktop, though, is bad enough.
+
+AFS manages this risk by permitting each client to selectively trust or not
+trust other cells (including your own) setuid files. The assumption is that
+because a cell is a single domain of administrative control, you must decide whether or not you trust a remote cell
+as a whole. Because this decision affects the local UNIX files and operating
+system of a single client, setuid trust for any remote cell is a per-client issue.
+If your organization consists of multiple cells, all of these cells will
+typically be trusted, and each client will have to turn on remote trust via a
+small script run soon after the AFS client code is loaded.
+ 
+You can see whether or not a cell is trusted with the ~~getcellstatus~/~ 
+command. To turn off a cell's setuid trust, the superuser uses the 
+~~setcell~/~ subcommand.
+ 
+PROGRAM DONE
+        $ <B>fs getcellstatus hq.firm</B>
+        Cell hq.firm status: setuid allowed
+        $ <B>su root</B>
+        Password:
+        # <B>fs setcell hq.firm -nosuid</B>
+PROGRAM
+ 
+Now that this client no longer trusts the setuid nature of the
+local cell, you can see that the copy of the ~~su~/~ program we installed 
+into AFS appears to have changed its owner execute permission:
+
+PROGRAM DONE
+        $ <B>ls -l /afs/hq.firm/sys/bin/su</B>
+        -r-xr-xr-x   1 root staff      15820 Jul 25 21:07 su
+PROGRAM
+
+The status hasn't really changed; the bit is just masked by our distrust. To
+turn on the setuid bit of a program stored in AFS, you'll set the client to trust the cell, become root, and also obtain
+Kerberos credentials as an AFS system administrator. Only then
+will you be able to create a setuid-root program.
+
+The default status for AFS is to trust the local cell, that is the cell
+as named by the desktop's ~~/usr/vice/etc/ThisCell~/~ file, and to
+distrust all other cells. In regular use, this works well. Sites that
+have multiple AFS cells for a single enterprise should modify their
+startup scripts so that all of their managed cells become trusted.
+
+SECTION: TIME SERVICES
+
+When we discussed the set up of the cell servers, we described the need for a 
+precise enterprisewide time service. AFS database and file servers are
+normally set up to use NTP to maintain their clocks but clients are not.
+Rather, the cache manager assumes that one of the file servers contacted during 
+regular operations will return the correct time; the client will therefore adjust 
+the local clock to keep in time with the servers. Every five minutes, the 
+cache manager will query that server's current time and adjust the local clock. 
+
+Some critics claim that the AFS client time service is not as well behaved as the
+NTP standard time service. Rather than slow down or speed up the local clock to 
+smoothly synchronize with the server clocks, Transarc clients reset their time
+in one second jumps - backward or forward - if necessary. Not only might this
+practice disrupt certain critical applications, but setting the clock
+backward could easily lead to transient time-skew problems.
+
+When ~~afsd~/~ does reset the time, it prints a message to the
+console:
+
+PROGRAM DONE
+	afs: setting clock back 2 seconds
+PROGRAM
+
+There's no need to rely on Transarc's time services though. 
+If your site is using a public domain NTP system on all clients, then you should 
+run ~~afsd~/~ with the ~~-nosettime~/~ option to stop the client daemon from 
+adjusting the time on its own.
+
+SECTION: MESSAGES
+
+The cache manager occasionally needs to display messages to users and
+administrators. You can use the ~~fs~/~ messages command to modify exactly
+how the messages are shown. By default, administration messages are
+printed to the system console, and user messages are printed to the user's terminal
+session. Given that today's users are often running graphical environments,
+the console messages may disrupt a user's display and the user may not
+be paying attention to any attached terminal. So, redirect messages to the log in ~~/usr/vice/cache/AFSLog~/~ by running:
+
+PROGRAM DONE
+	# <B>fs messages -show none</B>
+PROGRAM
+
+By supplying either the argument ~~user~/~ or ~~console~/~ to the ~~show~/~ subcommand, you can reset
+the user messages to display on the user's terminal
+session or reset the administration messages to display on the console.
+
+SECTION: SUMMARY
+
+AFS client administration is quite straightforward. The daemon that
+begins cache management is all that's required - aside from a few
+configuration files - for users to access the cell's files. 
+
+Unlike many other UNIX-based services, AFS clients do not use standard
+systems such as the network services map or
+the Sun RPC ~~portmap~/~. Instead, the configuration consists of knowing
+the location of the AFS cell's database server machines. Once that is
+known, all other communication is hardwired into each client's kernel
+module and administration commands.
+
+As long as a sufficient cache is provided, users will quickly see
+the performance and reliability guarantees of AFS begin to work. When
+introducing AFS into an organization, it is important to show off
+the robustness of the system to new users; you can demonstrate this by simply unplugging file servers from the network.
+When users see that their client is able to work around such problems,
+they'll be much more forgiving of other AFS issues such as understanding access control lists.
+
+But while AFS provides the image of an ever-present file system to
+clients, there's no reason for clients to be bound only to a single
+storage system. Each client can still be an NFS client, server, or
+almost any other computing or database platform in your organization.
+Certainly nothing in the AFS kernel module takes away the ability of a UNIX 
+workstation to run multiple file system protocols or 
+any other tasks. A system that is simultaneously an active AFS and NFS client 
+simultaneously can be a benefit during the transition period because 
+different sets of files can be stored in either file system until the 
+best location for the data has been found.
+
+This chapter concludes a three-chapter introduction to AFS administration.
+In
+the previous two chapters, we've seen how to set up servers and how to construct an AFS namespace. Now that we've connected our desktop clients and
+users to our cell, we can introduce
+users to AFS so they can use the system in day-to-day work.

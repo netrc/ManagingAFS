@@ -1,0 +1,831 @@
+CHAPTER TWO: AFS TECHNOLOGY
+
+The ultimate goal of AFS is to present a coherent view of a file namespace.
+The simplest way to imagine this view is as a cloud of information to which 
+desktop clients can read and write data. Such a view, as in Figure 2-1, 
+is the vision of many distributed systems, but AFS manages to achieve this 
+goal with a high level of fidelity. As the figure suggests, users can easily 
+navigate through a set of files and directories without regard to the actual 
+locations of the data. Through caching, accesses will generally be quite speedy but will 
+never return outdated data to the user.  And with well-administered 
+replication, important pieces of the production system (such as the
+topmost directory levels) will be resilient to failures.
+
+[[Figure 2-1: A User's View of AFS]]
+
+After a short period of use, most users will find that they expect
+file access to work this way - all file data should be available to
+them no matter where the users are located in the enterprise. Indeed, the phrase,
+"No matter where you go, there you are" has been adopted as the
+unofficial AFS slogan. This truism holds because users do not see
+any storage locations: the file namespace is not composed of
+server names, addresses, or protocol identifiers, nor is any
+extra syntax needed for file use in AFS. Everything looks like a normal
+set of directories and files, or folders and documents, or however
+your desktop usually depicts file data.
+
+This image doesn't come about by magic, of course. Many processes
+and systems are engineered to work together to promote this view.
+Luckily, each piece is relatively simple to understand; it's the relationship 
+between the pieces that can be hard to grasp. 
+
+The first step is to recall some of the design principles of AFS, especially
+the goal of supporting thousands of clients. The best mechanism to help
+a small number of servers handle that kind of scale is to off-load as
+much work as possible onto the client: let the client cache as much
+file data as possible and help flush out-of-date content. For this 
+shift in responsibilities to work, AFS clients and servers must be carefully configured.
+
+In this chapter, we briefly run through the configuration files,
+processes, servers, and network traffic which compose the AFS system.
+This technology walkthrough should serve to demystify AFS and illuminate
+some of the internals of the system.
+
+SECTION: CLIENT CONFIGURATION
+
+The first step to connecting a desktop to AFS is to get the code
+that implements the client side into the operating system where 
+it belongs. For some UNIX systems, Transarc supplies a module (really just
+an object file) that must be statically linked into the operating system
+kernel. For other systems, the object file can be dynamically 
+loaded into the kernel either with a vendor-supplied tool such 
+as Sun's ~~modload~/~ or, if no tool is available, Transarc's own ~~dkload~/~.
+
+Besides this kernel module, a sufficient cache area must be available.
+These days, with new machines delivered with 1- or 2-gigabyte internal disks, there
+should be no excuse for small cache sizes, but it is possible to run AFS with
+only 10 megabytes of cache on disk or even in memory. Various studies have shown that 
+upwards of 70 megabytes of memory are needed to make the system effective, 
+though now, it is common to have 200 megabytes or more of cache. 
+
+The physical location of the cache on disk and in the local file system
+namespace is immaterial. One of the few configuration files used by the
+startup process, ~~/usr/vice/etc/cacheinfo~/~, defines the name of the cache
+directory. To ensure that the kernel cache manager always has
+control of the cache area, create a separate disk partition
+for the cache.
+
+As you'll see, there are a few artifacts of previous versions from the
+CMU days still in AFS. One of these is the ~~vice~/~ directory name,
+which refers to the earliest release of the system.
+What's important to note is that when we mention files in
+~~/usr/vice/~/~, we are invariably discussing the client portion of AFS.
+
+Another key configuration file is ~~/usr/vice/etc/CellServDB~/~, commonly
+called the ~~CellServDB~/~ file. This file lists, in a fairly strict format,
+the important servers that manage file location mappings and other information. A <I>cell </I>is
+the AFS term for this collection of cooperating server systems. It is the
+domain of administrative control of the system. As staff administer AFS,
+most commands are not sent to a specific server; they are simply relayed
+automatically to one of the main servers listed for the cell, and the changes are
+seamlessly propagated to the other servers to preserve the illusion of
+a single distributed system.
+
+Actually, the need for the ~~CellServDB~/~ file is the oddest aspect of AFS. In 
+the middle of a rigorously distributed system, surrounded by servers that 
+are constantly working to provide location independence and a single virtual 
+namespace, we're faced with this static file that must be administered and 
+installed on every client desktop. And even worse, the lines listing each 
+server contain the raw IP addresses of the servers.
+
+The reason for this anomaly is historical: at the time of AFS's design no
+good directory services were available, no well-established mechanisms for storing
+and looking up the information needed by AFS clients. Some source code
+licensees have modified their AFS system to use the Domain Name System for this lookup, but
+Transarc has yet to incorporate those changes into their product. The good
+news is that not all servers in an organization need to be listed in the
+file, only those servers keeping file location and authentication information. 
+As such, the file data changes very infrequently. 
+
+The last configuration file is ~~/usr/vice/etc/ThisCell~/~, which contains
+just the single name of the local, default cell.
+
+Finally, the directory upon which the AFS system will be mounted, ~~/afs~/~, 
+must be created before the client daemons start up.
+
+When you have prepared these three configuration files and one directory, set
+aside a cache area, and integrated the supplied module into the client's
+kernel, you can now run the daemon process ~~afsd~/~, which executes
+some new system calls to start up the kernel's management of AFS. This daemon delivers the relevant data from the configuration files
+to the operating system. In regular usage, the module
+loading and daemon start-up occur during the early phases of client
+booting. Once ~~afsd~/~ returns, leaving behind a few daemon subprocesses,
+~~/afs~/~ is accessible.
+
+SECTION: READING DATA
+
+When a user process first attempts to read the ~~/afs~/~ directory, the client
+kernel recognizes that the data is managed by AFS and uses the just-loaded
+kernel module algorithms to get at the files. In this scenario, since the data
+has not been previously cached, the client contacts one of the listed
+servers in ~~CellServDB~/~ and requests information on the location of the file
+server for the root AFS directory. That location is cached, a given file server
+is accessed, the data returned, and the contents of the directory are also 
+cached. If the user process that accessed ~~/afs~/~ was a directory listing 
+program, the contents are returned and listed on the screen.
+Figure 2-2 shows graphically how files are fetched when they are not already in 
+the client cache. 
+
+[[Figure 2-2: How Clients Read Data: First Access]]
+
+Now that this client has cached the location information and entries for 
+the top-level directory, any other process subsequently accessing ~~/afs~/~ 
+can use the cached data. Neither the servers nor the networks 
+will be bothered by redundant requests for this now-cached data. And 
+because the cache is stored on disk, it will remain valid across 
+client reboots. See Figure 2-3.
+
+[[Figure 2-3: How Clients Read Data: Subsequent Accesses]]
+
+The process of finding and caching data is the same for directories or
+folders as for files. In the earliest versions of AFS, a client would read 
+in the entire contents of a file at once. Now, a client reads file data from the
+server in chunks of 64 kilobytes. As an application needs to access successive bytes 
+of a file, the client's operating system makes requests of the server to 
+return 64-kilobyte chunks of the file; as each chunk is received, the kernel stores 
+the chunks on disk and passes the data to the application. (The chunksize
+is variable and can be increased to take advantage of faster networks.)
+
+As with other true distributed file systems, neither applications nor
+users are aware that the file accesses need to traverse a network 
+and be resolved by a remote machine. Application programs - editors,
+mail readers, data filters, or games - all simply use the native
+operating system's file read and write system calls. The system itself
+is configured to perform any work necessary to get the data to or
+from the application by way of any distributed protocol.
+
+The hard part of distributed file systems comes when applications on multiple
+clients have previously read data that another client has just changed.
+It is here that AFS distinguishes itself. Once a client has requested file 
+data, the file server remembers that that client has cached data about that 
+file. The server further promises the client that if the file is changed by 
+any other user or process, the server will contact the client, notifying it 
+that newer data is available. 
+
+In AFS, the term <I>callback</I> means both the promise made by the server to
+a single client that it will contact it when the file is written to by
+another client, as well as the protocol request itself. Clients know
+that whenever a file is read, and therefore
+cached locally, a callback promise has been automatically registered
+by the server of that file. Therefore, the client kernel can confidently 
+return the cached data to any other process up to the moment when it
+actually receives the callback notification. Before that moment, if the server hasn't called back with a message invalidating the 
+file data, the client knows the data hasn't changed on the server.
+
+As other clients read the file, the server keeps track of each of them as well. When
+any client writes data into the file, the data is sent to the server and the
+server sends a message to all clients in its callback list to tell them that
+subsequent users of that file data must refetch the data from the server.
+Figure 2-4 shows that after a new version of a file has been written
+back to the server by the desktop machine client-one, the server has sent a callback message 
+to all clients, such
+as client-two, that had previously cached a now-outdated version of a file.
+
+[[Figure 2-4: Server Callback and Client Cache Invalidation]]
+
+A client that receives the callback message needs only to note
+that the cached data is now invalid; the new file data is not transferred
+until needed. When a user on client-two requests that file data the next time, 
+the fetch operation proceeds much as in Figure 2-2. The only difference
+is that, while the file data has been invalidated in the cache, the file's 
+location information is still valid. Hence, the subsequent fetches will 
+occur slightly faster than the initial fetch because no location queries will
+need to be processed.
+
+The effect of this protocol is the seamless retrieval of the most
+up-to-date data for every file or directory access. Most of the time,
+that retrieval will come from the local disk cache and as such, the
+response will be almost as quick as if the data was stored locally
+through some manual mechanism. If either the data isn't cached or the client was explicitly informed that its
+version of the data is out of date, then the more recent version will
+be retrieved from the server.
+
+So far, we haven't talked about security. The traditional local
+authentication model of UNIX does not work for distributed clients unless
+all clients trust each other. For a wide-ranging enterprise, whether it
+is two separate offices, a campus, or global company, this model is far too trusting.
+AFS uses the Kerberos authentication protocol, whereby all identities must
+be validated by a known, trustworthy security server; cryptographically 
+secured credentials can then be exchanged so that users' 
+identities can be associated with all file requests. In addition,
+desktops are assured that they are contacting the real AFS servers
+at an organization.
+
+Most importantly, AFS does not trust a user's regular UNIX identity, not even the superuser root. Anyone able to compromise a desktop in an AFS-based 
+organization will not get universal access to AFS data. In addition only administrators
+who can prove their identity to the trusted Kerberos servers are permitted
+to run various operational commands. Because of the sensitivity of the
+secrets stored by the Kerberos servers, access to them must be strictly 
+controlled.
+
+SECTION: WRITING DATA
+
+The process of writing data from a client to the server is one place where
+the AFS designers introduced an optimization that slightly changes
+traditional UNIX write semantics. Normally, for processes on the same
+machine, the last process to write some data to an area of a file wins; that
+is, a process reading data from a particular area of a file will be given
+the last data written there, no matter which process wrote it. A UNIX kernel
+supports this behavior even though, behind the scenes, it is keeping some
+data in a small memory buffer waiting for an opportunity to write it to disk.
+
+CMU desired to make file sharing possible, but, given the rarity of simultaneous 
+read and write sharing of files, they decided to relax the "last writer 
+wins" semantic for distributed processes, such as any two users running 
+applications and reading and writing the same file at exactly the same time. Instead, for
+distributed processes using AFS, the last process to save or close the file 
+wins. This means that as one application on one machine is writing data to a file, 
+it is being stored on that machine's local disk only. A second client 
+requesting and reading the file will not see any intermediate writes of data by the first client. 
+When the writer is done with the file and issues the close system call, all 
+the file data is finally sent to the server system at which point a callback 
+message is sent to signal that a whole new version of the file is available.
+
+This optimization allows servers to concentrate on storing whole, consistent
+versions of files. Rather than keeping track of all writes to any
+ranges of bytes in the file and sending messages about ranges that have
+changed, servers limit their involvement to telling clients when completely
+new versions of the file are available. Clients, therefore, aren't told of
+every change to a file as it is made by some other client but are informed only
+when the entire file has been modified. 
+
+The reason this behavior works in practice is simply because almost
+no UNIX tools or applications depend on multiple access to open files
+being written by multiple processes. It is a compromise that happens
+to work. Like the lack of any consistency guarantees in the NFS protocol,
+which works only because clients occasionally and on their own initiative
+check the server for new versions, the AFS architecture was an experiment. In practice, both systems work well in day-to-day environments.
+
+Most importantly, the good news is that for processes on the same workstation,
+the UNIX behavior of "last writer wins" is preserved: as a process
+writes data to a file, another process on the same client reading that file will
+see each range of bytes as soon as it is written. So, in the very few cases
+where it is important to see this behavior, locate the
+writers and readers on the same system.
+
+Where this causes a problem is in poorly written UNIX software that
+does not check for errors from the operating system when executing the
+~~close~/~ system call. Because AFS is a distributed system, it is possible
+(though rare in practice) to have some problem occur while the
+written data is being sent to the server. Perhaps the network failed or the
+server hardware failed; whatever the problem is, the client kernel
+signals the failure with an error code returned by ~~close~/~. If checked, the
+application can issue the ~~close~/~ until successful
+or take some other action to save the data.
+
+These changes to UNIX single-site semantics were not made arbitrarily; they
+were made because the potential for improving the performance and efficiency
+of the system outweighed the rareness of distributed processes sharing write
+access to files. Over the years, it's been clear that the overwhelming majority
+of users and UNIX software run oblivious to the change. And for very large files
+that need different performance characteristics, an option is available 
+to side-step this delayed write.
+
+Some more optimizations to this protocol are discussed in Chapter 5 on 
+client administration. Though these optimizations are introduced
+to improve performance even further, they do not change the protocol
+model.
+
+As far as directory updates go, the only mechanism for modifying entries 
+in a directory is the atomic system calls to create or delete a file or 
+subdirectory. These requests are therefore sent directly to the
+AFS file servers. However, just like file data, clients that have cached
+AFS directory data are given callback promises by the relevant file server.
+As directories are updated, the changes are immediately available to any 
+and all interested clients.
+
+SECTION: SERVER CONFIGURATION
+
+Clients are fairly robust systems that, in practice, require little
+administration. AFS servers take a bit more work to set up because
+servers must process several tasks - 
+location information queries, file data requests, authentication
+activity, group management, and more. The fact that so
+many kinds of data are managed by the system makes AFS administration
+somewhat challenging. As far as clients are concerned, the AFS
+data and metadata simply come from the integrated set of servers.
+
+For administrators, the previous depiction of a file system "cloud" with no 
+location dependencies now gives way to a physical set of servers and disks. 
+The behind-the-scenes view, as in Figure 2-5, seems to show a perfectly ordinary 
+set of hardware. At the lowest levels of AFS administration, there's little 
+to do but employ the usual amount of labor to install and keep running 
+the servers that provide the file data and that keep track of the location
+information.
+
+[[Figure 2-5: Administrators' Physical View of AFS]]
+
+Just like an AFS client, a file server must have a module loaded into its 
+kernel. As supplied by Transarc, the client and server modules are actually 
+the same file. The location of the module on the server is conventionally 
+the ~~/usr/afs~/~ directory tree (as opposed to ~~/usr/vice~/~, where client-side 
+information is stored).
+
+Next, a file server will naturally have several disks dedicated to AFS 
+service. Unlike NFS, AFS servers always manage whole disk partitions, that is, they do not export arbitrary parts of their local file 
+namespace. Furthermore, each of the AFS server's partitions must be mounted 
+at well-known names in the server's root directory: ~~/vicep<I>XX</I>~/~, where ~~<I>XX</I>~/~
+is any one or two letters of the alphabet from ~~/vicepa~/~ to ~~/vicepz~/~ and
+~~/vicepaa~/~ to ~~/vicepiv~/~, for a total of 256 possible partitions, commonly 
+called the ~~vice~/~ partitions.  As the AFS file service process starts, it 
+scans the server's table of mounted physical disks and assumes control 
+of these ~~vice~/~ partitions. 
+
+It so happens that an AFS server uses the vendor's native file system format
+inside the ~~vice~/~ partitions, so the basic disk set up process for a server is unchanged. 
+Each ~~vice~/~ partition should have a standard UNIX file system created on it. This will
+install several blocks of information into the low-levels of the disk indexing
+sysyem. Some operating systems use the ~~newfs~/~ or ~~mkfs~/~ utility to do this installation,
+but it is possible have these partitions serviced with software-based striped 
+or mirrored file systems or even to use RAID disks.
+
+However, inside a ~~vice~/~ partition, there is little evidence that AFS is storing 
+files, directories, and access control lists. Recall that one design point of 
+AFS is that there is one, single, ubiquitous namespace. The important 
+consequence of this design is that once the AFS servers take control of the ~~vice~/~ 
+partitions, the only way to access file data is through the ~~/afs~/~ directory. 
+If you're working on an AFS file server, there is no built-in mechanism to 
+read files and directories in the AFS namespace by examining the ~~vice~/~ 
+partitions. Happily, the kernel module loaded on servers can also be used 
+to start up the client-side daemons that provide access to the canonical namespace.
+
+Most day-to-day administration tasks are not concerned with each 
+and every file in the server. Instead, a collection of files
+and directories are logically contained in an AFS volume.
+
+Today, it seems as if every vendor uses the word "volume" and every use 
+means something different. In particular, Sun's Solaris system uses "volume" 
+to mean removable media; in IBM's AIX system, "volume" means a logical section of 
+disk space; and in NetWare, it means a physical section of the server's disk 
+that can be mapped onto a PC client's drives. In this 
+book, we will refer only to AFS volumes: a container 
+of files and directories. In a sense, it is a logical disk partition; volumes 
+can be created and connected to the AFS namespace much like a disk can be 
+partitioned and mounted at a directory name.  As a volume is accessed by 
+a client, the client sees the files and directories that have been placed 
+there just as a workstation accessing different disk partitions sees only its 
+file and directories. Volumes are the unit of administrative control for 
+the file system.
+
+The server's ~~vice~/~ partitions are the physical storage location for 
+volumes.  Typically, a partition will store many volumes;  an individual 
+volume can be as small as desired or as large as a partition. (The size limits 
+of disk partitions are dependent upon the vendor's operating system software.)
+Conventionally, volumes are kept to under a couple of hundred megabytes
+in size just for convenience. Because AFS administration
+consists to a large degree in manipulating sets of volumes, it is nice
+to have large volumes to reduce their numbers, but once the volumes grow
+too large, it is difficult to move them around, find temporary
+places to put them, or store them on archive media in one shot.
+
+Inside a volume you can store any number of files and directories. In normal 
+use, a single volume contains a subtree of related files:
+a user's home directory, the source to a programming project, a set of
+binaries for a particular hardware platform, some Web HTML files, etc.
+When created, each volume is given a short name by an administrator.  For 
+no really good reason, the names can effectively be only 22 characters long.
+
+After its creation, a volume will be connected to the AFS namespace. Any volume
+from any partition on any server can be connected to any directory name under
+~~/afs~/~. Because these connections imply modifications to the namespace, clients
+will always see the most up-to-date set of connection directories just as
+they always see the latest file data. And in fact, the connections appear
+exactly like regular directories.
+
+The action of making the connection is actually called an AFS mount, but in
+UNIX this word has heavyweight connotations of a process that must
+be carried out on all clients, as NFS mounts or Novell¨ mappings are done. A key concept for understanding how AFS clients and server work is this: 
+Clients don't mount volumes - they access files in AFS by finding out where 
+volumes are stored and then getting data from that volume's server. As a 
+result, there is just a single, ubiquitous file namespace supported by AFS.
+
+The administration view can now be better described as a virtual world
+of volumes and the location database which tells where each volume
+is physically stored. Figure 2-6 suggests how administrators deal with
+AFS; once the hardware has been configured and is smoothly running,
+day-to-day administration involves creating and manipulating the volume
+containers. With the AFS toolset, such manipulation is easy, 
+permitting the administrator to create and move home directory volumes or to replicate collections of system binaries as needed.
+
+[[Figure 2-6: Administrators' View of Volumes and Location Database]]
+
+We can now more fully explain the original example of reading the ~~/afs~/~ directory. It so happens that this topmost directory is a
+connection to a well-known volume named ~~root.afs~/~. The first time a client
+traverses this directory a query will be sent to
+find out which particular server is storing that volume's data. 
+Once discovered, the location information is, of course, cached, and then 
+a request is sent to the specified file server to retrieve the directory's contents. 
+
+Once the location of the ~~root.afs~/~ volume and then the contents of the ~~/afs~/~ 
+directory have been downloaded from the proper servers, this information 
+is cached on the client's local disk.  Future accesses to this same information
+will follow a similar local path, but because the data is available in the 
+cache, the client will immediately respond to the application's request. When 
+using cached data, the client will not need to use any network or server
+resources at all. When someone changes the contents of the ~~/afs~/~ directory,
+the client will be notified that its cache is now invalid.
+
+As more files and directories are traversed, a client will continue to 
+retrieve the data from the current volume's file server. Just as on a UNIX 
+desktop, where path name elements are resolved in the context of the current 
+disk partition (or the current drive letter on PCs), AFS files are retrieved 
+from the current volume. 
+
+Eventually, a client will discover that some directory leads to a different
+volume.  Again, the behavior is akin to how a normal UNIX workstation traverses
+local files and partitions. As a process traverses the directory structure,
+the kernel assumes that file data is stored in the same partition as the
+parent directory. At some point, a process will traverse a new volume 
+connection: this traversal causes a quick lookup of the new volume's location
+with subsequent file accesses being directed to the appropriate server and
+partition.
+
+The key concept is that all workstations are forced to see the same file
+namespace because the connections between all volumes are stored in the
+namespace itself. A corollary is that any volume not connected to
+some path name cannot have its file data read by a client because there is
+no path that would cause the client to seek out the volume's location.
+
+Most other network file systems rely on a map of names and
+locations which must be loaded into a running system. Even when this operation is
+automated, it is still performed on a client-by-client basis and depends
+on consistent maps being delivered in a timely fashion to each desktop.
+In AFS, half of the map - the published volume name - is stored along with the 
+file data in the namespace itself. The other half of the map - the specific
+location of the volume's data - is available from reliable and replicated
+database servers. Just as with file data, if the location information ever 
+changes, clients that have cached the data are called back so that 
+upon the next reference, the new location information will be retrieved.
+
+For another example, let's assume that a new user has joined our organization. 
+We'll first create a new volume for the user on a specific server 
+and partition and name the volume ~~user.joe~/~, a typical style of naming for 
+user volumes. This creation step makes the physical
+space available on the server, and initializes the location information in 
+the databases but does not make the volume available in the file namespace.
+
+The next step is to connect that volume to some directory. The only argument 
+to this connection command is the volume name, ~~user.joe~/~, and the directory 
+name, say, ~~/afs/home/joe~/~. Once the connection is made, all clients 
+immediately see the new directory name ~~/afs/home/joe~/~. If they had previously
+cached the ~~/afs/home~/~ directory listing, they would now have received a callback
+from the server saying that the directory had changed. When asked to 
+list the directory again, they would have to request the new data from the 
+server, which would respond with the new contents, which now include the 
+directory ~~joe~/~. 
+
+As any client traverses into the ~~/afs/home/joe~/~ directory, the client
+senses that it has crossed into a new volume. It therefore contacts
+the AFS database server to find the location of the volume data and
+then contacts whichever server holds the contents of the volume to get
+at Joe's home directory. This process works exactly the same for all
+clients in the organization; in fact, for all AFS clients on the Internet.
+Every client traverses the shared namespace by finding volumes in
+a cell and reading data from the designated servers.
+
+To implement this protocol, AFS gives each file in the cell a file
+identification number (FID). A FID is an identifier consisting of a volume number, 
+a file number, and a "uniquifier" or version number. In AFS, the FID performs 
+a function similar to a UNIX file's inode number, helping the system
+to get to the file.  When examining a directory and discovering a file's 
+FID, a client will extract the volume number and query the AFS databases
+to discover the location of that volume if it is not already known. Once the volume is
+located, the client will request the uniquely identified file from the indicated
+server.
+
+By this method, AFS maintains the illusion of a single namespace. Clients access 
+the correct file servers by using the namespace and querying the AFS databases
+automatically. In NFS terms, it's as if the automount maps were somehow hidden 
+inside the directory names. AFS administration consists first of
+behind-the-scenes volume management, and second, modification of 
+the file namespace, of which there is only a single and guaranteed 
+consistent copy.
+
+Access to the AFS files of another enterprise can be had as easily and
+securely as access to the local files. Conventionally, underneath the 
+~~/afs~/~ root, connections are made to dozens of other sites as needed.
+A company such as Transarc would add their own cell as a connection
+to a the path ~~/afs/transarc.com~/~.  Joe's home directory, mentioned above, 
+would normally be located at ~~/afs/transarc.com/home/joe~/~ and once logged in,
+he could access files in other cells by changing to directories such
+as ~~/afs/umich.edu~/~ or ~~/afs/cern.ch~/~.  As the 
+first Internet-ready file service, AFS has been delivering files across 
+the global wide-area network for almost a decade. (In fact, when source 
+code to the AFS system is purchased, the unpackaged files include regular 
+UNIX symbolic links to Transarc's AFS cell in Pittsburgh for easy access 
+to the latest releases of the code.)
+
+SECTION: VOLUME MANAGEMENT
+
+Now that we've created some volumes and attached them to form
+the beginnings of an AFS namespace, we can start using some of the
+powerful management tools of the system. 
+
+One method used to control the use of the AFS file system is to
+put a cap on the amount of data that can be stored in a volume.
+To help limit a user's natural desire to fill up all available disk space, 
+each volume has a data quota. Administrators can set this quota 
+to any practical size or disable it. Typically, users'
+personal volumes might be set to a quota of 100 megabytes so that at a certain
+point, they will be unable to add more than that amount of data to their home
+directory. In this way, although one user might not be able to download
+a large GIF picture because her volume quota is full, the other users 
+of that disk partition won't suffer from the shared disk becoming full.
+
+With quotas on volumes, administrators can parcel out their
+available disk partitions to users and developers and be assured that
+important areas of their file tree will always have space available.
+
+In normal usage, users will little know or care about the
+underlying volumes to which their file reads and writes are
+occurring. But there are some aspects, such as quotas and access
+controls, which are significantly different from the behavior of users' local
+file systems, and an organization should introduce
+users to these issues carefully.
+
+When users have managed to fill up a disk's volumes with file data,
+an administrator may need to add more disks to the system and move some
+users' home directories from one disk to another.  AFS manages the complete 
+volume move operation with a single, short command.  With a simple 
+instruction to the system, the administrator can move a volume from one server or disk 
+to another on-line and transparently to the user. The command
+takes care of moving the entire set of files, notifying clients that
+the files have moved and informing the cell of the new location of the
+volume.  No downtime is needed to stop users from accessing
+the volume as it is moved, all AFS services are running all the time,
+and, in fact, the user will likely not notice that the files have been
+moved at all.
+
+By reducing off-hours administration, this operation can likely pay for AFS itself. Assume some new hardware needs to be installed on
+a file server. Rather than waiting for a weekend, throwing users off the
+system, and bringing the machine and file access to a halt, staff can
+instead move all volumes on a system to sibling servers in the days
+before needed maintenance. By the time the server must be halted, no
+file data is being stored on the system and there is, therefore, no
+downtime to file access. 
+
+Replication of important volumes of file data is a similarly straightforward
+operation. Given a volume containing files that should be always
+available to clients, some stock trading applications, for example,
+an administrator can inform the cell's central databases that the volume
+will be copied over to a set of other servers and disks. The administrator defines this collection
+of replication sites as needed.
+
+Once a directory subtree has been filled with the latest 
+versions of a software package, the underlying, original volume
+is then released to its read-only replication sites. Releasing causes the
+AFS servers to copy over all the changed data to each of the replication
+sites. For files that are new or changed, the entire file is copied; for
+files to be deleted, only the new directory entry is sent in order to cause
+the file to be erased. The collection of replicas is therefore guaranteed to
+consist of exact copies, file for file and byte for byte, of all data in the
+master, read-write volume. The administrative cycle thus consists of
+installing and testing a set of files in a given volume and then releasing
+the changes to the replica sites. 
+
+This replication provides highly available access to the file data and
+automatic load-balancing as clients choose randomly among the available servers.
+But note that this replication is for read-only data - AFS replication does not
+support read-write redundancy or mirroring. Administrators must still 
+provide stable storage, such as RAID or disk mirroring, to enhance the
+availability of read-write data, such as home directories or project
+source.
+
+Because an AFS client normally gathers information about which server stores which volume as it traverses the cell's namespace, discovering replica sites is
+easy. If a volume has only a read-write site, its single location is returned;
+if the volume has been replicated, the client will be given the complete list 
+of replica servers. When data needs to be read from a replicated volume,
+the client will pick one of the multiple replication sites from which to
+request file data.  Because all sites contain the same data, it 
+won't matter which replication site is chosen. And thus, if there is a machine 
+outage, network partition, or disk disaster that affects data
+access to one server, the client can serenely skip to the next site on its 
+list and request more file data from one of the other available servers.
+
+SECTION: SERVER PROCESSES
+
+To make all of this magic work, AFS servers run a number of processes, each of which 
+manages, sometimes alone and sometimes in concert with other processes,
+pieces of the data that make up the cell. 
+
+The first processes that concern us are ~~fileserver~/~ and ~~volserver~/~; these
+two programs keep track of and deliver file data and volume data in response
+to specific client requests. They have direct responsibility for the data
+that is stored in all the ~~vice~/~ partitions on a server.
+
+The next set of processes to consider are the database services that enable
+volume location data, group membership information, and authentication
+secrets to be reliably accessed by clients. By running multiple
+instances of the these programs on different servers, AFS ensures that all clients will be able to retrieve data from the system
+in spite of most system outages. The processes, ~~vlserver~/~ for volume
+locations, ~~ptserver~/~ for protection group membership, and ~~kaserver~/~
+for Kerberos authentication data, do not need to be as widely distributed
+as stock file servers because their data changes less frequently.
+
+These processes maintain their information by using a database protocol
+called Ubik. This protocol has been heavily optimized to store and disburse 
+the specific data needed to maintain an AFS cell.{[[Footnote 2]]
+Ubik is named after the science-fiction novel by Philip K. Dick.
+The novel takes place in a world where corporate psychics are nullified 
+by anti-psi humans, where the dead are placed in cyronic storage yet are 
+still available for consultation, and where the apparently living need 
+periodic rejuvenation from Ubik - a handy aerosol spray available in a 
+variety of ever-changing packages and which, as the name suggests, is 
+ubiquitous in time and space. Use only as directed; Do not exceed 
+recommended dosage.} Because any database process can 
+potentially fail, each particular database periodically elects 
+a master to which all write operations are sent. After the master writes the database to 
+stable storage, the master updates the slave databases with the changes.
+All of these operations are invisible to users of the AFS file service 
+but must be monitored and supported by administrators.
+
+In practice, most organizations separate their server computers into file servers,
+which run the ~~fileserver~/~ and ~~volserver~/~ processes, and database
+servers, which run ~~vlserver~/~, ~~ptserver~/~, and ~~kaserver~/~. Thus, administration of one machine (e.g., when adding disks to a
+file server) affects as few services as possible.
+
+Naturally, keeping track of which machines should run which servers is a
+small chore for the administrators. Like much of AFS, this very practical
+concern was solved by engineering: a special program was written
+which runs on each AFS server machine and maintains a simple table of
+processes that are to be started. This is the basic overseer server,
+~~bosserver~/~. Administration of servers consists of properly authenticated
+individuals running an application, ~~bos~/~, which connects to the overseer on
+a specific server in order to start, stop, create, or delete a certain AFS
+service. This overseer not only controls the existence of other processes,
+but it notices if a service crashes and restarts it if necessary. In
+such a case, it even rotates the log files and moves the core dump (if
+any) to a safe location for shipment to Transarc.
+
+File backup is handled by another database service, ~~buserver~/~,
+and an application, ~~backup~/~ that uses the configuration information stored in
+this database to dump and restore data to external media on a per-volume
+basis. As this activity is done, the backup database keeps track of when each
+volume was archived, permitting recovery operations to be easily managed.
+
+One concern of the designers was to ensure that
+all server machines ran the correct versions of all of these
+server processes and that the common configuration data was consistent
+among them. So they added a final set of update processes -
+~~upserver~/~ and ~~upclient~/~ - to propagate binaries from assigned master
+machines for each architecture or to copy configuration files from a central
+master to all other servers. To install a new version of AFS, you
+simply install the new binary or configuration files onto a master machine 
+and the system will pull down the new files onto the update clients.
+At regular intervals, the basic overseer restarts the server
+processes; at this time any new executables will be started or new 
+configuration data will be read and used.
+
+Finally, consistent time services are needed by clients
+when they access shared file data; the Kerberos protocols need these services, too. AFS provides an implementation of a distributed time service
+by which all machines at a site can keep the same standard time. This 
+particular implementation is optional and can be replaced with other public 
+versions of network time services if desired but having consistent time 
+kept by all systems in a cell is critical to correct performance of AFS.
+
+SECTION: NETWORK PROTOCOL
+
+For all of these network requests and data transfers, AFS clients and servers 
+use a homegrown wire protocol called Rx. Rather than a heavyweight,
+connection-oriented protocol such as TCP, AFS needs a transport layer
+that can manage many small RPC requests and answers but that approaches
+streaming transfer rates for large data movement. 
+
+Rx uses the UDP transport layer directly because of its lightweight 
+characteristics. Though UDP is usually thought of as an unreliable protocol, 
+Rx adds a layer of timeouts and packet management of its own to create a 
+robust and reliable system. To decrease the costs of connection set up
+even further, multiple file accesses by the same user on the same client
+are multiplexed over a single Rx circuit.
+
+Because the design goal of AFS was to support a distributed campus environment 
+with many LANs connected by slower links into a wide-area network, the Rx
+protocol has undergone many engineering iterations. (The previous version
+of CMU's protocol was called, simply, R; the design of Rx is a prescription
+for some of R's problems.) The current version uses several techniques 
+from other protocols, such as negotiation of maximum transmission unit, 
+exponential backoff of retransmissions, and quick round-trip time estimation, 
+all to ensure that reading and writing of AFS files and database responses 
+would be quick and reliable even under network duress.
+
+As with other protocols, such as TCP, Rx numbers each packet so that lost
+data can be tracked. Packet sizes start at 1500 bytes and increase when
+run across media with a larger maximum transmission unit, such as FDDI.
+Acknowledgments are required after every two packets of the normal Rx window
+of eight packets. Unlike Sun RPC, only the unacknowledged packets need 
+to be retransmitted. There is a two-second retransmission timeout interval;
+keep-alives stop a connection from being dropped due to
+inactivity.
+
+Rx is a complete RPC system available to any developer and includes ~~rxgen~/~, a utility which translates an interface definition file into client and 
+server stub code. These stubs can marshall and unmarshall data as needed; 
+they use the Rx protocol to transmit and receive procedural requests with 
+enforced at-most-once semantics (i.e., a procedure is guaranteed to either finish 
+once or not at all). 
+
+In practice, few developers outside of Transarc will use Rx. But each AFS 
+process, such as the file, authentication, or volume location server, uses 
+one or more Rx interfaces as the formal boundary between themselves and 
+any client applications. Since one of the client applications happens to
+be the desktop operating system, Rx has also been crafted to behave well in 
+either the kernel or user space.
+
+One important feature built in to Rx is its extensible support for security 
+modules. When building a specific server, the programmer can choose which
+of many authentication systems should validate the connections.
+For most AFS connections, the Kerberos authentication module is used. All
+Rx transmissions are, therefore, authenticated. To forestall the potentially high
+cost of connections and authentication steps, each connection can host
+multiple channels of data exchange. This optimization permits servers 
+to process thousands of open channels as they support large-scale
+enterprises. 
+
+The maturity of Rx and its success at handling different WAN and LAN
+conditions are demonstrated when you peruse file systems from AFS sites across the
+world. Though bandwidth can sometimes be low, connectivity to remote cells
+is routinely successful. Not only Rx, but the entire architecture of
+AFS - the cell domain, internal database management, and the caching of 
+all distributed data - contributes to this success.
+
+SECTION: AFS EXTRAS
+
+AFS desktops are more than capable of accessing multiple file systems, 
+such as when communicating with a site's legacy NFS servers. In
+addition, an AFS client can re-export the AFS namespace (or
+a portion thereof) via the NFS protocol to other NFS clients. 
+Thus, any machine for which AFS ports from Transarc are unavailable
+can still get to AFS files. This intermediary is called a <I>translator</I> 
+or <I>gateway</I> because it receives NFS client requests and turns them into 
+AFS client requests.  As the AFS/NFS gateway accesses the AFS cell, the files 
+read will be cached on the gateway's local disk. Generic downstream NFS clients 
+cannot perform disk caching on their own, but multiple NFS clients accessing
+the same gateway can reuse files that the gateway has previously cached; this capability helps spread out 
+the server load if the cache hit ratio is high enough.
+
+One imperfection in this process is that the users of the NFS clients must 
+perform extra authentication steps to permit the gateway 
+system to properly access restricted areas of AFS data.
+
+SECTION: SUMMARY
+
+These then are the programs, configuration files, clients, servers, and
+databases that constitute AFS. To be sure, the complexity of all of these
+systems working together is somewhat overwhelming. In reality, administrators 
+need to deal with only a few pieces of the AFS puzzle at any one time. 
+
+Clients are mostly self-sufficient and require only a few small,
+static configuration files. As long as the client remains connected
+to the network, nothing more is needed to gain access to organization's
+or the Internet's AFS systems. Because of the caching algorithms installed
+in the client kernel, reading and writing files from any desktop in the
+enterprise is efficient and presents a minimum load to the network
+or servers.
+
+While clients cache data retrieved from the network, the AFS servers take
+care to note who's reading what; when any information changes,
+each client is informed of the change so that the next read will
+fetch the more current data. This callback guarantee gives the file
+servers some extra work to do, but in the long run, this work is far less
+than that needed to service requests from clients without large
+caches. The state information stored by AFS servers does make them
+more complicated, but it is that state information which makes the
+entire system more efficient, and users see higher performance from
+their desktops.
+
+In their zeal to achieve the highest efficiencies, the designers of
+AFS chose to change distributed write semantics. Processes on
+multiple machines will see different data at different times than if
+the processes were all located on the same desktop. In practice, these concessions
+are not noticeable by users. The distributed semantics provided
+by AFS represent reasonable compromises, which in turn enable a
+system of a given size to support orders of magnitude more clients.
+
+Like clients, AFS servers are relatively robust systems that
+require just a bit of care. Once the various processes and databases
+are up and running, most administration consists of volume manipulation 
+and backing up data; these tasks are not much different from tasks for any other local machine.
+The big difference is that, with the ability to manage file data with drastically 
+limited downtime and on-line fail over to replicated volumes, a small 
+administration staff can handle a much larger group of 
+users and data. 
+
+With the integration of Kerberos services, not only can access controls
+be refined, but group administration can be delegated to the users themselves.
+And remote system management can be based on strong authentication rather
+than on blind trust between distant systems.
+
+Depicting AFS as a file system cloud demonstrates the ubiquity
+of the system and the simplicity of connecting to the service. Perhaps
+a better analogy would be to a consumer utility provider - the water
+supply or the electric company. After a single hookup is made, 
+services are constant, reliable, and affordable. As with telephone services,
+you simply expect that a single phone line will be able to connect
+you to any other phone in the world. AFS is like that; the worldwide
+community of AFS sites shares files without any special browsers or
+other applications. As far as they are concerned, "No matter where you
+go, there you are."
+
+In the next three chapters, we'll dive into real administration operations. 
+First, we'll set up a cell including all of the AFS services, then
+we'll begin to construct the AFS namespace of volumes, directories,
+and files, and then we'll set up standard clients.

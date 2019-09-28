@@ -1,0 +1,2375 @@
+CHAPTER 7: USING AFS
+
+Until now, we've examined straightforward administration of AFS. 
+Thankfully, the majority of these tasks, such as setting up a client
+cache, must be managed only once. After all of the servers have been
+installed, desktop computers initialized, and the basic file namespace
+constructed, it's the users who will actually manipulate the files and
+directories. And though this chapter is devoted to the special features and
+limitations of the file system, the majority of the time a user will never
+notice anything odd - or even interesting - about AFS.
+
+The one striking feature of the system is that all the files managed by
+AFS, which usually means everything below ~~/afs~/~ in the file tree, are
+guaranteed to be visible to everyone at your site. This simple fact quickly
+becomes a touchstone on which everyone depends. Navigation though the file
+tree, whether with the command-line ~~cd~/~ command or clicking
+on a folder icon in a browser, works just as if the files were on a local
+disk.
+
+Even so, there are several details about which users and developers should
+know. Some of these details are commands that could work differently in AFS than in
+UFS; some few are file behaviors that are somewhat different and unexpected;
+and others are new functionality that should be mastered.
+
+The biggest difference between UNIX and the AFS system is the notion of 
+authentication and permissions. This is one area with which users must 
+become comfortable. 
+
+AFS permissions are managed by a list of access controls attached to each AFS
+directory level, and the identities on each list are restricted to
+AFS identities. This last requirement results in one powerful security aspect 
+of the system: UNIX root identity does not have any equivalent Kerberos 
+identity or credential. Whereas UNIX superusers have broad authority to manage 
+the desktop computer and read and write all files in the local file system, 
+UNIX root has no special privileges in the AFS file system. Thus, while 
+certain poorly written UNIX system services have security holes that can 
+allow hackers to gain superuser access to the desktop, that identity will 
+confer no special privileges to any directory or file in AFS. Such privileges 
+are restricted to those identities that have received Kerberos-blessed 
+credentials.
+ 
+In regular use, UNIX root is reserved for administration, such as installation of client services, of the desktop
+machine. When performing AFS
+management, administrators will keep their personal non-root UNIX identity
+and, additionally, authenticate as AFS system administrators.
+
+This chapter discusses the implications of these authentication issues and how
+access controls lists work. More general user questions follow, including
+how to check for possible AFS client problems and how AFS affects the
+use of standard UNIX commands and programming idioms.
+
+SECTION: AUTHENTICATION
+
+So far we've glossed over how one becomes authenticated. User
+identity, however, is one of the more intricate and visible aspects of life in
+AFS. Simply put, users in an AFS environment have two identities that must
+be managed: the original, conventional UNIX identity and an AFS identity
+controlled by the Kerberos authentication protocol.
+
+A standard AFS client installation will replace the vendor's login program
+with one written specially by Transarc (described in detail in the system
+software section below). Once integrated, this login checks a
+user's name and password against the Kerberos database maintained by AFS
+and, if successfully matched, then spawns a login shell with the user's
+UNIX identity and AFS credential set to the correct values.
+
+These values are normally set to the same number so that when new files
+are created and assigned the owner's AFS identity, UNIX processes looking up
+the printable string associated with the number in the password file or NIS
+map will display the correct user name. This equivalence must be managed by
+AFS and system administrators.
+
+To see your AFS credentials, use the ~~tokens~/~ command.
+
+PROGRAM DONE
+	$ <B>id</B>
+	uid=1235(david) gid=10(staff)
+	$ <B>tokens</B>
+ 
+	Tokens held by the Cache Manager:
+	 
+	User's (AFS ID 1235) tokens for afs@hq.firm [Expires Apr  3 00:13]
+   	--End of list--
+PROGRAM
+
+Here, the UNIX ~~id~/~ command prints out the user's identity according to the
+local operating system. The second command, ~~tokens~/~, displays the Kerberos 
+authentication data. In AFS, a <I>token</I> is a data object which correlates
+a user's UNIX process with an AFS identity.  Because of the Kerberos protocol 
+used, the token represents not only an extremely trustworthy identity to 
+the AFS servers but also allows the user to know that the correct AFS 
+cell has been contacted - this is the result of the mutual authentication 
+process. 
+
+Note that the command ~~tokens~/~ is plural; there's room in the credential 
+list for additional identities that would be authenticated to additional 
+cells. Each identity lists the user's AFS identity number, as stored in
+the protection server database. Recall that David was set up with identity
+number 1235; for no good reason, the ~~tokens~/~ command
+prints out only the numeric form of the user's identity and not the more
+useful character string.
+
+Each credential request is authenticated against a specific cell and each 
+token has an expiration time. In this case, the cell is ~~hq.firm~/~, and the
+expiration time is April 3rd at 00:13. 
+
+If new credentials are needed or the vendor's login program has not been
+replaced with an AFS-ready version, you can use the ~~klog~/~ command.
+
+PROGRAM DONE
+	$ <B>klog david</B>
+	Password:
+	$ <B>tokens</B>
+ 
+	Tokens held by the Cache Manager:
+	 
+	User's (AFS ID 1235) tokens for afs@hq.firm [Expires Apr  3 00:15]
+   	--End of list--
+PROGRAM
+
+These token credentials are stored in the running operating system alongside
+the user's traditional UNIX identity. The fact that AFS credentials 
+are stored separately from the user's UNIX identity means that a user could have AFS credentials for a principal that has a name different 
+from the user's UNIX identity. Having different credentials than one's UNIX identity can be confusing and is
+generally discouraged; because AFS has a flexible group identity mechanism,
+there's little reason to have shared accounts, so users will almost always
+obtain their credentials corresponding to their own login.
+
+One important effect of the ~~klog~/~ program is that it obtains credentials that are
+associated with the current process and will be inherited by all child
+processes. Thus, all subprocesses run by the user will have the same 
+AFS credentials. But because the credentials are shared among
+the parent and children, any change to credentials in a child process
+will cause a change to all related processes. If you are logged in and
+running a window manager with many separate terminal sessions, any credential
+obtained during the login procedure will be shared; if you change 
+tokens via ~~klog~/~ in one terminal session window, the tokens in the other
+sibling windows will reflect the new credential. Often this is exactly
+the desired effect.
+
+Sometimes, however, a user wants to have different credentials on the same
+machine: if a user needs to invoke administrative privileges in one window,
+there's no need for all the user's windows to become privileged as well.
+In this case, the user can use the ~~pagsh~/~ command to create a new 
+process authentication group with its own set of credentials.
+
+A <I>process authentication group</I> is a unique number the operating system uses to identify
+the token that is associated with a user. The number is unique rather than based
+on a user's UNIX ID so that the same user can get different tokens in different PAGs, if
+desired. The kernel copies a PAG number from parent to child processes, so
+all the processes spawned in a login session will have the same PAG and
+therefore the same token. The ~~klog~/~ command generates new or
+different tokens to be used with the current set of processes that share a
+PAG number.
+
+PROGRAM DONE
+	$ <B>tokens</B>
+	 
+	Tokens held by the Cache Manager:
+ 
+	User's (AFS ID 1235) tokens for afs@hq.firm [Expires Apr  3 00:15]
+   	--End of list--
+	$
+	$ <B>pagsh</B>
+	$ <B>tokens</B>
+ 
+	Tokens held by the Cache Manager:
+	 
+   	--End of list--
+PROGRAM
+
+The first ~~tokens~/~ command displays the normal credentials David received when
+he logged in to his desktop. His AFS credentials match his UNIX ID. After he
+runs the ~~pagsh~/~ program, he created a new subshell process, just as
+if he had started a new interactive shell. This command is managed by the
+client's AFS kernel module and not only creates a new subshell but places
+that process in a new process authentication group. As the second ~~tokens~/~
+command shows, this new subshell has no AFS credentials
+
+Now that a new process group has been created, David is free to run another ~~klog~/~ program to obtain any
+credentials for which he knows the password. New programs initiated
+at this point will run under the new, different AFS credentials. 
+
+PROGRAM DONE
+	$ <B>klog carol</B>
+	Password:
+	$ <B>tokens</B>
+	 
+	Tokens held by the Cache Manager:
+	 
+	User's (AFS ID 2347) tokens for afs@hq.firm [Expires Apr  3 00:15]
+   	--End of list--
+PROGRAM
+
+Any other programs started by David prior to the ~~pagsh~/~ command will 
+still be running under David's AFS credentials. As the parent shell is still
+running, David can ~~exit~/~ the new process group's subshell, return to the
+parent, and confirm that it's token is unchanged.
+
+PROGRAM
+	$ <B>exit</B>
+	$
+	$ <B>tokens</B>
+	 
+	Tokens held by the Cache Manager:
+	 
+	User's (AFS ID 1235) tokens for afs@hq.firm [Expires Apr  3 00:15]
+   	--End of list--
+PROGRAM
+
+Regular users need to understand that their true AFS identity is 
+separate from their UNIX identity and that they must use the ~~tokens~/~ 
+command to make sure that they are authenticated correctly. All processes
+that are run after getting an authenticated identity will execute with
+that identity's privileges. Even UNIX ~~setuid~/~ programs will execute
+with the same AFS authentication, though with a different UNIX identity.
+
+Users should also know about the ~~pagsh~/~ command as a way to create a new
+set of processes that can obtain different authentication credentials
+without changing the credentials of any other process. The need to create new authentication groups
+will be somewhat rare for users but fairly common for administrators.
+
+As seen in the output of the ~~tokens~/~ command, an AFS credential has an
+expiration date. The time limit attached to a new credential is controlled
+by the AFS administrator. If a user is suddenly unable to read or write
+files in directories that were previously available, one reason may be an
+expired token. Check for expiration with the ~~tokens~/~ command, but make sure
+that the ~~tokens~/~ command prints out a meaningful result - if a ~~pagsh~/~ has been
+executed at some point by the user, the tokens listed in one window may not
+be the same as the tokens in a different window.
+
+Users can request shorter ticket lifetimes if desired. Note that only
+certain values for lifetimes are allowed; other values are silently rounded 
+up. For example, lifetimes less than 10 hours and 40 minutes are granted
+at the next highest 5-minute interval; a lifetime request of 6 minutes would
+be answered by a ticket good for the next 10 minutes. Lifetimes greater than 10 hours
+40 minutes are granted in ever-increasing intervals. See the AFS command
+reference for details. In the next example, you can see that the expiration
+time is 10 minutes after the current time, even though a lifetime of 6 minutes
+was requested.
+
+PROGRAM DONE
+	$ <B>date</B>
+	Sat Mar 29 16:51:43 EST 1997
+	$ <B>klog david -lifetime 0:06</B>
+	Password:
+	$ <B>tokens</B>
+ 
+	Tokens held by the Cache Manager:
+ 
+	User's (AFS ID 1235) tokens for afs@hq.firm [Expires Mar 29 17:01]
+   	--End of list--
+PROGRAM
+
+
+Kerberos authentication credentials presents a few problems with some
+conventions of UNIX computing.  First, tokens obtained on one client are 
+not automatically available on other clients. If you use the UNIX ~~rsh~/~ 
+command to open up a shell on a remote system, that shell will not have 
+tokens. To solve this deficiency, Transarc's AFS 
+product comes with an improved ~~rsh~/~ server that can perform additional
+mutual authentication with the Kerberos system to obtain tokens on the remote
+system. This system is discussed later in this chapter.
+
+Second, authentication is not integrated with UNIX ~~cron~/~ jobs. A <I>cron job</I> is
+a command that is configured to run at a certain time, such as every
+night at midnight. These jobs are managed by a root process, ~~cron~/~, on
+the local client and are automatically invoked under the user's UNIX 
+identity. There is no mechanism for obtaining Kerberos credentials for these 
+jobs; whereas a solution for the remote shell problem can at least be based on a user's 
+authenticated token on one machine, a ~~cron~/~ job has no token at all. 
+Additionally, manually initiated, long-lived application servers will usually
+need to retain their tokens for longer than the maximum ticket lifetime. 
+
+"Power users" are often unhappy with this situation. Remote or timed execution
+has been part of their development toolbox for a long time. AFS administrators 
+and managers should be quite sensitive to this meed and consider these users' concerns when designing a new computing environment. 
+
+On the other hand, ~~cron~/~ was invented before distributed file systems were 
+commonplace and the remote versions of commands were written with a virtuous 
+trust model in mind. In a modern enterprise, general standards have yet to be developed 
+for dealing with untrusted hosts. Nevertheless, important 
+applications that need to write files without a strong authentication 
+guarantee can certainly coexist with AFS: the files can either be 
+explicitly made world-writeable or the files can simply reside in a standard 
+UNIX local file system. 
+
+To improve security, you can set up an ACL to include a computer's IP address
+as a group member. That way, all applications or ~~cron~/~ jobs running on 
+a specific machine will be able to read or write into a given subdirectory
+of the file system.
+
+If more limited ACLs are needed, then a Kerberos credential will have to
+be obtained for the job. The issue that needs to be addressed is how to 
+refresh the credential over the course of several days or weeks, a time
+period during which normal tokens will expire. 
+
+Transarc provides an unsupported tool, ~~reauth~/~, to help with this scenario.
+When run from the command line, the ~~reauth~/~ command takes as argument a
+Kerberos principal name and password and uses that password to get the user's
+credentials. The process then forks a copy of itself, and the parent process
+continues to run in the background, sleeping for a specified interval. When
+the parent process wakes up, it refreshes its token by using the password
+(which now exists only in the process memory). This cycle then continues.
+
+These tokens are automatically available to all jobs in the process
+authentication group, so child processes will find that they always have
+a fresh, usable token with which to prove their identity. In typical
+use, the ~~reauth~/~ command looks like:
+
+PROGRAM DONE
+        $ <B>reauth 43200 david davespassword</B>
+        $ <B>tokens</B>
+
+        Tokens held by the Cache Manager:
+ 
+        User's (AFS ID 1235) tokens for afs@hq.firm [Expires Apr  8 08:24]
+        --End of list--
+PROGRAM
+ 
+Here, the tokens obtained by ~~reauth~/~ are available in the subshell. Any
+subsequent jobs initiated from that command line will discover that their
+tokens are automatically refreshed by their parent. The refresh interval in
+this example is 43200 seconds or 12 hours, which is well before the default 25-hour token expiration.
+ 
+The ~~reauth~/~ command is simply a wrapper for legacy jobs.  The only bulletproof
+solution is to identify the critical applications that depend on 
+a strong security system and upgrade those to utilize the 
+Kerberos authentication protocols.  Meanwhile, some of the commercial 
+Kerberos vendors might be able to provide some support.
+
+Finally, the ~~unlog~/~ command discards all tokens held by the current
+user. This step is important because leftover tokens could be
+used by a malicious root user on the same client.
+
+SECTION: PROTECTION DATA
+
+While the Kerberos database stores a mapping between names and passwords and
+is used as the controlling protocol for authenticating users and servers,
+most of the data associated with a user's identity is stored in the
+protection database, managed by the ~~ptserver~/~ process on the database
+servers.
+
+You can query the protection database with the ~~pts~/~ command.
+
+PROGRAM DONE
+	$ <B>pts examine alice</B>
+	Name: alice, id: 17001, owner: system:administrators, creator: afsadmin,
+	  membership: 0, flags: S----, group quota: 20.
+PROGRAM
+
+The database contains all the system data about the named user or also, as
+we'll see later, groups or machines. Note the identification
+number assigned to the database entry. While, normally, AFS uses this number
+only internally, it is most important to synchronize the user AFS
+identification numbers with the UNIX identiers. When files are
+created in AFS, the creator's AFS identification number is stored as the
+owner of the file. Later, when common UNIX programs such as ~~ls~/~ retrieve that
+number, they convert the number into a name by looking at the ~~/etc/passwd~/~
+file or NIS map and not the AFS protection database. (We discussed the creation of the
+Kerberos and protection database entries in Chapter 6.)
+
+Also stored in the protection database are the entry's owner and creator. The
+creator field holds the name of the AFS identity that created the entry,
+mainly for auditing purposes; the owner is the person who currently has the
+power of administration. For user entries, the owner is always
+~~system:administrators~/~.
+
+The membership field displays a count of the number of groups to which this
+identity belongs. For newly created users, this number will be 0. The last field,
+the group quota, is a simple numeric quota on how many groups the user is
+permitted to create. The default group quota is 20, but this number can be
+adjusted by a system administrator.
+
+The second-to-last field, flags, stores several pieces of information in a
+5-character word. Each position holds a value for a single privacy
+flag, which can be a hyphen, a lowercase letter, or an uppercase
+letter, though not all values have meanings for both user and group entries. The default set of privacy flags permits all users to examine the
+protection database entry. For user entries, the complete list of valid
+values and their meanings are as follows:
+
+<B>STATUS flag, first character:</B>
+
+-- ~~S~/~ All users can examine the status of the user.
+
+-- ~~s~/~ Only the user and members of the ~~system:administrators~/~
+group can examine the entry.
+
+<B>OWNERSHIP flag, second character:</B>
+
+-- ~~O~/~ All users can list the groups that this user owns.
+
+-- ~~-~/~ Only the user and members of the
+~~system:administrators~/~ group can list the owned groups.
+
+<B>MEMBERSHIP flag, third character:</B>
+
+-- ~~M~/~ All users can list the groups to which this user belongs.
+
+-- ~~-~/~ Only the user and members of the ~~system:administrators~/~
+group can list the groups to which this user belongs.
+
+<B>ADD flag, fourth character:</B>
+
+-- There is no meaning for this privacy flag for a user entry.
+
+<B>REMOVE flag, fifth character:</B>
+
+-- There is no meaning for this privacy flag for a user entry.
+
+As you can see, many of these privacy flags have meanings only when applied
+to group entries, as explained later in this chapter. In practice,
+the defaults, which permit everyone to see this data but allow only
+the user (or administrator) to list the groups owned by the user
+or of which the user is a member, are acceptable.
+
+
+SECTION: ACCESS CONTROL LISTS
+
+Having talked about access control lists for so long, we'll finally look at
+their precise definition. ACLs control permissions on directory
+and file access. Whereas a normal UNIX permission is a string of 
+read-write-execute permissions for three classes of users - the owner, 
+a group, and everyone else - an AFS ACL allows more permissions to be 
+set for a variety of users or groups.
+
+An AFS ACL is a list of rights and is defined on a per-directory basis.
+All of the entries in a single directory share the same base ACL; you can't
+set different AFS access controls on different files except by moving the
+file to a different directory. Each ACL on a directory consists of a list of at
+most 20 entries; each entry consists of an identity - either a user or group - and the combinations of rights granted to that identity.
+
+Seven rights are predefined by AFS: four control access to
+the directory and three provide permissions for all files in that directory.
+
+The four directory rights and their abbreviated character code (in parentheses) are:
+
+-- lookup (l) - Permits a user or group to list
+the contents of the directory. Members of the ~~system:administrators~/~ group
+always have permission to list directory contents, whether this right is
+explicitly listed or not.
+
+-- insert (i) - Permits a user or group to add files or
+subdirectories to a given directory.
+
+-- delete (d) - Permits a user or group to delete entries from a directory.
+
+-- administer (a) - Permits a user or group to manipulate the ACL for a directory.
+Members of the ~~system:administrators~/~ group always have permission to
+manipulate ACLs, whether explicitly listed or not. And users are
+always permitted to modify their AFS home directory ACLs.
+
+The three rights that affect all of the files in a directory equally are:
+
+-- read (r) - Permission to read file content and to query file status.
+
+-- write (w) - Permission to write file content and to change UNIX
+permission modes of files.
+
+-- lock (k) - Permission to use full-file advisory locks.
+
+Some AFSers use the mnemonic "wildkar" to remember these seven rights.
+
+To examine an ACL, use the ~~fs~/~ command. Here's a typical ACL for a user's
+home directory.
+
+PROGRAM DONE
+	$ <B>cd /afs/hq.firm/user/alice</B>
+	$ <B>fs listacl .</B>
+	Access list for . is
+	Normal rights:
+	  system:anyuser rl
+	  alice rlidwka
+PROGRAM
+
+The ACL has two entries: the first entry displays the rights of the group ~~system:anyuser~/~; members can read the file contents and list the directory's files. The
+second entry shows the rights for the user ~~alice~/~. She can perform all
+actions, read files, list the directory, insert files, delete files, write
+file data, lock files, and administer the directory ACL. 
+
+Inside the directory are four files:
+
+PROGRAM DONE
+	$ <B>ls -l</B>
+	total 6
+	-rw-rw-rw-   1 alice    staff         29 Mar 29 16:57 file1
+	-rw-------   1 alice    staff         29 Mar 29 16:57 file2
+	-r-xr-xr-x   1 alice    staff         29 Mar 29 16:57 script1
+	-rwxr-x---   1 alice    staff         29 Mar 29 16:57 script2
+PROGRAM
+
+Let's look at the each file in the directory. Though each still appears to have
+rights defined by the nine UNIX permission bits, in AFS the group and world
+permissions (the top six bits) are completely ignored. 
+If stored in a UNIX file system, ~~file1~/~ would be readable and writeable 
+to Alice, as well as to members of the group staff and the world. Because
+it is stored in AFS, the fact that the top six bits are ~~rw-rw-~/~ and that
+the file has a group owner of staff is completely irrelevant.
+
+All that is relevant are the bottom three bits. For ~~file1~/~, the file is
+nominally ~~rw-~/~, that is, readable and writeable but not executable. User
+Alice, since she has full rights in her entry in the ACL, can read and
+write the file. Looking at the UNIX group and world permissions, you'd
+think that others could write to the file as well, but for anyone other than
+Alice the only matching ACL entry is for ~~system:anyuser~/~ and the permissions
+listed permit only file reading.
+
+Again, for ~~file2~/~, the fact that the top six bits of the UNIX permissions are
+empty is irrelevant. The bottom three bits permit reading and writing; this
+is the same as the permissions for ~~file1~/~.  Alice's ACL entry endorses those 
+permissions, while any other user can still read 
+the file, despite the attempt to block reading by changing the UNIX group 
+and world permissions.
+
+For ~~script1~/~, the bottom three bits permit reading and execution but not
+writing. Here, even Alice is not permitted to write the file; although the ACL
+on the directory includes file writing permission, the bottom three bits
+take precedence. Alice is therefore permitted to read and execute but
+not to write to the script. Other users are permitted to read the script
+because of the ~~r~/~ permission and the ~~rl~/~ ~~system:anyuser~/~ ACL entry. They
+can also execute the script because of the UNIX ~~x~/~ permission; execution
+is permitted for any file with the ~~x~/~ permission bit on as long as an ACL
+entry permits reading by the user.
+
+Finally, it may appear to a UNIX user as though ~~script2~/~ can be 
+edited and executed only by Alice and just executed by anyone in the
+group staff. They would be wrong: AFS users know that, as with ~~file2~/~, 
+the permissions for ~~script2~/~ are based on the ACL stored in the directory.
+Because this ACL permits anyone to read the files in the directory, any
+file (such as ~~script2~/~) with the user read bit set will be readable by anyone.
+And because the user execute bit is set, anyone may run this script.
+
+The appearance of the user write bit for ~~script2~/~ also suggests that anyone
+with access to the file may edit it. According to the directory ACL, 
+the only authenticated user permitted to edit the file is ~~alice~/~; 
+everyone else has only read permissions.
+
+The rules are quite simple, though very different from standard UNIX:
+
+-- A single ACL on a directory controls directory access and
+access to all files in the directory.
+
+-- The group and world permission bits are completely ignored.
+
+-- The user permission bits are the final modifiers of access
+to the file for any user who is permitted access by the ACL.
+
+The result is that the UNIX user ~~r~/~ bit gives anyone listed in an ACL
+entry with read and lookup the right to read the file. Without that ~~r~/~ bit,
+no one may read the file, no matter what the ACL says.
+
+The UNIX user ~~w~/~ bit gives anyone listed in an ACL entry
+with write and lookup the right to write to the file. Without that ~~w~/~
+bit no one may write to the file.
+
+The UNIX user ~~x~/~ bit is still used by the operating system to permit the
+file to be executed by anyone with read and lookup rights on an ACL entry.
+Without the user ~~x~/~ bit, the file will not be executable for any user.
+
+As for directories, all nine UNIX permission bits as well as the owner
+and group name are completely ignored. Only the four AFS ACL rights (list,
+insert, delete, and administer) for any listed identities are used.
+
+Although so many bits are ignored by AFS, they are still stored in the system
+and can be set with the usual tools of ~~chmod~/~ and ~~chown~/~. Anyone with ACL
+write permissions can change the mode bits of files, and anyone with ACL
+insert, lookup, and delete permissions can change the mode bits of
+directories.
+
+Once again, AFS appears to provide a daunting interface to file system
+activity. The reality, though, for manipulating AFS files, is that permissions
+on directories are completely described by the ACL, while file permissions
+begin with the leftmost three ~~rwx~/~ permission bits and are finally constrained
+by any matching ACL entry.
+
+Conveniently, AFS copies the ACL on a parent directory over to a new subdirectory at the time of creation. In the above example, the new subdirectory ~~newDir~/~ gets a copy of the ACL on ~~/afs/hq.firm/user/alice~/~, which was
+shown in the previous example. This is a real copy; if Alice's home
+directory ACL is later changed, ~~newDir~/~ will retain the original copy.
+
+PROGRAM DONE
+	$ <B>mkdir newDir</B>
+	$ <B>fs listacl newDir</B>
+	Access list for newDir is
+	Normal rights:
+	  system:anyuser rl
+	  alice rlidwka
+PROGRAM
+
+Setting ACLs is straightforward.  To add or modify the access controls for 
+the new directory, you use the ~~setacl~/~ subcommand. The subcommand requires 
+a directory name and then a set of pairs of arguments; each pair is an 
+AFS identity (either a user or group name) and a corresponding set of 
+ACL rights.
+
+The ACL rights can be specified with the single character abbreviations,
+or one of the following simple words can be used:
+
+-- read - Give ~~rl~/~ permissions: read and list rights
+
+-- write - Gives ~~rlidwk~/~ permissions: read, list, insert, delete, write, and lock
+rights; all rights but administer.
+
+-- all - Gives ~~rlidwka~/~ permissions.
+
+-- none - Erases the identities ACL entry, if it existed at all.
+
+Here, the ~~newDir~/~ directory created above has two additional entries
+added to its ACL.
+
+PROGRAM DONE
+	$ <B>fs setacl newDir bob rlidwk</B>
+	$ <B>fs setacl newDir carol rl system:anyuser none</B>
+	$ <B>fs listacl newDir</B>                              
+	Access list for newDir is
+	Normal rights:
+	  carol rl
+	  bob rlidwk
+	  alice rlidwka
+
+PROGRAM
+
+The ~~listacl~/~ subcommand lists each entry's rights using the single character
+abbreviations and always in the order ~~rlidwka~/~. You can clear out an ACL
+and install a whole new list of entries with:
+
+PROGRAM DONE
+	$ <B>fs setacl newDir alice read -clear</B>
+	$ <B>fs listacl newDir</B>
+	Access list for newDir is
+	Normal rights:
+	  alice rl
+PROGRAM
+
+The combination of automatic copying of ACLs to new subdirectories and the
+use of the shorthand ACL rights words makes ACL management a relatively
+simple task. Because all files in a given directory share an ACL, each directory
+becomes a container in which similarly permissioned files are stored. Remember that to give a file a different access control
+characteristic, move the file to a directory that has a
+different ACL. Also note that moving a file to a new directory may give the
+file dramatically different access rights.
+
+One final detail helps users manage ACLs: The owner of a directory -
+as seen with ~~ls -ld~/~ command - always has administer rights on the 
+directory ACL no matter what the ACL says. This convention makes it hard to lock yourself
+out of your own home directory even after you make a mistake with your 
+~~setacl~/~ command.
+
+One other subcommand copies an entire ACL from one directory to
+another. This feature is especially useful for complicated ACLs. To aid new users
+with ACL management, it may be beneficial to introduce one or two
+standard directories into their new AFS home directory. They can then use 
+the ~~copyacl~/~ command immediately to ensure proper access to their personal 
+directory structure. In Carol's home directory, there are two predefined
+directories:
+
+PROGRAM DONE
+	$ <B>cd /afs/hq.firm/user/carol</B>
+	$ <B>ls -l</B>
+	total 8
+	drwxr-xr-x   2 carol   staff       2048 Mar 29 17:06 Private
+	drwxr-xr-x   2 carol   staff       2048 Mar 29 17:06 Public
+	$
+	$ <B>fs listacl Public Private</B>
+	Access list for Public is
+	Normal rights:
+	  system:authuser rl
+	  carol rlidwka
+	 
+	Access list for Private is
+	Normal rights:
+	  carol rlidwka
+PROGRAM
+
+She can now easily create a new directory with permissions similar to
+the ~~Private~/~ subdirectory.
+
+PROGRAM DONE
+	$ <B>mkdir personal</B>
+	$ <B>fs copyacl Private personal -clear</B>
+	$
+	$ <B>fs listacl personal</B>
+	Access list for personal is
+	Normal rights:
+	  carol rlidwka
+PROGRAM
+
+Note that the ~~-clear~/~ option to ~~copyacl~/~ is needed to clear any entries
+on the destination directory that are not in the source directory. The
+default is to copy entries over from source to destination, setting
+permissions as needed, but not to remove any extra entries that 
+preexisted in the destination.
+
+It is common practice not to put a ~~system:administrators~/~ entry into
+each ACL in AFS. Thus, anyone authenticated as a member of
+that group cannot automatically read and write files. If administrators
+do need to edit some files, they can always modify the ACL - that
+right is theirs no matter what the ACL says. This extra step ensures
+that administrators take an explicit action to read or write otherwise
+private files, a step that respects the rights of users without
+unduly hindering administration.
+
+SECTION: NEGATIVE RIGHTS
+
+When listed, an ACL displays the title "Normal rights" because
+AFS also allows you to specify negative access rights. Negative rights
+can be a powerful tool for permission management, but to understand them
+you should read the Transarc manual diligently.
+
+One small problem with group identities on ACL entries is that someone else
+will likely be administering the group membership. For example, suppose Bob should not have read access to a directory's files. You can easily restrict the
+directory's reading rights to some group to which Bob doesn't belong, but if 
+Bob convinces the group's owner to add him to the group, your ACL restriction 
+will be subverted. Negative rights can help.
+
+PROGRAM DONE
+	$ <B>mkdir secrets</B>
+	$ <B>fs setacl -negative secrets bob all</B>
+	$ <B>fs listacl secrets</B>
+	Access list for secrets is
+	Normal rights:
+	  system:anyuser rl
+	  carol rlidwka
+	Negative rights:
+	  bob rlidwka
+PROGRAM
+
+The final determination of rights on a file involves checking what is allowed
+by the bottom three UNIX permission bits, ~~rwx~/~, comparing that with a
+matching user or group entry listed under ~~Normal rights~/~ and rejecting any
+listed rights for matching users or groups under ~~Negative rights~/~. Above,
+the directory ~~secrets~/~ is completely unavailable to ~~bob~/~ because all the AFS
+rights are removed by the negative ACL entry.
+
+SECTION: GROUPS AND ACLS
+
+AFS groups are completely distinct from traditional UNIX groups usually stored in the
+file ~~/etc/group~/~ or the NIS group map. A UNIX group can be assigned
+to a UNIX file system file or directory as the group owner that controls the
+read-write-execute permissions for a collection of users. An AFS group is
+used only for the assignment of permissions as an entry in an access control
+list on an AFS directory. Just as a UNIX group name cannot be entered
+into an AFS ACL, neither can an AFS group be used as a group owner of a UNIX
+file.
+
+Note that an AFS file still has a UNIX group name attached to it; this group 
+name can be maintained for appearance's sake but is otherwise ignored. Some 
+UNIX tools or public utilities may use group identification numbers and 
+permissions for their own access control, and commands such as ~~tar~/~ or 
+~~cp~/~ will want to copy the UNIX group owner. Otherwise, the use of 
+UNIX groups in an AFS site will probably be relegated to legacy software.
+
+AFS groups can be created by any AFS user. Once the group is created, only the owner can administer the group. Because AFS user identities are given
+positive identification numbers from 0 to 32767, AFS groups are given
+negative identification numbers from -1 to -32768. When a group is created,
+it is given either the next available slot or the number specified on the
+command line.
+
+Group names themselves are either a single word or two words separated by a
+colon, such as ~~managers~/~, ~~alice:friends~/~, or ~~system:administrators~/~.
+For colon-separated group names, the word to the left is the user name of the
+assigned owner of the group. To create their own groups, users must follow
+this convention; AFS will only allow Alice to create groups that begin
+with ~~alice:~/~ such as ~~alice:friends~/~. This example finally explains what
+~~system:administrators~/~ means: it is a group named ~~administrators~/~ owned
+by the AFS system itself. Aside from their built-in existence, it and the other
+system groups are regular AFS groups and can be used on directory ACLs like
+any other user or group name.
+
+There are three predefined system groups.
+
+-- ~~system:anyuser~/~ - All users who use an AFS computer are members of
+this group regardless of any or no AFS Kerberos credentials. This group
+therefore has no explicit members, so you can't list the membership of the
+group as you can with other groups, nor is the group mentioned when you list
+all the groups to which a user belongs. This group provides a simple way to
+allow or restrict read or write access to an area of the file system.
+
+-- ~~system:authuser~/~ - The group name is a short form of "authorized
+users" and includes all users who have successfully obtained Kerberos
+identity credentials in the local cell. For a given ACL, the local cell
+refers to the AFS cell in which the directory is stored. As with
+~~system:anyuser~/~, you cannot list the members of ~~system:authuser~/~, nor is the
+group listed in a user's group membership list. With this group, you can
+conveniently permit or deny access to parts of the AFS file system intended
+just for users on your network who have received legitimate user
+credentials.
+
+For example, system software, such as ~~/usr/bin~/~ programs or ~~/usr/man~/~
+documentation that points to files stored in AFS rather than on the
+desktop's local disk, is often given ~~system:anyuser~/~ read and list
+permissions so that anyone can access this basic information. But the entry
+point to a company's production binaries or home directories could be given
+~~system:authuser~/~ so that only employees of the company (according to
+Kerberos) could access this more sensitive data.
+
+-- ~~system:administrators~/~ - This group's members must be explicitly
+defined. During installation of AFS, a well-known identity, usually
+~~afsadmin~/~, is created as the sole member of the group. Later on, you may want
+to add certain individuals to the membership list. Because this group is defined
+explicitly through administration commands, the membership list can be
+printed out.
+
+Besides being available as an AFS group to put on directory ACLs, members of
+this group are given extra permissions to use various AFS utilities:
+
+-- Members can run privileged ~~pts~/~ commands, for example, to create single
+word group names.
+
+-- Members can change the ownership of files.
+
+-- Members normally have implicit rights to list the contents 
+of any AFS directory. 
+
+-- Most importantly, members can always administer access rights
+on every directory ACL. Normally, ACL administration is permitted only to
+those users or groups with the ~~a~/~ permission listed in an ACL. Because
+~~system:administrators~/~ can implicitly administer any ACL, it is usual to
+not explicitly add ~~system:administrators~/~ rights to directories. 
+
+The ~~system:anyuser~/~ and ~~system:authuser~/~ can be used to both grant 
+and deny access to parts of the file system. In fact, sometimes 
+~~system:authuser~/~ should be used if an ACL also has negative access rights.
+In the previous example, Bob was denied rights to read the ~~secrets~/~ 
+directory. But because the directory happened to be readable by ~~system:anyuser~/~,
+it is a simple matter for Bob to ~~unlog~/~, lose his AFS credentials, and have
+the ~~system:anyuser~/~ access rights apply. This is a good time to use the 
+~~system:authuser~/~ group, because only users with valid Kerberos 
+credentials can pass through the security ACL.
+ 
+ 
+PROGRAM DONE
+        $ <B>fs setacl secrets system:authuser read system:anyuser none</B>
+        $ <B>fs listacl secrets</B>
+        Access list for secrets is
+        Normal rights:
+          system:authuser rl
+          carol rlidwka
+        Negative rights:
+          bob rlidwka
+PROGRAM
+ 
+This example is actually a reasonable action to take if someone in a company
+is fired. Near the top of the company's AFS tree, a ~~system:authuser~/~ entry
+coupled with the addition of negative rights for the ex-employee will be a
+strong impediment to any last-minute file accesses.
+
+Though all groups are created and owned by a particular user, any user can
+add any group names to an ACL. So, once Alice creates her group,
+~~alice:friends~/~, her co-worker Bob might use that group to deny its members
+access to one of his directories.
+
+To manage administration and membership of groups, use the ~~pts~/~ command. New
+group names can be up to 63 characters long but can consist only of any
+printable characters except uppercase letters and the colon. The membership
+of a group is limited to 5,000 members. In the following example, we'll see
+how Alice, authenticated as herself, manages her group. 
+
+PROGRAM DONE
+	$ <B>pts creategroup alice:friends</B>
+	group alice:friends has id -206
+	$ <B>pts adduser -user carol alice -group alice:friends</B>
+	$ <B>pts membership alice:friends</B>
+	Members of alice:friends (id: -206) are:
+	  carol
+	  alice
+PROGRAM
+
+Alice is free to create groups and add members at her discretion, and she can
+examine the members of the group, find out what groups she owns and manages,
+and find out which groups have her as a member.
+
+PROGRAM DONE
+	$ <B>pts listowned alice</B>
+	Groups owned by alice (id: 17001) are:
+	  alice:friends
+	$ <B>pts membership alice</B>
+	Groups alice (id: 17001) is a member of:
+	  alice:friends
+PROGRAM
+
+Now that her group of friends has been created, she (or anyone) is free 
+to add that group to an ACL on a directory.
+
+PROGRAM DONE
+	$ <B>cd /afs/hq.firm/user/alice</B>
+	$ <B>mkdir secrets</B>
+	$ <B>fs listacl secrets</B>
+	Access list for secrets is
+	Normal rights:
+	  system:anyuser rl
+	  alice rlidwka
+PROGRAM
+
+In Alice's home directory, you can see that the new subdirectory ~~secrets~/~ has
+an ACL automatically inherited as a copy of its parent's ACL. In this
+cell, that ACL was set up so that any user, whether authenticated to AFS or
+not, could read and list entries in the home directory but not write or
+delete files. Alice, naturally, has complete rights to her home. As the
+owner of her home directory, she has implicit administration rights, no matter
+what the ACL says.
+
+PROGRAM DONE
+	$ <B>fs setacl secrets alice:friends read</B> 
+	$ <B>fs setacl secrets system:anyuser none</B>
+	$ <B>fs listacl secrets</B>
+	Access list for secrets is
+	Normal rights:
+  	  alice:friends rl
+	  alice rlidwka
+	$ <B>ls -ld secrets</B>
+	drwxr-xr-x   2 alice    staff       2048 Mar 29 17:19 secrets
+PROGRAM
+
+For the new subdirectory ~~secrets~/~, Alice adds an ACL entry and modifies 
+another entry so that no one but she and her friends can read the files 
+there and only she can write, delete, and administer those files. 
+Note that these entries were added one at a time; without the ~~-clear~/~ option, 
+each additional ~~setacl~/~ subcommand simply adds a new entry, such as 
+~~alice:friends~/~, or modifies an existing entry, such as ~~system:anyuser~/~.
+
+The UNIX permissions on the ~~secrets~/~ directory are somewhat misleading. The
+bits were set according to the UNIX ~~mkdir~/~ command and Alice's
+user bit-mask setting (~~umask~/~). The resulting bits, rwxr-xr-x, suggest that
+all UNIX users can at the least navigate into the directory. But AFS doesn't
+use the top six permission bits or the UNIX group identity at all. Here's what happens when AFS
+user Bob tries to access the directory.
+
+PROGRAM DONE
+	$ <B>tokens</B>
+	 
+	Tokens held by the Cache Manager:
+	 
+	User's (AFS ID 5321) tokens for afs@hq.firm [Expires Mar 30 18:49]
+   	--End of list--
+	$ <B>cd /afs/hq.firm/user/alice</B>
+	/afs/hq.firm/user/alice
+	$ <B>cd secrets</B>
+	/bin/ksh: secrets:  not found
+PROGRAM
+
+It's instructive to understand exactly how this access permission is
+checked. When a user runs a command that causes an AFS file to be accessed,
+such as the change directory command above, the client kernel sends a
+message to the appropriate server asking its ~~fileserver~/~ process to check the
+permissibility of the action. The process notes which AFS identity and
+machine are requesting the check and asks a protection database
+server to return the <I>Current Protection Subgroup</I> for the user. 
+This CPS is a list of all the groups to which the user belongs, including, for
+completeness, the groups ~~system:anyuser~/~ and, if the user is authenticated,
+~~system:authuser~/~. The ~~fileserver~/~ process can then check the CPS list against
+ACL entries and permissions.
+
+A problem arises when a user tries to enter a directory and is denied access.
+Sometimes, after complaining to the appropriate administrator, the user
+might be made a member of an appropriate group. But if the user immediately 
+tries to access the directory again, access will still be denied because 
+the ~~fileserver~/~ has already received a CPS list for the user's
+active connection and it has no way to know that the CPS has changed.
+
+Since there is no notification process for group membership changes, the user must log in again; this process
+causes a new connection to the server to be made, and a new CPS
+list, which will include the new
+group membership, will be retrieved by the file server. (In some ways, this is similar to adding a UNIX
+user to a UNIX group; the user must log in again to cause the group
+list to be recalculated.)
+
+Most of the time this re-login is not needed because connections
+between users and file servers are terminated periodically, which causes
+new CPS lists to be retrieved many times during the course of a day.
+
+When a user is a member of more than one group, it's possible for different
+groups to be entered into an ACL with different permissions. In this case,
+the user will have the access rights of the union of the groups. For
+example, if Bob is in two groups, ~~readers~/~ and ~~writers~/~, he will have whatever
+access rights are available to either group.
+
+PROGRAM DONE
+	$ <B>pts membership bob</B>
+	Groups bob (id: 5321) is a member of:
+	  bob:writers
+	  bob:readers
+	$ <B>cd /afs/hq.firm/user/bob</B>
+	$ <B>ls -l</B>
+	total 4
+	drwxr-xr-x   2 bob     staff       2048 Mar 29 17:27 aclUnion
+	$ <B>fs listacl aclUnion</B>
+	Access list for aclUnion is
+	Normal rights:
+	  bob:writers lidwka
+	  bob:readers rl
+	$
+	$ <B>date > aclUnion/foo</B>
+	$ <B>cat aclUnion</B>
+	Sat Mar  29  17:30:22 EST 1997
+PROGRAM
+
+Bob can create and write to the file ~~aclUnion/foo~/~ because, as a member of ~~writers~/~,
+he has ~~l~/~, ~~i~/~, and ~~w~/~ rights. He can then read the file because as a member of
+~~readers~/~, he has the ~~l~/~, and ~~r~/~ right.
+
+An AFS group can have at most 5,000 members; this is an odd limit, apparently
+due to the implementation of the ~~pts~/~ command itself. More importantly, you
+cannot have a group as a member of a group. It would be nice if
+~~alice:friends~/~ could be composed of ~~alice:colleagues~/~ and ~~alice:bestFriends~/~.
+This arrangement would permit simpler management of hierarchies of users and groups,
+although it would also make ACLs harder for users to interpret. In any
+event, this functionality is not supported.
+
+
+SECTION: MORE GROUP MANAGEMENT
+
+Let's examine some of the internal details of Alice's group.
+
+PROGRAM DONE
+	$ <B>pts examine alice:friends</B>
+	Name: alice:friends, id: -206, owner: alice, creator: alice,
+	  membership: 2, flags: S-M--, group quota: 0.
+PROGRAM
+
+You can see with the ~~examine~/~ subcommand that Alice's group has a negative
+identification number, as do all AFS groups, that it was created by Alice,
+and that it is owned by her as well.
+
+As groups are created, an internal counter is adjusted to keep track of the
+lowest group identification number. If, during creation, no identification
+number is offered on the command line, the counter, named ~~GroupMax~/~, is used
+and decremented. If a number offered is lower in value than
+~~GroupMax~/~, ~~GroupMax~/~ is set to a new value of one less than the offered number. That
+way, new groups can always be given new identification numbers
+automatically. Knowing this, administrators can artificially set the value
+of ~~GroupMax~/~ (with the ~~setmax~/~ subcommand) so that a range of numbers is set
+aside to be assigned as desired.
+
+The flags are interpreted similarly to user entries as outlined earlier: The
+~~S~/~ flag means that anyone can examine the status of this group; the
+~~M~/~ flag means that anyone can list the members of the group. This is
+the default for groups. The three hyphen-valued flags indicate that only the
+owner or ~~system:administrators~/~ can list the ownership, and add and remove
+members.
+
+For groups, here is the list of valid flags and their meaning.
+
+<B>STATUS flag, first character:</B>
+
+-- ~~S~/~ All users can examine the status of the
+user.
+
+-- ~~s~/~ Only the members of the group and ~~system:administrators~/~
+can examine the entry.
+
+<B>OWNERSHIP flag, second character:</B>
+
+-- ~~O~/~ All users can list the groups that this user owns.
+
+-- ~~-~/~ Only members of the group and ~~system:administrators~/~
+can list the owned groups.
+
+<B>MEMBERSHIP flag, third character:</B>
+
+-- ~~M~/~ All users can list the groups to which this user belongs.
+
+-- ~~m~/~ Only members of the group can list the complete group
+membership.
+
+-- ~~-~/~ Only the owner and ~~system:administrators~/~ can list the
+group membership.
+
+<B>ADD flag, fourth character:</B>
+
+-- ~~A~/~ Any user can add users to the group.
+
+-- ~~a~/~ Only members of the group itself can add other users to
+the group.
+
+-- ~~-~/~ Only the owner and ~~system:administrators~/~ can add users to
+the group.
+
+<B>REMOVE flag, fifth character:</B>
+
+-- ~~r~/~ Only members of the group itself can remove users from
+the group.
+
+-- ~~-~/~ Only the owner and ~~system:administrators~/~ can remove users
+from the group.
+
+
+Currently, the owner of ~~alice:friends~/~ is Alice. It may well be that one day,
+Alice will leave the organization and her friends may want to keep using
+that group. In this situation, the group owner or a member of ~~system:administrators~/~ can transfer ownership to
+another user.
+
+PROGRAM DONE
+	$ <B>pts chown alice:friends bob</B>
+	$ <B>pts membership bob:friends</B>
+	Members of bob:friends (id: -206) are:
+	  carol
+	  alice
+	$ <B>pts examine bob:friends</B>      
+	Name: bob:friends, id: -206, owner: bob, creator: alice,
+	  membership: 2, flags: S-M--, group quota: 0.
+PROGRAM
+
+As stated, the left-hand side of a group name is the owner of the group.
+After Alice uses the ~~chown~/~ subcommand to transfer ownership, the protection
+system automatically renames the left-hand side to the new owner's name. Because
+AFS directory's ACL entries are stored using the identification number of 
+the group, an ACL will be displayed with the correct group name.
+
+PROGRAM DONE
+	$ <B>fs listacl /afs/hq.firm/user/alice/secrets</B>
+	Access list for secrets is
+	Normal rights:
+	  bob:friends rl
+	  alice rlidwka
+PROGRAM
+
+Having users manage their own groups is a distinct advantage over regular 
+UNIX functionality. But most organizations will require many standard groups, 
+such as sales or staff, that are cumbersome for individual users to manage 
+and really shouldn't have an ordinary user's name as a prefix. For these
+situations, AFS permits the creation of groups that have single
+words as names. 
+
+Only members of ~~system:administrators~/~ can create a group name consisting of
+a single word. Other than the restriction on who can create the group, a
+single-word group acts just like a two-word, colon-separated group. The
+advantage to single-word groups is simply the implication that there is no
+static owner for the group. This appearance is a convenience for certain
+groups in an organization: It might be better to have a group named ~~sales~/~
+with no owner explicitly named, rather than have a group named ~~alice:sales~/~,
+which would have to be renamed if Alice left the company.
+
+And yet, though an administrator may create a group named ~~sales~/~, the
+administrator will probably want to transfer ownership of the group to a
+regular user. Changing the ownership of a group transfers management
+responsibility of the group, so an administrator may delegate
+responsibility in a controlled way. Here, an administrator creates and
+changes ownership of the sales group.
+
+PROGRAM DONE
+	$ <B>pts creategroup sales</B>
+	group sales has id -209
+	$ <B>pts chown sales carol</B> 
+	$ <B>pts examine sales</B>
+	Name: sales, id: -209, owner: carol, creator: afsadmin,
+	  membership: 0, flags: S-M--, group quota: 0.
+PROGRAM
+
+Despite the fact that Carol did not create the group, a fact recorded in the
+~~pts~/~ database, she will now have as much control of the sales group as if it
+had been created by her. The choice of whether a prefix-less group is owned
+(and managed) by an administrator or delegated to another user depends
+on the usage policies of your organization.
+
+There are two interesting variations of this delegation. Rather than
+change ownership to a user, an administrator can assign ownership of a group to a group.
+This delegation implies that any members of the owning group can manage the group. A
+regular use of this feature is to create a set of users that can control a group
+of other users, such as when the leaders of a software project are given
+control of a group consisting of all developers on the project.
+
+The second use of group ownership is to create a self-owned group, that is, a
+group that can be managed by any of its members. This implies that any
+member of the group can add other members as desired, which may be exactly
+the right policy. But this also means that any member can remove any other
+member from the group; self-owned groups therefore demand a certain amount
+of trust from their members.
+
+The current owner of a group (or any member of a group owner) is permitted
+to transfer ownership to another user or group. As colon-separated groups
+reflect the user ownership by the leftmost word in the group
+name, so changing the individual owner of a group may result in a change to the
+group name. Consider Alice's group ~~alice:friends~/~: If Alice were to change
+ownership to Bob, the group would be automatically renamed to ~~bob:friends~/~,
+and such a name change would be visible on any ACL entries.
+
+A problem exists when transferring ownership of group-owned groups created by users. Alice can change the ownership
+of ~~alice:colleagues~/~ to the group ~~alice:friends~/~. But when ~~alice:friends~/~
+has its ownership transferred to Bob, though its name is now ~~bob:friends~/~,
+the name of the group ~~alice:colleagues~/~ does not change. AFS simply
+doesn't go through all the mechanics to make this change happen. For
+consistency, group owners can make name changes themselves with the ~~pts
+rename~/~ command.
+
+As people join organizations, their identification numbers must be assigned
+systematically. In general, it's a bad idea to reuse the UNIX numeric identity 
+of a person who has left an organization. If the user identifier is simply 
+reassigned, 
+there will usually be a large number of files in various places in the file 
+system that will now be owned by the new user, with no particular indication 
+that they were created by the earlier user.
+
+Similarly, it's a bad idea to reuse AFS numeric identities. If the AFS
+number is reassigned, then the name listed on an access control list will
+change to that of the new user; this access control will probably not be what was
+intended. It's better to just remove the previous user identity from the system. When displaying
+an ACL that has an entry containing a deleted user name, the numeric identity is printed instead. This makes it
+clear that the ACL should be edited to take explicitly into account new
+employees. Use the ~~fs cleanacl~/~ command to automatically remove such
+entries.
+
+That people tend to join and leave companies regularly, argues for
+putting users into AFS groups and entering the groups onto ACLs instead.
+Then, when a person leaves the firm, only the group membership would need
+to be edited and the ACL will not need to be modified or cleaned at all.
+
+SECTION: MACHINE GROUPS
+
+One small problem with ubiquitous file visibility is that some software
+vendors license their products to a certain set of machines and not to
+users. For software that must be licensed only to a set of users, it is
+straightforward to create a protection group containing those users, perhaps
+give ownership of the group to the individual in charge of licensing, and
+then to apply that group to the access control list where the software is
+stored. To solve licensing on a per-machine basis, AFS permits the creation
+of machine groups.
+
+A <I>machine group</I> is just a protection group that has as members the network
+addresses for a set of machines. Just as a human must first be listed
+as a regular user in the protection database before being added as a member
+of a group, so too must a machine be set up as a user. Use the
+regular user ~~pts create~/~ command to set up a machine as a user.
+
+PROGRAM DONE
+	$ <B>pts createuser 192.168.3.94</B>
+	User 192.168.3.94 has id 17002
+PROGRAM
+
+To help reduce the number of entries that must be added to the protection
+database, it's possible to use a wildcard value, 0, in certain positions
+of the IP address:
+
+-- A.B.C.0 would match all machines whose IP address ranges from A.B.C.0 to A.B.C.255.
+
+-- A.B.0.0 would match all IP addresses on all subnets from the A.B.0 subnet to the A.B.255 subnet.
+	
+-- A.0.0.0 would match all addresses on all subnets from A.0 to A.255.
+
+These wildcards work only as specified above; there is no way to specify
+matches such as A.0.C.0 or to specify 0.0.0.0. Also, note that the client
+subnet mask is not used for calculating wildcards; if your subnets are laid
+out with nonstandard masks, using these wildcards may result in more or
+fewer matches than desired.
+
+For most purposes, this IP-address user is a normal entry in the protection
+database.  Because of the layout of the database, certain data fields must be
+filled as best they can:
+
+PROGRAM DONE
+	$ <B>pts examine 192.168.3.94</B>   
+	Name: 192.168.3.94 id: 17002, owner: system:administrators, creator: afsadmin,
+  	membership: 0, flags: S----, group quota: 20.
+PROGRAM
+
+The user-id field, normally set equal to a user's UNIX identification
+number, is here set to the next number available above the ~~UserMax~/~ high-water mark; The owner is set to ~~system:administrators~/~, and the identity of the
+person adding the entry is stored as the creator. The number of groups to
+which this entry is a member is set to 0; the privacy flags are set to ~~S~/~
+to indicate that anyone can examine this entry; and the group creation quote
+for this machine entry is set to 20 (though no groups can be created by this
+identity because no one can authenticate as a machine).
+
+Although this procedure has created a pseudo-user entry in the database, you cannot add
+this entry as-is to an ACL. You must first add the machine
+entry to a group; that group can then be added to an access control list on
+a directory in AFS with any desired permissions. Adding a machine entry to a
+group is the same process as adding a user to a group.
+
+PROGRAM DONE
+	$ <B>pts adduser 192.168.3.94 bob:friends</B>
+	$ <B>pts membership bob:friends</B>
+	Members of bob:friends (id: -206) are:
+	  carol
+	  alice
+	  192.168.3.94
+PROGRAM
+
+Once a machine is added to a group, listing the groups to which a machine belongs works as
+expected.
+
+PROGRAM DONE
+	$ <B>pts membership 192.168.3.94</B>
+	Groups 192.168.3.94 (id: 17002) is a member of:
+	  bob:friends
+PROGRAM
+
+Remember that the purpose of machine groups is to permit access to software
+from a certain set of desktops. By adding a machine entry to a group and
+adding that group to an ACL, any user on that machine, whether authenticated
+to any AFS identity or not, will have the permissions granted to the group.
+In normal usage, this suggests that a group will have only user entries or
+only machine entries.
+
+Now that the group has been set up, you can
+add it as an entry on an ACL with whatever permissions you desire.
+
+There is one final quirk to the implementation: it's common for several
+top-level directories of the AFS namespace to be permitted only to
+~~system:authuser~/~, that is, any user can access the rest of the namespace, but
+only if the user has been authenticated as a user, any user, of the current cell.
+Machine groups are intended to be
+useful for any person logged in to a workstation so that software licenses
+can be honestly followed. Therefore, when an unauthenticated user is using a
+machine that is a member of a group entry on an ACL, the user's implicit credential
+is elevated to ~~system:authuser~/~, but only if the machine entry in the group is an exact
+match, not a wildcard.
+
+This rule permits any user of a given desktop to effectively have ~~system:authuser~/~
+credentials for a directory. As long as that directory has an ACL that includes 
+the specific machine's IP address as a member of a group entry, any user
+of the desktop, and only that desktop, would have access to the directory.
+
+In retrospect, using IP addresses does not seem like a well-thought-out
+solution to setting up machine identities; IP addresses are not inherently
+meaningful or memorable, and for clients with multiple network connections, each of its network
+addresses will need to be added to a group membership. According to the AFS
+client/server protocol, the packets on the wire are identified by IP address only, so something or someone must go to the
+trouble of translating names into addresses. It would be helpful if the AFS server processes themselves could manage to translate names into IP addresses through the use of
+the Domain Name System or Network Information System. But the AFS system is
+not designed to rely on any other external protocols, and in the mid-80s,
+systems like DNS were not particularly stable or widely used. Now that time
+has passed, it would be useful for Transarc to revisit this issue; Version 
+3.5 promises better support for multi-homed systems.
+
+Machine entries and groups are a significant feature of the AFS system. The
+Open Group's DCE system generalizes machine identities somewhat to permit
+more flexible (and easier to understand) machines, groups, and ACLs.
+
+SECTION: VOLUMES REVISITED
+
+Because the details of access controls and groups are somewhat involved, we only hinted at many
+of the permissions surrounding volume management in the preceding two
+chapters. Most importantly, when a volume is created, it
+has a default ACL consisting of a single entry that gives
+~~system:administrators~/~ all rights. Whichever directory name is 
+connected to the volume will reflect this initial ACL.
+
+PROGRAM DONE
+	$ <B>vos create fs-one b tmp.foo</B>
+	Volume 536870988 created on partition /vicepb of fs-one
+	$ <B>fs mkm /afs/.hq.firm/tmp/foo tmp.foo</B>
+	$ <B>fs listacl /afs/.hq.firm/tmp/foo</B>
+	Access list for /afs/.hq.firm/tmp/foo is
+	Normal rights:
+	  system:administrators rlidwka
+PROGRAM
+
+To maintain consistent and appropriate access controls in your AFS cell, immediately after creating and connecting a new volume reset the ACL to an appropriate value. The reason for fixing the ACL quickly
+is that ACLs for any new subdirectories in the volume are copied over from the parent's
+ACL; if you set the top directory ACL correctly right after creation of
+the volume, the odds are good that most subdirectories will have reasonably
+correct ACL. 
+
+Members of ~~system:administrators~/~ do not have to be put on an ACL. By default,
+these members have ~~l~/~ (list) and a (administer) rights, so even if not
+mentioned explicitly on any directories in a cell, an authenticated
+administrator will be able to read the file namespace and reset any ACL
+to perform any needed operation. Many sites use this ethic to good effect;
+others add ~~system:administrators~/~ rights to ACLs as they see fit. It probably
+makes most sense to pick one convention and try to keep all directories
+in the cell consistent. If the ~~system:administrators~/~ group is listed in some
+ACLs but not others, some users may get the impression that removing the
+entry from a directory will actually make the data impenetrable, which is
+not, strictly speaking, true.
+
+SECTION: BACKUP VOLUMES
+ 
+Besides a user's home volume, a snapshot of the
+user's directory is usually made every night.
+Thanks to the design of AFS, this snapshot is a volume that can also be
+mounted in the file namespace to allow easy retrieval of files mistakenly
+deleted. 
+ 
+It is common for backup volumes to be created for all volumes in the
+system so that the archive process can use this stable and consistent
+image when writing the data to tape. But, while all backup volumes could
+be added somewhere to the namespace for easy access, only backups of user
+volumes are typically connected to well-known paths. Many site administrators add a
+user's backup volume to a hidden directory in the user's home directory with the
+administration commands:
+ 
+PROGRAM DONE
+        $ <B>vos backup user.zed</B>
+        Created backup volume for user.zed
+        $ <B>fs mkm /afs/hq.firm/user/zed/.oldFiles user.zed.backup</B>
+PROGRAM
+
+Now, it is a simple matter of education to permit users to access last night's
+snapshot of their data. The connection to the backup version of the volume
+is made once. Because it is a change to the AFS namespace, it is visible to all
+clients. The snapshot command can then be run as often as desired to
+provide users with access to a read-only copy of their files. Once
+administrators have set up a job to recreate the backup volumes every night
+at, say, midnight, it becomes trivial for users themselves to 
+correct careless file deletions with no system intervention.
+ 
+Some sites have found, however, that a subdirectory in a
+user's home directory which mirrors the home directory is a little confusing
+for some users. Even though the backup volume is read-only, it can bewilder
+some. One cure is to put the volumes in other
+locations, ~~/afs/hq.firm/users/.alice~/~, or ~~/afs/hq.firm/.user/alice~/~, or even not
+to preinstall the volume at all, but to wait for the inevitable cry for
+help and then to miraculously create the connection, explain the solution,
+and save the day.
+ 
+The latter strategy, in fact, is what is often done with most other
+volumes. With a multilevel set of development directories, sources, source
+control, groups of programmers, and test, beta, and production binaries,
+each with its own volume of files, it becomes a little difficult to have
+well-known or obvious locations for the backup volumes. In these cases,
+it is easier to simply run an ~~fs mkm~/~ command on the volume in question when
+the need arises.
+ 
+SECTION: CHECKING FOR ERRORS
+
+Once users are somewhat capable of dealing with ACLs and authentication
+questions, there may still be occasional problems with basic network
+connectivity or server responses. Sometime, users may wonder if 
+odd behavior is due to a server and/or network outage.  A convenient 
+command is ~~checkservers~/~.
+
+PROGRAM DONE
+	$ <B>fs checkservers</B> 
+	All servers are running.
+PROGRAM
+
+This command attempts to contact each file server that the client has previously
+contacted. If your client has been retrieving files only from server ~~fs-one~/~,
+this command will check only with that server to see if it is still available.
+
+Note that this command is more useful when run in the background. If any servers
+are down, the command takes some extra time to run in order to make sure
+that the server isn't simply slow. Since it may take some time to run,
+you probably don't want to run the command in the foreground because it may
+be hard to interrupt. When services are down, the response is:
+
+PROGRAM DONE
+	$ <B>fs checkservers &</B>
+	$ These servers are still down:
+		fs-one.hq.firm
+PROGRAM
+
+You may see other error messages displayed either in your current
+terminal session or on the desktop's system console. If you've tried
+to write a file that would put you over your quota, you'll see the
+following error:
+
+PROGRAM DONE
+	$ <B>mkfile 1M large-file</B>
+	large-file: No space left on device
+PROGRAM
+
+The device in question is the underlying volume or partition. As described
+in Chapter 4, the user should use the ~~fs listquota~/~ command to
+see where the space shortage is located.
+
+Other error messages may indicate a more serious problem with connectivity.
+
+PROGRAM DONE
+	$ <B>touch newfile</B>
+	afs: failed to store file
+PROGRAM
+
+As the ~~touch~/~ command creates a zero-length file, there can't possibly
+be a space problem. If the condition is repeatable, it indicates a severe
+failure of the network connection or server processes. If a volume happens
+to be in the middle of moving from one disk to another at the same time that 
+you're trying to access it, you'll see:
+
+PROGRAM DONE
+	$ <B>cd /afs/hq.firm/user/david</B>
+	Waiting for busy volume 536870976 in cell hq.firm
+	$
+PROGRAM
+
+As long as the move operation being performed behind the scenes succeeds,
+your command will eventually succeed. If the volume is truly missing,
+you'll see a more direct error message.
+
+PROGRAM DONE
+	$ <B>cd /afs/hq.firm/user/zed</B>
+	/afs/hq.firm/user/zed: No such device
+PROGRAM
+
+This problem may be due to an out-of-date mapping of volume name to 
+identification number in your desktop cache manager, as described in Chapter 5. You can
+update all such mappings with the ~~fs checkvolumes~/~ command. If the
+volume access still returns an error, notify your
+administration staff of the problem.
+
+PROGRAM DONE
+	$ <B>fs checkvolumes</B>
+	All volumeID/name mappings checked
+	$ <B>cd /afs/hq.firm/user/zed</B>
+        /afs/hq.firm/user/zed: No such device
+PROGRAM
+
+The most common problem with users accessing AFS is that their Kerberos
+authentication credential has expired. Although unauthenticated
+access to AFS normally results in a permission-denied error, sometimes
+the results are confusing. At the first sign of trouble, always run
+a ~~tokens~/~ command to see exactly what AFS understands your credentials
+to be.
+
+If you can't remember your password and your administrators have set up
+Kerberos to lock accounts after a certain number of failed attempts, you
+may see the following message:
+
+PROGRAM DONE
+	Unable to authenticate to AFS because ID is locked - see your system admin
+PROGRAM
+
+At this point, only an administrator can unlock the account. Of course, if you
+haven't forgotten your password, this message may indicate that someone else tried
+to guess his way in to your account.
+
+
+SECTION: AFS VERSUS UNIX
+
+Several differences between AFS and UNIX affect
+commonly run commands. Most of these differences are subtle
+and may only be noticed by administrators or developers; casual use
+of AFS by UNIX applications or users is not likely to run into any
+unforseen problems. Below, we compare 12 aspects of AFS and UNIX.
+
+-- <B>File Ownership</B>: A user's AFS token is distinct from a UNIX 
+identity. As long as administrators have installed AFS normally, users
+will obtain tokens that have exactly the same identification number as in
+UNIX. This fact is important because when files are created in AFS, the
+assigned ownership is based on the token identification number, not the UNIX
+identifier. This practice ensures that each file is given an owner's identity that has 
+passed Kerberos authentication guarantees. If a user is not authenticated
+and creates a file in a publicly writeable area of AFS, the file will
+be assigned an owner identification number of 32766.
+
+When UNIX applications, like ~~/bin/ls~/~, or file browsers are reading file
+information in AFS, they usually use the ~~/etc/passwd~/~ file or NIS map 
+to translate between identification numbers and user names. To ensure that 
+such translations make sense, keep the maps up to date. Don't forget to 
+add a user named ~~anonymous~/~ mapped to number 32766.
+
+-- <B>Change Mode</B>: The UNIX change mode command, ~~chmod~/~, used to change permissions 
+on files and directories, is also used in AFS for a similar purpose. Yet
+AFS provides a richer set of group membership tools and a more general-purpose list of access controls for multiple identities. When
+manipulating the traditional UNIX permissions, remember that these nine bits are stored and listed correctly, but only the bottom three bits
+are used when determining final access. General users can use ~~chmod~/~ as
+always, but users must examine the file's directory ACL for complete
+permission information.
+
+Note that the setuid bits on an executable (used to change the effective user
+identity for a running process) work but only affect the UNIX identity
+of a process. Because AFS identities are managed by Kerberos-authenticated 
+credentials, a program with the setuid bit set will cause the effective UNIX
+user to change but not the Kerberos credential. In particular, because
+the root identity has no meaning to AFS - UNIX superuser status does not 
+confer any special AFS administrative rights - setuid root programs
+can be run to administer a desktop's processes and files but not to
+manage AFS.
+
+Chapter 5 discussed how files and cells could be set up to run setuid 
+programs.  Use ~~fs getcell~/~ to check if a ~~setuid~/~ program is actually 
+available with the setuid-bit set.
+
+PROGRAM DONE
+	$ <B>fs getcell hq.firm</B>
+	Cell hq.firm status: setuid allowed
+	$ <B>ls -l /afs/hq.firm/sys/bin/su</B>
+	-r-sr-xr-x   1  afsadmin  staff      15280  Apr 10 11:39  su
+PROGRAM
+
+The other overloaded UNIX permission bits, such as the sticky-bit and the setgid-bit,
+are stored correctly in AFS and are used correctly by the UNIX operating
+system.
+
+-- <B>Change Owner or Group</B>: Normally, ~~chown~/~ and ~~chgrp~/~, the commands used to
+change the ownership or group of a file can be run only by the root
+superuser identity in UNIX. Because root on a workstation is not trusted in
+AFS and because that workstation can see the entire globally visible AFS
+namespace, root alone cannot change owner or group of AFS files or
+directories. To run these programs, you must in addition be authenticated as
+a member of ~~system:administrators~/~.
+
+-- <B>Groups</B>: UNIX group information is not used in AFS at all, so you may
+decide to delete many groups from the ~~/etc/group~/~ file or map. 
+But there is still the need for certain system groups such as ~~wheel~/~, ~~kmem~/~, or 
+~~bin~/~ used by several UNIX-based administration commands. The AFS kernel module does
+nothing to impede the use of UNIX groups for UNIX services. You can enter
+group names and membership in ~~/etc/groups~/~ or the NIS maps, and that
+information will be reflected in a process's internal group identity which
+can be listed with the ~~groups~/~ command.
+
+AFS happens to use two entries in the per-process group table to store the
+Process Authentication Group information. When running the ~~groups~/~ command to
+list UNIX group membership, you will therefore see two large numbers printed
+alongside the regular group names. This is an unfortunate side-effect of
+needing to store PAG data in the kernel somewhere where the data will be correctly
+propagated to child processes. The group table serves this purpose
+but the output is a left-over indication that AFS is third-party
+software not quite perfectly integrated into a vendor's operating system.
+
+-- <B>Make Devices</B>: Besides regular files and directories, UNIX file names 
+can refer to block or character special devices to allow easy naming of 
+hardware or system services. Such special devices are not supported in AFS.
+Any special devices such as sockets, pipes, or tape drives cannot be stored with an AFS path name.
+
+-- <B>Links</B>: Symbolic links are aliases from one file to
+another. AFS provides full support for these links with one small 
+exception concerning the characters permitted in the symbolic link
+name. On UNIX systems, volume connection information is stored in the same
+place as the symbolic link data. In fact, a connection point acts a little
+like a symbolic link to a name that begins with ~~#~/~ or ~~%~/~. These two
+characters are the ones that the ~~fs lsmount~/~ command uses when it prints out
+the connection point for a given path. Because of this, if you manually
+create a symbolic link to a file that begins with either of those two
+characters, the AFS kernel module will try to interpret the rest of the name
+as a volume name. (Volume connections require a few more pieces of data to be
+set, so you can't really make a volume connection with symbolic links alone.)
+
+Hard links create another problem. Within a single directory, hard links are
+permitted between any two files. But as ACLs are stored on a per-directory
+basis and not per-file, a link from one file to a file in another directory
+is not permitted because it would not be possible to determine
+which ACL should control the file. Because hard link semantics require that the
+two names refer to the same file, one file name in one directory would be
+controlled by that directory's ACL, while the file name in the other
+directory could have a different ACL. The first ACL might permit writing
+while the other ACL would not.
+
+AFS's solution is to not permit hard links between files in different
+directories. This may cause more problems than it solves: many third-party
+installation procedures create hard links of just this kind. When a new
+software package is running its installation process, for example, an AFS
+administrator is often faced with errors caused by bad AFS hard links.
+Unless the error message is particularly verbose, it can take some
+investigation to determine which files should have been linked. The
+correction is usually simple enough - just change the hard link to a soft
+link. 
+
+-- <B>Copying Files</B>: In AFS, copying files and subdirectories from one 
+directory to another can produce a subtle problem with profound effects. 
+Because all standard UNIX commands know nothing about the access control lists 
+attached to each AFS directory, a previously private file in one directory may become public when copied to another directory. Typically, an unintentional change in permissions happens after a user runs a ~~tar~/~ or ~~cp -R~/~ 
+command. Often enough, the ACL inheritance property on newly created
+subdirectories causes the correct ACL to be installed. Other 
+times, a post-copy ACL cleanup is the required fix.
+
+Transarc provides a tool, the ~~up~/~ program, which copies a directory and
+its contents recursively to a destination directory. As the file data is
+copied, the ACLs will be copied correctly as well. When the ~~up~/~ program is run as root 
+under ~~system:administrators~/~ privileges, the ownerships of the copied-to
+hierarchy are set to those of the source hierarchy; otherwise, the
+destination files are assigned the ownership of the user running the program.
+
+One particularly interesting feature is that ~~up~/~ checks timestamps to
+see what needs to be copied. If the ~~up~/~ job is cancelled in the middle
+of copying a large subtree of files, then reissuing the command later will
+not cause the already copied-over data to be recopied.
+
+-- <B>Renaming Files</B>: As in UNIX, files can be renamed or moved from
+one file name to another, even when renaming a volume mount
+point. The only considerations with AFS are those that concern UNIX: If
+the file is being renamed within the same disk partition, no significant
+data movement is needed; only the pointers in the directory entries
+themselves must be updated. But if the file is to be renamed to a location 
+on another disk, the entire file must be read and then written to the 
+new location and then the old data must be deleted. This is exactly what
+must happen in AFS whenever a file is being moved from one volume to another, 
+even when the destination volume resides on the same disk partition 
+as the source.
+
+-- <B>Disk Space Usage</B>: Many users are quite familiar with the concept of 
+distributed file systems. Most of the time, these file systems are explicitly 
+connected to a particular server's location on the network. During day-to-day 
+use of the system, it is common to ask the system to display the amount of 
+room left on the current server's disk with the UNIX command ~~df~/~. This command 
+does not return any useful information when applied to a directory in AFS.
+
+PROGRAM DONE
+	$ <B>cd /afs/hq.firm/user/alice</B>
+	$ <B>df -k .</B>
+	Filesystem            kbytes    used   avail capacity  Mounted on
+	AFS                  9000000       0 9000000     0%    /afs
+PROGRAM
+
+The ~~df~/~ command's unuseful output can cause problems with certain shell scripts, particularly scripts
+attempting to install third-party software onto a disk.
+
+Users who run ~~df~/~ must understand that there are other ways of
+getting the same information. When concerned about how much disk space is
+left, a user should know that not only is there a hard-limit on disk space
+- the total size of the disk partition - but there is also a soft limit, a
+usage quota, set by local administrative practice. To find out how much of
+the physical disk has been used, you can run an ~~fs~/~ subcommand.
+
+PROGRAM DONE
+	$ <B>fs diskfree</B>
+	Volume Name           kbytes  used     avail     %used     
+	user.alice           1031042    1478 1029564        0%  
+PROGRAM
+
+The ~~listquota~/~ subcommand tells you how much room is left in the current
+volume and also how much room is left on the disk.
+
+PROGRAM DONE
+	$ <B>fs listquota</B> 
+	Volume Name            Quota    Used    % Used   Partition 
+	user.alice            100000       9        0%          0%  
+PROGRAM
+
+The quota is simply an administrative limit placed on the amount of data
+that a volume can hold. As such, it is relatively easy for an administrator
+to increase that quota. In practice, you might find a volume that has
+several dozen megabytes of quota available, but the volume is stored on a
+disk partition that is completely full. In this case, to provide the full
+quota's worth of storage, you will have to move the volume
+onto another, less full disk surface.
+
+This last discussion raises one other issue that initially bothers some users. Over many
+years of use, users have come to understand that the physical location of
+their data was never likely to change except under extreme circumstances.
+AFS, however, provides administrators with several tools to move replicated
+or read-write data around the system without having to reboot clients or
+laboriously push out maps of information. When a user wants to know where
+exactly in the AFS cell their data is located, the rejoinder is "Why do you
+want to know?" The point is that AFS does a very good job
+managing the location information itself. Whereas it was almost necessary
+for users to keep track of file locations themselves so that they could
+contact their data from random clients, this is precisely the functionality
+that has been deeply integrated into AFS itself.
+
+There are commands to display location information, but users should be
+warned that it is far more subject to change than before. And this is
+ultimately beneficial. For example, when there are disk space problems,
+users home directories can be moved around until the needed storage has
+been made available - and this movement occurs on-line, transparently to
+users. In the morning, a home directory may be stored on one server, and in
+the afternoon, it may be on another. As long as access to data is
+uninterrupted and has good overall performance (because of caching), users
+should not care too much about where that data is stored.
+
+The simplest way to find out which AFS server is managing a particular file
+is with another ~~fs~/~ subcommand.
+
+PROGRAM DONE
+	$ <B>fs whereis /afs/hq.firm/user/alice</B>
+	File /afs/hq.firm/user/alice is on hosts fs-one
+PROGRAM
+
+For data stored in a read-write volume, this command produces a straightforward
+answer. When asked of a read-only version, the response is a bit more verbose:
+
+PROGRAM DONE
+	$ <B>fs whereis /afs</B>
+	File /afs is on hosts fs-two fs-one
+PROGRAM
+
+In this case, the client doesn't respond with a single server name but with the
+complete list of servers that are currently known to have the file in
+question stored. Again, because AFS guarantees that all of the listed
+servers have exact copies of the replicas, it doesn't matter too much which
+server is providing the data. To find out exactly which server is delivering
+the files, use the ~~getpreferences~/~ subcommand and find which
+server is the closest (the lowest numerical) preference.
+
+PROGRAM DONE
+	$ <B>fs getserverprefs</B>      
+	fs-two                                              1007
+	fs-one                                              5003
+PROGRAM
+
+Knowing that the file ~~/afs~/~ is available from either server, you can 
+see that ~~fs-two~/~ is the preferred server, at least according to this client. 
+
+-- <B>Finding Files</B>: One interesting fact about the hierarchical namespace 
+of most computer file systems is that they are optimized for lookup only by 
+discrete path name elements. A general index is almost never maintained 
+for complete names or file metadata, and certainly not for content. To search
+for files, the UNIX ~~find~/~ utility is used to laboriously descend through a 
+file system looking for files matching certain criteria such as name, age, 
+or permissions.
+
+One standard option to ~~find~/~ is ~~-mount~/~ or ~~-xdev~/~ which, according to the
+on-line documentation, will not cross mount points. Be careful when
+reading UNIX documentation like this; the mount points referred to by
+the ~~find~/~ command are UNIX mounts. This option will blithely crisscross
+AFS volume connections without problems; as far as most UNIX commands are
+concerned, the totality of the AFS namespace, including any connections
+to remote file servers or multiple cells, is regarded as a single mount
+point, a single file system.
+
+The GNU project's version of ~~find~/~ has been enhanced for AFS: when compiled
+with the appropriate options, it supports the ~~-fstype afs~/~ predicate,
+which is ~~true~/~ if the file is stored in the AFS namespace. This enhancement can be used
+to prohibit a ~~find~/~ request from descending into ~~/afs~/~.
+
+-- <B>File Timestamps</B>: A standard UNIX file system tracks three different 
+timestamps for each file: the last time the file was accessed, the last 
+time the file data was changed, and the last time file metainformation 
+(such as the permissions) was changed. In the internal data structures, 
+these timestamps are named the ~~atime~/~, ~~ctime~/~, and ~~mtime~/~. Because AFS file servers 
+aren't involved in most file accesses - they're satisfied by client cache - 
+the servers can't store a last access time. Instead, when timestamp 
+information is requested by the ~~stat~/~ system call, the server looks up the last time of file data change and uses that for the other 
+two timestamps.
+
+A short program to display these three timestamps shows that they 
+are kept in sync.
+
+PROGRAM DONE
+	$ <B>date > foo</B>
+	$ <B>show_timestamps foo</B>
+	last access:	    Sat May 29  17:34 EST 1997
+	last status change: Sat May 29  17:34 EST 1997
+	last modify:        Sat May 29  17:34 EST 1997
+PROGRAM
+
+After waiting a few seconds, we run a command to change the status
+of the file.
+
+PROGRAM DONE
+	$ <B>chmod 444 foo</B>
+	$ <B>show_timestamps foo</B>
+	last access:	    Sat May 29  17:34 EST 1997
+	last status change: Sat May 29  17:34 EST 1997
+	last modify:        Sat May 29  17:34 EST 1997
+PROGRAM
+
+In a UNIX file system, the ~~chmod~/~ command would have caused the 
+status-change timestamp to change. As you can see, no AFS timestamps changed
+at all.  On the other hand, if we append some data to the file, the times
+will all be updated.
+
+PROGRAM DONE
+	$ <B>date >> foo</B>
+	$ <B>show_timestamps foo</B>
+	last access:	    Sat May 29  17:36 EST 1997
+	last status change: Sat May 29  17:36 EST 1997
+	last modify:        Sat May 29  17:36 EST 1997
+PROGRAM
+
+It's hard to construct a real-world scenario that requires each of these
+timestamps to be accurately kept. One place this could cause confusion
+is with the ~~find~/~ utility: the command can search for
+files with particular ~~atime~/~, ~~mtime~/~, or ~~ctime~/~ modification times. Such
+commands could produce unexpected results in AFS. 
+
+-- <B>~~lsof~/~ Utility</B>: This popular UNIX administration command prints out the
+open files in use by any process on a machine. It's very handy for
+finding out who is using what files or programs. Unfortunately, this
+program has not been ported to fully understand AFS file names. The latest
+versions of the tool can at best report that a particular file opened by
+a process is one stored in AFS.
+
+-- <B>Temporary Files</B>: AFS is a distributed file system whose performance 
+can approach that of a local disk over a relatively long series of transactions.
+But, it will still send file data over the network to a server which is 
+probably busy with other users as well. To increase application
+efficiency, you should try to use temporary space on local disk for files that 
+will probably be discarded quickly.  Developers, especially, might want 
+to redirect their compiler output from the distributed system 
+to temporary space. Also, user's downloading data from the Web can place
+the files on their local disk. This suggestion, of course, applies to
+any other distributed file system, from NFS to Novell.
+
+SECTION: PROGRAMMING ISSUES
+
+Developers should be aware of all of the issues presented so far in this
+chapter: credentials, access controls, and differences with certain UNIX 
+commands. Additionally, developers should be aware of a few operating system 
+idiosyncrasies and how these interact with the standard programming interfaces.
+Even so, the overwhelming majority of programs will work correctly in an AFS 
+environment; you may find that hard to believe after making it this 
+far through the book, but if AFS were not successful at providing 
+near-UNIX semantics, it simply wouldn't be as popular as it is.
+
+The most obvious change from UNIX is in the behavior of the ~~write~/~ and
+~~close~/~ system calls.  As a process writes data, that data will be stored locally.
+When the process closes the file, the writes will be shipped to the server.
+The only detail that must be mastered to make a process AFS-friendly
+is to always check the error code from the ~~close~/~ operation. 
+
+If the ~~close~/~ operation shows an error, all is not lost, for the client
+cache will still have the original copy of the written file data. In
+essence, all that must be done is try the ~~close~/~ again. Whether the retry succeeds depends on why the ~~close~/~ failed the first time.
+
+As an example of how failure to catch close errors causes problems,
+we can take a look at a real-world situation. Soon after AFS was becoming
+popular, many sites found a problem with the ~~gzip~/~ and ~~compress~/~ programs.
+Both of these programs read a file and write out a compressed version
+of the same data. Internally, the program would open the input file for
+reading and an output file for writing. When the input was read and compressed
+successfully, the input file would be deleted. This program runs
+correctly in AFS, but it did not check the close system call for error conditions.
+
+The problem arose when the program tried to compress files in volumes that 
+were approaching their storage quota limit. When the compression program ran, 
+the output file was written (locally) correctly, but the ~~close~/~ operation 
+failed because storing the compressed file would have forced the volume to 
+go over quota.  As the program did not check the return code from the 
+~~close~/~ operation, it did not know that the compressed version of the 
+file had not been saved on the file server. So, since all seemed fine, 
+the program finished by deleting the original, uncompressed file. 
+The result was that running the ~~compress~/~ program on a file in a 
+full volume caused the original file to be deleted.
+
+On a standard UNIX system, this scenario doesn't cause a failure because
+one of the write operations will fail before ever getting to the final
+close. And the code diligently checks all write return codes.
+
+For AFS, the fix was trivial and has been integrated into the ~~compress~/~
+and ~~gzip~/~ programs: When closing the compressed file, check the return
+code and delete the original file only if the ~~close~/~ operation returned
+successfully. If the ~~close~/~ failed for whatever reason, there is no need
+to try to rewrite the data; simply report the error to the user. 
+The user would then have to make some more room available.
+
+Developers should learn from this example and take simple steps to work around 
+it. One technique to save a file while writing is to occasionally issue 
+~~fsync~/~ operations. This system call causes the client cache manager 
+to send the data immediately to the server, which will (as of Version 3.4a) 
+write the data to its disk. Sometimes, this is exactly the behavior required, 
+but programmers should not get in the habit of sending ~~fsync~/~ after 
+every write because this practice will result in very poor performance; 
+the server must accept the written data, write it to its own disk, and 
+reply to the client for every write. 
+
+One good use of ~~fsync~/~ is when writing log files. Applications
+often open a file for writing and periodically write a line of information
+to it indicating their progress on some task. Each line 
+written to AFS would have to be followed by a ~~close~/~ or ~~fsync~/~ for other clients to be able to read the data.
+Alternatively, you may decide that log files should not be written
+to AFS at all but rather should be written to local disk or use a true distributed system log facility, such as ~~syslog~/~.
+
+There is, however, a simple workaround for any long-running or legacy job
+that writes to a file regularly without closing it. Any other process
+authorized to access the file can perform the ~~fsync~/~ on the file and
+cause the intermediate writes to be flushed back to the server. A simple
+utility can be written to manage any such long-lived log file by executing
+~~fsync~/~ system calls on the file every thirty seconds or so.
+
+Before writing to a file, of course, you must have authorization to do so.
+The most accurate way to see if you have permission is to simply open
+the file and ask for write access. No matter what file system the
+file resides on, this method will tell you definitively if access has
+been approved. Some software would rather just test for the permission;
+on a UNIX machine, such software will often check the permission bits and compare them
+with the current user identification. As we've seen in this chapter,
+checking permission bits will often lead to an incorrect conclusion because most of the access
+controls are in the directory ACL, not in the file's permission bits.
+
+Checking permission bits directly is, in general, a bad idea because such
+software is much less portable. But programmers must also be careful when using
+libraries that provide an ~~access~/~ procedure to check for
+authorization. Some of these procedures are system calls that check
+the bits; others are intermediate libraries that perform other checking.
+And some programming languages, such as Perl, provide their own
+implementation. There is no absolute solution to this problem, since
+library writers or programming language developers are free to
+provide any services they see fit. With the advent of POSIX-endorsed
+access controls, there should be an ACL-ready mechanism for determining
+authorization. For now, the best method is to simply open the file
+with the desired permission - read or write - and manage any errors that
+are returned.
+
+Developers use a number of programming clichés to solve obscure problems.
+One trick is to create an invisible file for temporary storage: After 
+a file is opened for writing, the ~~unlink~/~ operation is called on the file, which
+effectively deletes the file name from its directory. The process
+still has a handle with which to write to the file, but no one else in the
+system can see or open the file. When the file is finally closed, the operating
+system will realize that the file has no entries in the file system and will
+instantly delete it.
+
+The problem with this scenario for AFS is that if the file is flushed
+from the client cache for some reason (for example, the process may write
+more data to the file than can fit in the cache, or the cache needs 
+space for some other files), then the client is unable to recache
+the data from the server because the file has no name. 
+
+In this situation, the cache manager has no choice but to rename the file. 
+When the client realizes that an ~~unlink~/~ system call is being performed
+on an open file (and the client has more than enough information in the 
+operating system to determine this), then the file is renamed to 
+~~.__afs<I>XXX</I>~/~, where the final characters of the name are chosen to not conflict with any other unlinked temporary file in this directory. When the
+final ~~close~/~ operation runs, this oddly named file is deleted.
+You may therefore see files with this type of name when processes that have opened unlinked temporary files are
+running somewhere in the cell. Or, you may see such files if those processes crashed or were killed and did not have a chance to
+close the file. This behavior is very similar to the operation of such files in NFS.
+
+Full-file advisory locks as provided by the ~~flock~/~ system call are 
+supported. However, AFS does not support byte-range locking of files, 
+as provided by ~~lockf~/~ or certain options to ~~fcntl~/~. 
+These system calls will always return without error but in fact do no 
+byte-range locking at all. Instead, when an application tries to grab a
+lock on a range of bytes, the program will continue successfully and the
+kernel will write a message in the terminal window from which the program 
+was initiated.
+
+PROGRAM DONE
+	afs: byte-range locking not implemented; make sure no one else is
+running this program
+PROGRAM
+
+This message is intended only to serve notice that the program does not own a lock
+to a section of the file. Since very few UNIX programs use byte-range locks, this situation
+does not often happen. 
+
+Programs that use whole-file locks are slightly more common. For these 
+programs, AFS supports the ~~flock~/~ primitive for processes on the same client. 
+Processes on separate clients using ~~flock~/~ on the same file will not
+block, as they would normally. Instead, the ~~flock~/~ returns with an EAGAIN
+or EWOULDBLOCK error that should be checked by the program code. Because
+advisory locks depend on cooperating processes anyway, this is not too
+unreasonable.
+
+In summary, programmers should use whole file locks only and when acquiring
+such a lock, use the blocking form of the system call.
+If either advisory or mandatory distributed file locking is required by
+your applications, you should look into using DFS because it correctly 
+supports full POSIX file semantics.
+
+Memory-mapped files present similar problems and similar solutions. The
+first question is how well memory-mapped files are supported by the 
+underlying operating system itself. If they are supported, then most
+memory-based operations on files will work, but with the usual AFS caveats.
+That is, multiple processes on the same or different hosts can read a
+memory-mapped file correctly. When data is being written to a memory-mapped file,
+multiple processes on the same client will be able to see the changes, but
+other clients will not see the new data until the file is closed.
+Again, DFS provides a more complete implementation of single-site semantics
+for memory-mapped files.
+
+Sparse files are files to which data is written noncontiguously. When
+the concrete data is separated by more than a page-size of empty space, 
+most file systems will not create a physical page for these holes. A sparse
+file could be created by opening a file for writing, moving to position 
+1,000,000, and then writing a single byte of data.  This file will usually
+require only a single page of disk for storage.  To most processes reading 
+this file, the file will seem to be one million bytes long because during 
+reading, the operating system will notice the holes and return zero-filled 
+pages, as required, until the 1,000,000th byte is reached; at that point, 
+the byte of data will be returned, and the end-of-file will be reached. 
+
+Such files are partially supported by AFS to the extent that processes can 
+create a sparse file. However, whenever that file is moved or copied via AFS
+procedures such as moving the volume, backing up or restoring the file, or
+most commonly, by creating a read-only replica, the copy of the file will be
+expanded to fill out all of the holes. The example file above will cost only
+one-page of storage on the server housing the read-write master volume, but any
+other servers storing read-only copies will need a megabyte of storage. 
+While all user-level data accesses will see the correct data in the 
+correct locations, the disk overhead of the file may not be optimal.
+
+SECTION: SYSTEM SOFTWARE
+
+Along with the AFS executables and utilities, Transarc also supplies versions 
+of several conventional UNIX programs: ~~ftpd~/~, ~~login~/~, ~~inetd~/~, ~~rcp~/~, ~~rlogind~/~, and 
+~~rsh~/~. Most of these behave exactly like their UNIX versions, except that 
+during the authentication phase, in addition to performing regular 
+UNIX checking, they also perform AFS's Kerberos authentication steps.
+
+The simplest example is ~~ftpd~/~. This daemon program is normally configured
+to run on a server to permit remote clients to access local files
+via FTP (File Transfer Protocol). A user running a generic ~~ftp~/~ client 
+anywhere on the net can contact the server to request file transfers to 
+or from the server. The protocol includes a query and response message to
+check the client user's name and password so that access to files on the
+server can be properly authorized. In the AFS version of ~~ftpd~/~, the name 
+and password are presented to Kerberos for authentication. If Kerberos confirms the user's identity, 
+the daemon is granted the user's AFS credentials, which can then be used 
+to read or write files in the AFS file namespace anywhere the user has 
+been permitted.
+
+This enhancement will be useful if your organization needs to transfer file to clients
+that are not running AFS or are outside of your administrative domain.
+The machine which is designated the FTP server can be any AFS client in your
+cell, since all files in the namespace will be visible to any of your clients.
+Configuring the daemon is a simple matter of updating the Internet daemon
+set up file, ~~inetd.conf~/~, with the new name of the program file.
+
+Similarly, the ~~login~/~ program has been enhanced.  The new version performs 
+all the usual tasks of logging a user into the system and also obtains 
+Kerberos authenticated credentials. These credentials are associated with 
+a new process authentication group, similar to the effect of running the 
+~~pagsh~/~ program, outlined above. 
+
+Since the AFS Kerberos implementation includes some extra functionality, such
+as password aging, the ~~login~/~ program needs a way to pass
+along some of this information automatically. When Transarc's ~~login~/~ is run,
+a new environment variable, named 
+PASSWORD_EXPIRES, is set in the user's login shell; it's value is the number of days left for which this
+user's password will be valid. It is intended to be used by system 
+administrators to signal an impending expiration date to users. Other
+than its informational value, it has no functional bearing on the 
+authentication process.
+
+Transarc supplies three versions of ~~login~/~ based on the BSD 4.3 UNIX version; the appropriate binary as needed
+should be installed as ~~/bin/login~/~.
+
+-- ~~login~/~ - For stock AFS sites. This version checks the local ~~/etc/passwd~/~ file and will refuse logins to
+users with no entry or with a "*" in the password field. AFS authentication
+is then attempted; if successful, the user is logged in with UNIX and AFS credentials. If the authentication
+failed, the password is checked, using the local UNIX verification procedure;
+if successful, no AFS credentials are issued, but a local UNIX login is
+permitted.
+
+-- ~~login.krb~/~ - For sites using MIT Kerberos version 4. This version
+does all the stock AFS login procedures checks with a standard MIT Kerberos server, and then stores the Kerberos
+ticket in a file, ~~/tmp/<I>tktNNNN</I>~/~, named after the number of the user's process 
+authentication group. Many applications based on the MIT Kerberos 
+implementation expect this file to exist.
+
+-- ~~login.noafs~/~ - For AIX 3.2 clients only. This version performs no AFS
+Kerberos authentication at all.
+
+Using this replacement should make
+the introduction of AFS much less stressful for users and administrators
+because it will automatically get Kerberos tokens for users whether or
+not they know about AFS. The only remaining issue for users will be checking
+on expired tokens.
+
+Now that AFS credentials have been obtained, it would be useful for other
+UNIX remote access programs to use them. The Berkeley r-commands allow 
+users to run commands or copy files between trusted systems. They do
+this by having each system keep a list of which other systems it will
+trust; this trust takes the form of accepting the UNIX-level authentication
+information from a remote host as being valid. In AFS, the vendor's r-commands
+will work exactly the same, but of course, the UNIX-level authentication
+is not used by the AFS ACL authorization scheme.
+
+A system is needed that will permit tokens on one machine to be
+usable on other machines in the cell. Transarc supplies versions of
+~~rsh~/~, ~~rcp~/~, ~~rlogind~/~, and ~~inetd~/~ to make this plan work.
+
+The ~~inetd~/~ daemon is a process that coordinates communication among
+remote programs. It is normally started at boot time and listens for
+connections on a variety of ports; when a request comes in, it 
+initiates a predefined process as the peer for the incoming connection.
+Transarc's ~~inetd~/~ performs similarly, but is usually configured
+to handle only the AFS versions of the remote access commands as well as
+to automatically manage the transfer of authentication information so
+that the peers can be executed under the correct Kerberos authentication
+credentials.
+
+To implement these AFS remote access commands, first comment out
+the vendor's ~~inetd~/~ configuration, in ~~/etc/inetd.conf~/~, for the
+shell and login services, then create an auxiliary configuration
+file, ~~/etc/inetd.conf.afs~/~.
+
+PROGRAM DONE
+	# AFS configuration for inetd.conf.afs
+	#service type   prot wait    uid   program              argv
+	ta-rauth stream tcp  nowait  root  internal             ta-rauth
+	shell    stream tcp  nowait  root  /usr/etc/rshd        rshd
+	login    stream tcp  nowait  root  /usr/etc/rlogind.afs rlogind.afs
+PROGRAM
+
+Check with your vendor's manuals for the exact specification of this file;
+Sun systems would use ~~/usr/etc/in.rshd~/~ for the shell program. Note that
+the login configuration line is needed only if the AFS ~~login~/~ program is
+being used.
+
+During the reboot sequence of this AFS system, start the ~~/etc/inetd.afs~/~ daemon
+and set it up to read this configuration file. Meanwhile, the
+vendor's ~~inetd~/~ daemon can start and take care of all of the other remote
+access protocols.
+
+Modify the ~~/etc/services~/~ file or map to include the remote
+authentication service. The exact operations differ by vendor,
+but usually you add the following lines to ~~/etc/services~/~:
+
+PROGRAM	 DONE
+	auth		113/tcp		authentication
+	ta-rauth	601/tcp		rauth
+PROGRAM
+
+Finally, install the AFS versions of ~~rsh~/~ and ~~rcp~/~. When users
+use these programs, they will connect to a remote computer, the Transarc
+version of the server peer program will be connected to it, and the local
+program will pass along authentication information to the remote site
+so that the ~~rsh~/~ or ~~rcp~/~ process will have the same credentials remotely
+as the user does locally.
+
+SECTION: USING AFS ON WINDOWS NT
+
+The authentication and access control issues raised previously apply equally
+to users on Windows NT platforms. Transarc's port provides both command-line
+and graphical interfaces to perform most user tasks. Foremost is the need
+for users to control their authentication. The latest implementation of
+AFS on NT integrates the NT login with the AFS Kerberos login, but
+checking on expired tokens is as important with NT as it is with UNIX.
+
+If a user's password has been manually set the same in the NT domain manager
+as it is in the AFS Kerberos server, then the integrated login authenticates the
+user in both the NT and AFS worlds. Note that there is no integrated
+password change application nor even an NT version of the AFS Kerberos
+password-change program.
+
+From the program manager, you can run the Authentication program in the
+Transarc AFS program group; or, from the File Manager, you can pick the
+Authentication item from the AFS pull-down menu. Either way, a dialog box
+pops up into which you can enter your name, password, and the cell to
+which you wish to authenticate. After you click on the OK button, the client
+contacts the AFS Kerberos authentication server, checks the information
+entered, and returns a token to the PC to be used when determining access to
+the cell.
+
+To check the status of your AFS tokens, you can run the same Authentication
+program. When you have a valid token, this program 
+displays the user names, cells, and expiration times of the tokens held. From this dialog box, you can also choose to discard any current token.
+
+Command-line programs are provided for authenticating (~~klog.exe~/~)
+listing credentials (~~tokens.exe~/~) and discarding tokens (~~unlog.exe~/~). These programs
+are used in almost exactly the same as their UNIX counterparts, already
+described.
+
+One difference between these tokens and the UNIX implementation is that
+NT tokens are user-based only; there is no process authentication group
+that would permit one user to have different tokens in multiple windows.
+If you run two MS-DOS command-line interpreters, any ~~klog~/~ operation in one
+will change the tokens used by the other interpreter and even those used by
+all the user's Windows-based applications.
+
+The File Manager navigates the AFS file system as normal. However,
+there are a few differences between NT and AFS file semantics.
+
+Any symbolic links stored in the AFS file system will not be seen by NT
+users. Instead, the AFS client code on the NT desktop will follow any links
+until a file is found. If the final link is a directory, the name shows up
+as a directory entry; if the link points to a file, the File Manager 
+shows a file icon. Be careful of deletion - since the NT client does not know
+about symbolic links, the File Manager delete operation (and the MS-DOS
+~~erase~/~ or ~~rmdir~/~ commands) will not work. But a recursive deletion will follow
+the symbolic link and continue to delete the pointed-to data unlike the process on UNIX
+systems, where only the symbolic link is deleted.
+
+The File Manager's AFS pull-down menu has many graphical interfaces to AFS
+functionality:
+
+-- Authentication - Displays dialogs to obtain, list, or delete AFS
+tokens.
+
+-- Access Control Lists - Display dialog boxes to list the ACL on a
+folder, add or delete entries, or clean an ACL of outdated entries. In the
+display of the access control list for a directory, each entry shows the
+user or group name and their rights, using the letters ~~r~/~, ~~l~/~, 
+~~d~/~, ~~i~/~, ~~w~/~, ~~k~/~, and ~~a~/~ to indicate the standard 
+AFS permissions.
+
+-- Volume/Partition - Displays information about the underlying volume
+associated with the file or folder currently selected in the File Manager.
+Besides the name of the volume, the dialog box shows the volume
+identification number, the volume quota, the total amount of space used 
+in the volume, and the percentage of the quota represented by that space.
+
+Three additional buttons on this dialog box pop up
+further dialogs: New Quota (if you are authenticated as a
+~~system:administrators~/~) changes the quota size on the current volume. 
+Partition Info displays information about the server's disk
+partition that houses the current volume, including its total size, the
+number of kilobytes remaining free for storage, and the percentage of the
+disk partition used for storage. Refresh Name/ID Mappings forces the client cache
+manager to delete its set of volume name and location information, which, in turn, forces the NT client to query the AFS servers for the latest information.
+(In normal operation, the client queries and stores this
+information as it navigates the file system.) This program provides a way to reset the
+client if troubles are suspected with access to certain file servers; it
+is similar to the ~~fs checkvolumes~/~ command.
+
+-- Mount Point - This dialog permits you to display or manipulate AFS
+mount points in the current folder. The Show suboption displays
+information about the current folder's connection to the AFS cell. If the
+folder is an AFS volume mount point, the dialog displays the volume,
+cell name, and type of mount, either regular or read-write. The Remove
+suboption deletes the current folder if the folder is a
+mount point to an AFS volume and you have permissions to delete entries in
+the current folder. The Make suboption pops up a dialog which helps you
+create mount points to AFS volumes: you enter the name of a new
+folder in the current or other designated folder, the volume name, the cell
+name if not in the current cell, and the type of volume connection (regular or read-write). If you have permission to insert into the current
+folder, the mount will be created as a new folder.
+
+-- Flush File/Dir - This menu item flushes the currently selected
+file or folder data from the client cache. Because AFS is constructed to
+perform the needed cache flushes automatically when any data changes, users
+do not ordinarily need to use this item.
+
+-- Flush Volume - Like the Flush File/Dir item, this service causes the client
+to flush all data in the volume containing the currently selected file or
+folder. Again, this action is not needed ordinarily. Note that flushing does not
+require any data to be actually deleted; the operation is practically
+instantaneous.
+
+-- Show File Servers - Clicking on this item displays a list of the server locations of the currently selected files or
+folders. Data that is not replicated, such as files in your home directory,
+will be shown as residing on a single server; data that is replicated, such
+as application programs that need to be highly available, will be shown as
+residing on several servers. In either case, this information is purely
+informational.
+
+-- Show Cell - Similar to the Show File Servers item, this service displays
+information about which cell is making the selected files or folders available.
+
+-- Show Server Status - Displays a dialog box showing a list of all the
+cells contacted since the last reboot, along with their servers. This list
+provides a glimpse into the internals of the client cache manager as it
+maintains information on the cells and servers it has discovered in the
+course of delivering file data to users. Because one job of the cache
+manager is to automatically fail over between servers when it has to deliver
+a file that has been stored on multiple machines, the cache manager keeps
+track of all the machines it has seen in the past and periodically queries
+them to see if they are still available. This dialog shows you that list of
+machines and their current status as understood by the local client.
+
+You can direct the cache manager to report on the servers in the
+local cell, a specific cell, or all cells it has encountered. There is also
+a check-box to make the cache manager report on this information without
+querying the servers again; if you allow the client to query all the
+servers, there may be quite some delay as the client waits for a unresponsive server.
+
+All of the above displays and services can be run from the command line.
+Included in the Transarc port to NT is the ~~fs~/~ command, which can perform most
+of the above functions.
+
+Missing from the NT port are other user commands such as the ~~pts~/~ suite for
+manipulating group memberships. Also unavailable are the
+administration commands, such as the ~~kas~/~, ~~vos~/~, and ~~bos~/~ suites. Presumably, the ~~pts~/~ suite and perhaps other
+tools will be ported to NT in the future. 
+
+SECTION: SUMMARY
+
+It would be nice to report that users of AFS file services experienced no
+differences from local UNIX files. This expectation is bound to fail:
+distributed file systems are based on different assumptions of scale, 
+performance, and security. Some of AFS's differences are debatable - choosing
+to implement close-on-write semantics is an architectural choice not
+everyone agrees with - but others such as access control lists are 
+certainly improvements however complex they may seem to make things.
+
+Users may complain about the need to obtain Kerberos credentials 
+to access the file system. And they are right to demand improved services
+which mitigate the difficult use of these credentials, but returning to
+the overly trusting world of the Berkeley-style ~~rsh~/~ and ~~rcp~/~ commands is not the answer.
+
+Access control lists and user credentials are two items which must
+be taught to all users of AFS. For most users, these two concepts will be all that needs to be
+known; most users do not need to know about volumes, servers, or Ubik. Their
+applications and file system navigation will work in AFS just as they
+did in NFS, NetWare, or locally.
+
+The user population with the greatest need to understand any and all subtleties
+of the AFS implementation are application developers. Experienced developers should
+realize that AFS implements certain choices for file services that are
+neither inherently better nor worse than local UNIX semantics. Applications developed according to peculiarities
+of a local file system or a particular operating system interface may
+require some work to perform correctly on files in AFS. Yet such an 
+application is inherently nonportable, anyway.
+
+After reading through the list of differences in user commands, such as
+~~chmod~/~ and ~~df~/~, and programming procedures, such as ~~close~/~ and ~~lockf~/~ system calls,
+you might suppose that transitioning to AFS will be quite 
+a chore, that every application will need to be checked individually,
+and that many programs and services will not work. Remember, though, that, over the years, the number of real problems with AFS and
+traditional UNIX applications has been found to be quite small.
+
+The larger problem is not with computers and applications but with
+users. Where once they may have typed ~~df~/~ to see how much disk space
+was available under a directory, users will have to remember to 
+type ~~fs listquota~/~ (or, abbreviated, ~~fs lq~/~). Users of Windows NT should
+have it a bit easier because these modifications can be integrated more
+easily into the graphical interfaces than they can into the command-line tools of UNIX.
+
+This chapter is the only one that should be
+read by users or developers. In the next chapter, we'll return to the
+world of administration and learn how to archive the AFS volume data
+that has been created by others.

@@ -1,0 +1,32 @@
+
+
+
+	Machine Name	db1		db2
+	IP Address	a.b.c.1		a.b.c.2
+	
+	Scenario	both machines running
+	Votes For	db1		db1
+	Result		2/2		0/2
+			sync		secondary
+
+	Scenario	running		crashed
+	Votes For	db1		-
+	Result		1.5/2		-
+			sync		-
+
+	Scenario	crashed		running
+	Votes For	-		db2
+	Result		-		1/2
+			-		secondary
+
+	Scenario	both running, but a network partition doesn't permit
+				db1 or db2 to communicate with each other
+	Votes For	db1		db2
+	Result		1.5/2		1/2
+			sync		secondary
+
+
+
+
+[[Figure 3-4: Ubik Resiliency:  Two server scenarios]]
+

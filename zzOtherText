@@ -1,0 +1,839 @@
+###############################################################################
+###############################################################################
+
+Final Editing
+        - check available Transarc ports
+	- AFS 3.5
+	delete \[\[ \]\]
+	Chapter references in text
+	"2345" - dummy numbers
+	XXX, aaa, bbb,
+	fs-three
+
+Global Edits
+
+	filesystem		- not file system
+	mountpoint		- not mount point
+	namespace		- not name space
+	path name		- not pathname
+	callback		- not call back or call-back
+	subtrees		- not sub-trees
+	subcommand		- not sub-command
+	subdirectory		- not sub-directory
+	cannot			- not can not
+
+	cell name		- not cellname
+	shut down		- not shutdown
+	host name		- not hostname
+	system call		- not systemcall; and no (2)
+
+	volume			- not fileset
+	lsmount			- not listmount  lsm
+	SALVAGE.fs		- not Salvage
+	protection database	- not pts database
+	AFS group		- not pts group
+	read-write 		- not readwrite, ReadWrite
+	read-only		- not readonly, ReadOnly
+	read-only volumes	- not read-onlies or read-onlys
+	information		- not info[ ]	
+	percent			- not %
+	principal		- not principle
+	kernel			- not kernal
+	gigabyte		- not GB
+	megabyte		- not MB
+	kilobyte		- not KB
+	VFID			- not FID
+	PC architecture		- not x86
+	Carnegie Mellon		- not Carnegie-Mellon
+	Transarc Corporation	- not Transarc, Inc
+	client/server		- not client-server
+	ticket-granting ticket	- not ticket granting ticket
+	fileserver {process}	- not flserver
+	bosserver job		- not bos job
+	highly available	- not high availability, or high-avail
+	gateway			- not translator
+	namespace, directory names??	- not filetree
+
+	myriad			- no "the"
+	open system call	- not open(2)
+	
+	EITHER	fileserver  {process} OR	file server {system}
+	EITHER	service 	OR	server
+	EITHER	backup 		OR	archive
+	EITHER	options 	OR	arguments
+	EITHER	VLDB		OR	volume location database
+
+	no quotes in text
+
+
+Fonts
+	courier
+		vice partition
+		system:administrators
+		system:authusers
+		system:anyuser
+		alice:
+		AFSCELL
+		fs job
+		cron job
+		simple job
+
+	Not courier
+		Rx 			
+		TCP
+		UDP
+		IP
+		backup database
+
+Italics
+	AFS Administration Guide
+
+Machines
+	no fs-three in text
+	tape device is on fs-?
+
+Mauro corrections
+
+Tony Q's
+	current version? "March 97 3.4 5.13"??
+	dlog
+	dpass
+	kseal
+	mpp
+	rexecd
+	rmtsysd
+	size of VolumeItems file is 0?? chap 5 yes
+	DB0 DBSYS1 files
+	max threads on fileserver is 160??
+	3.5 news
+
+New Copyrights
+	WebNFS TM
+
+###############################################################################
+
+make book - need to backslash backslashes \\
+	see 5clients.txt
+
+DONE
+	vicepc
+	ubs
+	gauguin
+	atlas
+	IDCE
+	161.239 network
+	161.239.158.94  gauguin 
+	161.239.158.90  atlas 
+	A1 EF 9E
+	190?
+	158.94 (also used)
+	9e62
+		db-one		192.168.3.11	C0	A8	03	0B
+		db-two		192.168.3.12	C0	A8	03	0C
+		db-three	192.168.5.13	C0	A8	05	0D
+		fs-one		192.168.3.21	C0	A8	03	15
+		fs-two		192.168.5.22	C0	A8	05	16
+		fs-three	192.168.5.23	C0	A8	05	17
+		(client)	192.168.3.94	C0	A8	03	5E
+	change hq.com to hq.firm
+	add db-three to various outputs
+	fs-three??
+	change? (old sync site to db-two!!) Should be db-one
+
+Trademarks
+	AFS 
+	OSF DCE, DFS
+	Ethernet
+	FDDI
+	Sun Microsystems Inc, SunOS, Solaris, NIS
+	Digital UNIX, Alpha AXP
+	Silicon Graphics, IRIX
+	IBM RS/6000, AIX
+	UNIX
+	Windows NT, WIndows 95, Windoes 3.11 DOS
+	Apple Macintosh
+	Amiga
+	Platinum Technology PC-Enterprise
+	Network Computer
+	X Window System
+	SCO  OpenServer
+	
+	Ubik
+
+###############################################################################
+###############################################################################
+Preface
+
+			SECTION: TYPOGRAPHIC CONVENTIONS
+			command names, sub-commands, processes, 
+			system calls, 
+			machine names, fileserver process versus file server
+			filenames, vicepartitions, 
+			volume names, volume sets, 
+			shell syntax, command output, ellision "..."
+
+			edit: finish/add chapter titles; add proper descriptions
+				(no titles!)
+
+			hq.firm non-existent
+
+			netrc.com
+
+			unix commands, terse, read
+				date, touch to create files
+				cat to view short output
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+	Spell Check
+	Captions, Sections, Chapter Names
+	Courier
+
+###############################################################################
+###############################################################################
+Chapter 1 - AFS In Perspective
+
+			check: HTML of AFS docs???
+			FAQs, HTML entries
+			distinction conventions/defaults and architecture
+			Summary
+
+		single file namespace
+		its the namespace thats single
+
+		new release port schedule
+
+		highly available: explain on first use
+
+		nfs hetero mount example
+		"clients mounted Solaris" p. 31
+
+		"desktops are called" p. 33
+		The former spend a lot reading + writing over the network
+		the latter are ?? to local cache
+
+		dataless - need cache, low bandwidth , failover == AFS
+
+		Not gonna make it:login anywhere, find homedir 
+			- caching==low bandwidth requirements
+
+		"Like much of UNIX" p. 38
+		And as universities shared it they connected their cells together
+		(actually shared from the start)
+
+		Not gonna make it: 3.4a year 2000 ready end of 97
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+			"filesystem"	quoted
+			call back	- used subversively
+	Spell Check
+	Captions, Sections, Chapter Names
+	Courier
+
+###############################################################################
+###############################################################################
+Chapter 2 - The AFS Protocol
+
+			lws: VFID vice or venus fid or FID
+
+		complex read / write interaction needs more sophisticated
+		signalling or locking anyway. Filesystem is best for dealing
+		with discrete object not intermingling writes etc. Use a
+		messaging, transactional, asynchronous system for such things.
+
+
+		DNS, p 61 first use spell out
+			Domain Name System 
+
+		Novell p. 76 can't be first mention - yep it is
+
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+	Spell Check
+	Captions, Sections, Chapter Names
+	Courier
+
+###############################################################################
+###############################################################################
+Chapter 3 - Setting up an AFS Cell
+
+	p.107  three graphs with repeated info - OK
+
+	p 109, new diagram? too late...
+
+
+	ticket-granting ticket p. 126 - in globalEdits
+
+	mention thatn db-one is sync site
+
+	Ubik databases, two files per database in /usr/afs/db
+	.DB0  .DBSYS1	like dbm .pag and .dir, index and data
+
+	Ubik footnote, p 88 or p 134? don't care - p88
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+	Spell Check
+	Captions, Sections, Chapter Names
+	Courier
+
+###############################################################################
+###############################################################################
+Chapter 4 - Managing Volumes
+
+		Figure 4-1 - check that sample volume is on vicepa or b? fs-one?
+
+		todo: PROGRAM - Transarc's top level
+
+		- normanb: good to have example for a corrupted move where the
+		volume has moved but the VLDB still points to old server/part
+		vos delentry followed by vos syncvldb?
+
+vice partition can be > 2GB, but no file can be
+no volume can be > 2GB
+
+		"great advantage" backup volumes
+		buried several graphs after being introduced
+
+		parent volume
+		term indicates the volume which stores the mountpoint to
+		a given volume. There's no built-in relationship here; any
+		volume can have a mount-point to any other volume. But during
+		admin tasks, it's often importatnt to admin a parent volume
+
+		p. 214 "example4" delete
+
+		p. 215 - extra graph on multiple mountpoints
+		"mandated to be a"		== more graph later on 
+
+		p. 218 - follow PROGRAM with extra graph
+						== dont get it; seems to
+						be okay with figure and texT
+
+		p. 220 "command output wrong - note that Vid is different
+		root.afs.readonly -> root.afs
+
+		p. 222 "no more examples"!
+
+		p. 230 graph on intercell mounts reset to RO bias
+		path pref reset to RO when crossing cells
+
+		root.cell explained ok?? 
+		we do remote cell and root.cell at the same time
+		and then make our root.cell a few paragraphs later
+
+
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+	Spell Check
+	Captions, Sections, Chapter Names
+	Courier
+	./courier < CH04.txt
+	./courier < CH04.txt | grep -v \~\~
+	./courier < CH04.txt | grep -v \~\~ | grep -v job
+	PROGRAM <B>
+
+###############################################################################
+###############################################################################
+Chapter 5 - Managing the Desktop
+
+		lws: what does scan do? read cacheitems file? validate?
+
+		FID - comment: converting  vfid and vol,file,ver utilities
+		vfid (inode number) - odd=directory, even=file
+
+		lws? block layout? BSD...others v. AFS
+		Note, 1 byte file takes a V-cache file entry and one data block
+
+		READ and Write details
+		write: exactly what happens with distributed writes, again
+
+		lws: before 3.4 no anon-temp file; i the server crashed; 
+		multi-client access]
+		lws: AFS unlink-open (anonymous temp files) creats .__afsNNN file; 
+		done by client;
+		lws: but makes file available from server in event of crash
+
+		lws?: why does NT connecting need hostname and username?
+
+		SECTION: WINDOWS NT CLIENTS
+		todo:	PROGRAM - nt ls /afs demo
+
+		HQ.FIRM how does that get translated?
+
+		SECTION: PC-ENTERPRISE
+		todo: PROGRAM - pcenterprize
+
+
+
+		PROG listing, size of VolumeItems file; it's 0
+
+		large num of V-files, no impact on dir lookup; 
+			V-file handles are cached in K
+
+		to flush entire cache
+			no single command
+			can fake (as root): fs setcache 0; fs setcache 100	
+
+
+		p. 268 fileA size? chunk 256 file 10? 
+			NO: fileA 100K, 64K chunk
+
+		fs-three?  deleted
+
+		close() no parens
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+	Spell Check
+	Captions, Sections, Chapter Names
+	Courier
+		stripProg < CH05.txt | courier | egrep -v "\~\~"
+	PROGRAM <B>
+		progCheck < CH05.txt 
+
+
+###############################################################################
+###############################################################################
+Chapter 6 - Administering Users
+
+		normanb: sorry, not going into complete detail on /bin/login
+
+		not a good job on /etc/passwd and Kerberos database
+		kpasswd	 just changes K
+
+	if (passwd)
+	added afsadmin xx
+	unauth user add to passwd
+
+	p. 344 (who cares)
+	We speak of running a command and changing a database. Of course,
+	the command is more specific: it contacts a database server,
+	finds the db sync site, sends the request there. That server
+	processes the request, sends the changes to the other db servers,
+	and when all is ok, returns ok.
+
+
+	p. 351  99:99 means 36 hour lockout?
+
+	30 day lifetime? Chap 7 says 176  hour		30-day
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+	Spell Check
+	Captions, Sections, Chapter Names
+	Courier
+	./courier < CH06.txt
+	./courier < CH06.txt | grep -v \~\~
+	./courier < CH06.txt | grep -v \~\~ | grep -v job
+
+
+###############################################################################
+###############################################################################
+Chapter 7 - Using AFS
+
+		(dont start with reauth and examine flags  - instead ACLs)
+		rcp rsh still use .rhosts files
+		put fsck into 3, 4, and 8
+		check: NT klog changes all users on an NT workstations tokens
+
+		passwd
+			added afsadmin xx
+			added anonymous 32766
+			anonymous:*:32766:0:Anonymous:/:/bin/false
+
+		p. 372 176 hour ticket lifetime. Really?
+			chap 6 says 30 day its 30!
+			deleted
+
+		p. 422 machine ACL, system:authuser so what? 
+			just sys:auth, there's no ACL entry
+
+		tar - can't just tar|tar. new ACLs might be different
+
+		locking
+			add hints
+			lock whole files, not ranges
+			use blocking locks; non-blocking locks don't work well
+				- sometimes work, depending on client
+				- works best when client and server are same arch.
+				- therefore, don't use; use blocking
+
+			use fcntl or flock, not lockf
+				to change lock - upgrade or downgrade 
+				(don't use those words) you should release 
+				and request new
+
+		lsof
+		from the man page -      
+		Lsof supports the recognition of AFS files for these
+		     dialects (and AFS versions):
+ 
+
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+	Spell Check
+	Captions, Sections, Chapter Names
+	Courier
+	PROGRAM <B>
+
+
+###############################################################################
+###############################################################################
+Chapter 8 - Archiving Data
+
+		words
+		archive system
+		backup command, backup database, backup job, backup tape coordinator
+		dump port, dump tape, dump schedule, dump level
+		backup volume !
+
+		lws: butc handles multiple tapes/end-of-tape correctly; so why bother with fms?
+
+		write: see admin guide 6.9 for problems
+
+		SECTION: THIRD-PARTY SOFTWARE
+
+		check: networker support for incrementals?
+
+		SECTION: SUMMARY
+
+		check budtool paragraph with Agnes Lamont 510-449-6881 1225
+
+		dump IDs look like epoch time  - prove it or shut up
+
+		no way to -n and get matching names of volumes
+		but what about xxx; yeah - volrestore -n
+
+		tape drive is where? fs-one or fs-two? see Chap 3 picture
+		fs-two!
+
+		backup tape IP port is 7020 + n
+
+		note dumpinfo listing - sorry, next edition
+			/full, /full/m, /full/t, /full/w  dump level 0, 1, 1, 1
+			/full, /full/m, /full/m/t, /full/m/t/w  dump level 0, 1, 2, 3
+
+
+		archive ro vols; only one is dumped; just implied
+
+		BoxHill, name of vosasm product - just 'vosasm'
+
+		mention DB0, DBSYS1 files
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+	Spell Check
+	Captions, Sections, Chapter Names
+	Courier
+	PROGRAM <B>
+       ./courier < CH08.txt
+        ./courier < CH08.txt | grep -v \~\~
+        ./courier < CH08.txt | grep -v \~\~ | grep -v job
+
+
+
+###############################################################################
+###############################################################################
+Chapter 9 - More Administration
+
+		DATABASE SERVERS
+
+		lws:	DB0  DBSYS1
+
+		where do i get kpop from?
+		http://web.mit.edu/afs.umich.edu/group/itd/ftp/sysadm/mail
+		reauth reference
+
+		ADM url
+		http://www-leland.stanford.edu/~schemers/dist/AFSperl.Z
+
+		didn't make it: Servers read CellServDB whenever they need to
+
+	skip schemers - add to netrc
+
+	Dates here should be May? Change Aug to May?
+
+	"As a final step when configuring a server"
+	new graph - bosserver -log option; not part of installtion
+
+	Next graph on remote exec -elsewhere
+	Next graph ps output goes elsewhere
+
+	rstime 7834672 <- make reasonable timestamp
+	procstart 879879879
+
+	p. 597  "exec echo | beep" - quotes to be added
+
+	?? nope operating system upgrade tasks
+
+	DB0, DBSYS1 out of nowhere p 608	-- added in Chap 3
+	if necessary, the volume location database can be reconstructed
+
+	p. 620 -nowrite option: 
+	sentenc: Here, the output include s the lsmount info
+
+
+	need conclusion sentence
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+	Spell Check
+	Captions, Sections, Chapter Names
+	PROGRAM <B>
+	Courier
+	./courier < CH09.txt
+	./courier < CH09.txt | grep -v \~\~
+	./courier < CH06.txt | grep -v \~\~ | grep -v job
+
+
+###############################################################################
+###############################################################################
+Chapter 10 - Working through Problems
+
+
+		make sure callback number is our fake IP address
+		write: translate_et
+
+		lws: vos move; what happens to callback state for the files? 
+		broken? or copied?
+		callbacks are broken for all files when volume is deleted
+		lws: check crash paragraphs 
+
+		PROGRAM - dbx example
+		I can't get a dbx stack trace!
+
+	FID - uniquifier also permits reuse of VFID
+
+	SIGABRT but kill -IOT
+	SIGnals are courier
+	Rx not courier
+
+	1f - rewrite bits 5-1; each bullet is no
+		bit 2 on: the sync site does not have the best db version
+
+	$[ ]cd[ ] xstat
+
+	check -three
+
+	"sunos.usrbin" - I dont care
+	this read-only to read-write restore only restores data to
+	the read-write that was released to the read-only volumes.
+	Since that release, there may be changes to the read-write
+	volume; those changes are not restored with this technique.
+	This procedure is useful when you need to restore a read-write
+	volume quickly, without resorting to archive media, or if a
+	an archive is not available.
+
+	version control section before security section
+	
+	NO
+	tiny graph at end of security section - 
+	"if enterprise wide or internet-wide
+	shared filesystems scare you, you've bouight the wrong book"
+	
+
+	current version number is 5.28
+
+	max thread size on fileserver is 160?
+
+	NT patch level
+	query the system registry
+	HKEY_LOCAL_MACHINE\Software\TransarcCorporation\AFS Client\PatchLevel
+	currently 6
+
+	translate_et operation  NOT GONNA MAKE IT
+
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+	Spell Check
+	Captions, Sections, Chapter Names
+	PROGRAM <B>
+	Courier
+	./courier < CH10.txt
+	./courier < CH10.txt | egrep -v \~\~
+	./courier < CH10.txt | egrep -v \~\~ | grep -v job
+
+
+###############################################################################
+###############################################################################
+Chapter 11 - Large-Scale Management
+
+	check: how to reach Herr Reuter or PSC
+
+	move second morgan stanley paragraph up
+
+	fig 11-1 symlinks; they're cached
+
+WRITE SECTION ON IBM WEB SERVICES
+	(you mentioned FOUR case studies in the preface!)
+
+	Michigan
+		"in the nation" in the United States
+
+	utilities - Nope. Oh well.
+	NIS services via AFS (sorta)
+
+	PH Copy Edits
+	RIC Edits Other Text  
+   New Graphs
+	TR Mauro Info
+   Global Edits
+Spell Check
+Captions, Sections, Chapter Names
+Courier
+PROGRAM <B>
+
+
+###############################################################################
+###############################################################################
+Chapter 12 - An AFS Project
+
+	typical conclusions "for six clients"
+
+	enterprise	??sp? fine
+
+	"An example" need graph  - deleted
+
+	"One such issue" need graph
+
+	nope- add software installation graph to p. 796
+	it's ok- p. 796 installation graph should be cut back; its in chapter 8
+
+	(killd) mv "more resources have been allocated to AFS" to earlier graph
+
+	DEC? "reneging on their promised client support of DFS for VMS"
+	reworded
+
+	WebNFS TM
+
+	DFS NT port - DFS Server Manager - nice GUI; 
+	filesets on UNIX or NT; clients are UNIX or NT
+
+	sorry: diskless future/internet file systems; persistent storage utilities
+
+	nope: AFS 3.5 news
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+	Spell Check
+	Captions, Sections, Chapter Names
+	Courier
+	PROGRAM <B>
+
+
+###############################################################################
+###############################################################################
+Appendix A - Command Summary
+
+		kas suite write: normally prompts for password; 
+		you can set -admin_username and -password_for_admin
+		one liners
+
+	mention pts entry privacy flags in auth intro
+
+fs
+	checkvolumes - other invalidations
+	listacl - L and R on file? files don't have ACLs
+
+	add to PTS suite
+		"which can be viewed with the 'pts examine' command. 
+
+
+	need one liners - EDIT THEM OUT! WHO CARES@!
+			dlog
+			dpass
+			kseal
+			mpp
+
+	find other authors of "An AFS-Based Mass Storage System at the
+	Pittsburg SuperComputer Center" 11th IEEE Symp on Mass Storage
+
+	PH Copy Edits
+	RIC Edits Other Text  New Graphs
+	TR Mauro Info
+	Global Edits
+	Spell Check
+	Captions, Sections, Chapter Names
+	Courier
+	PROGRAM <B>
+
+
+###############################################################################
+###############################################################################
+Bibliography
+
+ric@netrc.com
+http://www.netrc.com
+			books
+
+			(Ted's Book)
+
+			On-line Information
+			In URL notation.
+
+			http:
+
+			ftp://
+			FTPs
+
+			How to get access to Transarc's FTP site?
+
+			/afs/transarc.com/product/afs/3.4a/sparc_sunos55
+
+
+			Disconnected AFS
+
+PH Copy Edits
+RIC Edits Other Text  New Graphs
+TR Mauro Info
+Global Edits
+Spell Check
+Captions, Sections, Chapter Names
+Courier
+PROGRAM <B>
+
+###############################################################################
+###############################################################################
+
+
+		Add normanb and ted questions to this
+
+
+
+###
+
+Next Steps
+	- fig 1-2 added to port list
+	- fig 3-1 runntpd should be ntpd
+	- ch 9 - 'extra text in file' in perl5 prog
+	- ch 9 - 'purpose' column heading ok

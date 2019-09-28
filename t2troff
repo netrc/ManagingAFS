@@ -1,0 +1,61 @@
+#!/ubs/mach/bin/perl5
+
+
+print << "PROLOGUE";
+.ll 4i
+.pl 9i
+PROLOGUE
+
+$progText=0; #assume off
+
+while (<>) {
+	s///g;
+	s/^'/\\'/;
+	if ($progText) {
+		s/\\/\\\\\\\\/g;
+	} else {
+		s/\\/\\\\/g;
+	}
+	if (/PREFACE/) {
+		chop;
+		print "\n.bp\n";
+		print "\\fB\\s+8$_\\s0\\fR\n";
+		print ".sp 2\n";
+		next;
+	}
+	if (/CHAPTER /) {
+		chop;
+		print "\n.bp\n";
+		s/CHAPTER //;
+		print "\\fB\\s+8$_\\s0\\fR\n";
+		print ".sp 1\n";
+		next;
+	}
+	if (/SECTION: /) {
+		chop;
+		s/SECTION: //;
+		print ".sp 1\n";
+		print "\\fB\\fI\\s+2$_\\s0\\fR\n";
+		next;
+	}
+	if (/^PROGRAM/ && $progText==0) {
+		print ".DS L\n";
+		print "\\f(CW\n";
+		$progText=1;
+		next;
+	}
+	if (/^PROGRAM/ && $progText==1) {
+		print ".DE\n";
+		print ".R\n";
+		$progText=0;
+		next;
+	}
+	if (/^$/) {
+		print ".LP\n";
+		next;
+	}
+	print "$_";
+}
+
+print << "EPILOGUE";
+EPILOGUE

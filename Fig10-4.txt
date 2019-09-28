@@ -1,0 +1,26 @@
+
+-------------------------------------------------------------------------------
+AFSMonitor [Version 1.0]                 [Cache Managers, p.1 of 1, c.1 of 571]
+ 
+              1 Cache Managers monitored, 0 alerts on 0 machines            >>>
+ 
+ 
+              num                 numCells   numCells    dlocal     vlocal
+           PerfCalls    epoch     Visible   Contacted   Accesses   Accesses
+ 
+client1             6  859756168          1          1         47         28
+ 
+
+
+
+
+Command [oview, fs, right]?                          [CM probes 6, freq=60 sec]
+-------------------------------------------------------------------------------
+
+
+
+
+
+
+[[Figure 10-4: A snapshot of afsmonitor, client screen]]
+

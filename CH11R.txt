@@ -1,0 +1,860 @@
+CHAPTER 11: LARGE-SCALE MANAGEMENT
+
+It's difficult to analyze the hardware requirements of an AFS cell
+before all the uses of that cell and its policy requirements are
+understood. The real difficulty is in deciding how small a cell can
+be and still be useful. Certainly, if you are dealing with an office of
+fewer than a dozen people and a single hard drive can store all the
+files, then the usefulness of AFS will be minimal.
+
+The first point at which a site can truly realize benefits from AFS is
+when multiple servers are used to store shared
+binaries and data files such as program executables and group
+development areas. For executables, AFS can provide fail over
+characteristics to keep the organization running even when a server
+crashes; for group development areas, client caches provide
+an extremely effective way to reduce server and network loads while
+providing secure storage areas on servers. If the site is not 
+geographically large, there may be more benefit in concentrating your scarce
+hardware resources on multiple file servers which, contrary 
+to other suggestions in this book, are running the database processes 
+concurrently. 
+
+When an organization has multiple, local area network segments installed
+with a variety of routers connecting many offices, additional
+database servers, separated from the file servers, will give much
+more flexibility to cell administration.
+
+The maximum size of an AFS cell is impossible to quantify. This chapter
+contains some case studies of organizations with very large cells
+indeed: thousands of users and client desktops, tens of servers, and
+terabytes of storage. At some point, someone will suggest that
+introducing additional cells may help reduce performance or
+administrative burdens. That suggestion may be right, but multiple cells used
+in a single enterprise raise many issues.
+
+Multiple cells are used for many reasons. Some organizations need more than
+one cell for the practical reason of internal politics. Rather than have a
+single entity in charge of authentication and volume manipulation, some
+groups or divisions would rather take matters into their own hands. Since AFS
+is a commercial product, which any group can purchase on their own, there's little that can or should be done to change
+this attitude. In many universities, individual colleges may trouble
+themselves with their own cell in an attempt to have more control over their
+file servers and namespace.
+
+Others implement multiple cells to achieve a kind of redundancy.
+Read-only file sets can permit clients to get to any available set of
+binaries. But what happens if someone mistakenly releases a volume at the
+wrong time? Every client accessing those binaries will receive a message telling
+it to look up the file data anew. If that file data is bad, your entire cell
+will see a consistent view of the bad data. The initial reaction is to
+implement yet another layer of administrative testing. Yet, if you believe that
+no amount of testing is ever going to remove the possibility of a cellwide
+outage, you may decide to implement multiple cells to limit the effects of
+centralized misadventure. If so, be careful: often, multiple cells are
+organized in such a way that a single operation will cascade administrative
+functions throughout all cells; that situation ends up being no better than one cell
+to begin with. Perhaps a beta cell and a production cell are a good
+compromise - all binary and top-level volumes must be released to the beta
+cell and tested in an operational manner before being copied to the
+production cell.
+
+Living in a multicell world is simple inasmuch as multiple cells are
+encouraged by the very design of AFS. When cell construction was described
+in Chapters 3 and 4, the mechanics of the operation were seen to be a
+natural part of cell administration. Multiple cells are expected to exist
+underneath the ~~/afs~/~ connection to AFS; this is how most sites share
+information using this Internet-ready file system.
+
+Some organizations, however, do not want to see the cell connections in every command or
+browser path name. Getting around such a demand is easy; for example,
+install a symbolic link on your desktop machines from ~~/home~/~ to
+~~/afs/hq.firm/user~/~. Everyday users can then access ~~/home/alice~/~ rather than the
+admittedly more cumbersome ~~/afs/hq.firm/user/alice~/~. With such techniques,
+virtual top levels can be constructed to give any of various views of your
+namespace. Figure 11-1 shows an alternative construction for
+the top levels of an AFS cell.
+
+[[Figure 11-1: Alternative Construction of Top Levels for AFS Cell ]]
+
+For those trying to reduce the number of symbolic links, the connections to
+other cells can be buried in lower levels of the AFS namespace. By the use of 
+default cell connections, common areas for all of an organization's cells
+can be maintained. In Figure 11-1, the ~~root.afs~/~ volume contains regular
+directories with all of the organization's home directories available with
+short simple path names. The paths eventually lead to the correct cell,
+linked via a slightly less visible path name, and inside that cell to the
+actual home directory. When an organization has sites in different cities or
+campuses, such a scheme provides the illusion of a simple enterprisewide
+namespace by direct use of the wide-area coherence of AFS. The scalability
+of this solution has been proven by global companies serving home
+directories existing on servers in London, New York, and Tokyo.
+
+One technical point to make about the linkages in Figure 11-1: the simple
+home directory paths, ~~/hq/home/alice~/~ could have been a connection to the
+London cell's ~~user.alice~/~ home volume but, instead, has been implemented as
+a symbolic link to ~~/hq/.global/london.hq.firm/user/alice~/~. If all of these home
+paths had been direct mount points, any directory listing of ~~/hq/home~/~ would
+have caused many network transmissions across the WAN. While this scheme works in
+theory and practice, it is still a burden to the network, time consuming,
+and a potential bottleneck if all a user wants is a quick look at the user
+list. Because the symbolic link data is stored in the local cell, it can be
+read speedily and reliably from the local servers and the link values can be
+easily displayed. Then, because AFS symbolic links are cached, a desktop using
+such links more than once will not be adding to network or server loads.
+Once a user finds the right user name, the link can be followed
+over the cell in question without having to bother other cells in the
+organization. 
+
+Another reason for multiple cells arises when you need many AFS databases for
+redundancy or to mitigate slow links. Let's say you have one set of servers
+managing files for a few buildings, but one more building is behind a link that is very slow compared to the others. Volume releases will be delayed until the
+last volume has been updated. Invariably, that's the volume on a server
+behind your slowest link.
+
+One other gotcha: the Ubik algorithms make each database process vote for the 
+available server with the lowest IP address to be the database sync site. 
+Too bad if, due to address assignments by the Network Information Center, 
+your lowest network addresses are located at sites that are connected to 
+the rest of the world via a slow link. 
+
+Once multiple cells are installed, however, users can share data among themselves
+through any application that can read and write files. Multiple cells
+look and feel exactly like one local cell, save for possibly longer
+network latencies and lower bandwidth. As such, there's no need to 
+e-mail spreadsheets or documents back and forth; you can simply send
+the name of the file.
+
+Getting authenticated access to multiple cells is supported with the ~~-cell~/~ option
+to ~~klog~/~. A user token can store multiple credentials.
+
+PROGRAM DONE
+	$ <B>klog david</B>
+	Password:
+	$ <B>klog david -cell other.com</B>
+	Password:
+	$ <B>klog davey -cell another.com</B>
+	Password:
+	$ <B>tokens</B>
+	 
+	Tokens held by the Cache Manager:
+	 
+	User's (AFS ID 2519) tokens for afs@another.com [Expires Apr 13 03:55]
+	User's (AFS ID 1026) tokens for afs@other.com [Expires Apr 13 03:54]
+	User's (AFS ID 1235) tokens for afs@hq.firm [Expires Apr 13 03:53]
+
+   	--End of list--
+PROGRAM
+
+As a client traverses a multicell file namespace according to the directions
+of a user, the cache manager will notice any cell crossings and, when
+in a particular cell, will establish an authenticated connection to that
+cell's servers, using the applicable credential obtained from the user's
+token. 
+
+To help with various user and administration tasks, many AFS utilities 
+use the value of the AFSCELL variable in the user's current environment
+as the name of the cell against which to perform an operation. The environment variable 
+overrides the setting of the ~~ThisCell~/~ file. For example, the ~~vos
+create~/~ command uses the value of AFSCELL, if set, as the name of the
+target cell, looks up the available database servers in the ~~CellServDB~/~ file,
+and transmits the appropriate network requests to the listed servers. On the
+other hand, the ~~fs mkm~/~ command must be directed to another cell via an 
+explicit ~~-cell~/~ option.
+
+Remember that the cell is the domain of administrative control for AFS. 
+Though certain commands can be made to affect different cells, these commands
+affect only one cell at a time. There are no provisions for multiple cell
+management.
+
+Now is the time to expose a little white lie of AFS: there's no such thing
+as a cell. Unlike DCE's cells (or even Sun's NIS domains), there is no
+stable, systemwide definition of what composes an AFS cell. True, each 
+database server machine will have to have a complete list of its peer servers, 
+but each client is handed its own list of cell names and database
+servers and that list may not include all the database servers that
+actually exist in the cell. You could use this knowledge to restrict a
+client from ever contacting certain servers, though the server preferences
+value would be a more general mechanism for the same result.
+
+Also, a client doesn't belong to an AFS cell in any real sense. While there is
+a default cell name in ~~/usr/vice/etc/ThisCell~/~, this is only a name that 
+declares which servers should be used for default authentication, for
+certain administrative commands, and for finding the root volume of the 
+AFS tree. Once the root volume has been contacted, all further traversal of 
+the tree uses the current volume's cell until a foreign cell connection is 
+crossed, as conventionally happens when crossing through the cells listed 
+in the ~~/afs~/~ subdirectory.
+
+And more interestingly, file servers don't belong to a specific cell. As the system processes a
+create volume request, it assesses and updates the volume location
+database server of one cell, but the file server
+given as an argument could be any AFS file server on the Internet. File
+servers communicate only with client workstations, responding to requests for
+specific volume or file data. You could create and maintain
+on one file server volumes that are managed by different cells, but you'd have to be careful not to reuse volume identification numbers.
+
+A common operational task is to list all the file servers in the cell.
+The only way to discover these servers is to read the entire volume location database
+and extract all of the file servers listed therein. No central
+database maintains information on a cell's set of file servers. One
+consequence of this attribute is seen in commands such as ~~fs checkservers~/~: This command 
+can't contact all the servers in a cell because there's no place where
+that information is kept. Instead, the command can query only those
+file servers that the local cache manager has happened to contact in the recent past.
+
+Just because AFS cells are more loosely connected than you might have thought,
+don't stretch the boundaries without good reason.  On the contrary, if
+multiple cells are used, keep those boundaries clean and well known. 
+But knowing how cells are used in the system can help you to understand 
+the internal architecture of
+AFS and why the ~~CellServDB~/~ file must be accurately and manually maintained
+on both the client and server sides. This deeper understanding can be 
+particularly useful during disaster recovery or other administrative 
+procedures. For example, because file servers don't know about the cell 
+they belong to, you can import the volumes of an individual disk into an 
+arbitrary cell. This operation is relatively benign because of the 
+architecture of AFS and can be used (with care) as needed. 
+
+On the other hand, feel free to enjoy the ubiquity of AFS files to their
+fullest extent. It's amazing to think how many fewer client/server protocols
+would be needed if an enterprisewide, distributed, reliable, trustworthy
+file system were available. Do you need to disseminate regularly changing
+information to an unknown number of desktops? Think about putting
+that data in a file. Due to the highly available nature of the AFS
+namespace and the redundant access to data, the information can be easily,
+even trivially provided to clients on demand by simply writing it to a
+file. In this system, moderately sized NIS maps may be better served as 
+straight files in well-known subdirectories. This process works equally 
+well for small AFS sites as it does for global, multi-cell organizations.
+
+Given this information, you should be able to design your own cell 
+layout to exploit the strengths of the AFS cell architecture, 
+with perhaps a few shortcuts taken for your particular site.
+
+SECTION CASE STUDY: IBM
+
+For many years, IBM has provided CMU with machines and expertise as
+the University developed a variety of interesting software systems, including
+AFS.  During that relationship, several IBM sites began to use AFS for
+substantial portions of their file namespace. That use continues today, 
+although some sites have moved on to embrace the successor technology, 
+DCE/DFS. One site in particular, IBM's development center in Austin, Texas,
+has large-scale experience with both versions.
+
+The Austin organization's job is, among other things, to support AIX 
+operating system development, RS/6000 system engineering and manufacturing,
+and POWER CPU chip design. Three AFS cells supported all of this development 
+until, a few years ago, the data was migrated to a single DFS cell.
+
+The cell is now run on 12 file servers with an estimated two terabytes of
+storage used for all users and project development. This represents
+a user population of about 13,000 users; some 15,000 groups have been
+created to further control file permissions.
+
+Like many sites, the Austin support staff created several customized
+tools to coordinate use of DFS with their particular administration polices.
+The human resources division has the authority to perform 
+the tasks necessary for creating or removing a user and his or her home 
+directory from the cell. Additional scripts are used by users to simplify
+the addition or deletion of a user from an ACL, and to show complete 
+file storage information for any DFS file. 
+
+Users are also permitted to run a system application named ~~TDISK~/~. This
+program will create new, temporary space in the cell with a quota of up to 
+one gigabyte for use only by the creator. The space can be used to unpack
+applications or store large files for a brief period. While seemingly free,
+the drawback is that the temporary space is destroyed, without question, 
+after two weeks. 
+
+To manage the large numbers of volumes created to support all the users,
+projects, and systems, a relational database was originally used to
+track ownership, lifetime, backup and replication requirements.
+After much use, the database was eliminated in favor of a simple
+text file stored in DFS. Being a text file, the query tools are much 
+simpler to create (using Perl or utilities like ~~grep~/~), finding and 
+viewing the data is simple, and access is optimized through client caching.
+
+Though the site was able to provide additional services at low cost,
+users were still hesitant to totally accept the file system. The
+organization's programming staff had previously been content to manage their
+software tools themselves, without worrying about the difficulties of
+sharing those tools with others. Developer's would typically store a version 
+of a given tool on their local disk and keep that tool up-to-date at 
+the needed revision level and optimized for their platform.
+
+With the easily expandable namespace offered by AFS/DFS, the administrators 
+are now able to offer all software packages at any needed revision levels 
+and architectures to all developers. Each version is bundled into its
+own volume for administrative purposes and connected into the namespace.
+Developers can then link from their desktop's local file system into
+the shared namespace and seamlessly access the packages of their choice.
+This gives users the ability to control their software use while using
+the caching, distributed file system to centrally manage the storage.
+
+Besides the administrative advantages of AFS/DFS, the standard caching 
+policy provides an even more important service, enabling the organization 
+to make much better use of their server and network resources. As an
+example, in the operating system group, all AIX binaries must be frequently 
+rebuilt from the complete source tree. This process had previously taken 
+several days to finish. Now that all data, source, tools, and object files 
+are stored in DFS and cached on demand by clients, build turnaround times have 
+been reduced to less than 24 hours. This is exactly the result the 
+designers of AFS were aiming for a decade ago: developers generating
+a large amount of file read and write activity will see greater
+throughput through the use of aggressive client caching.
+
+In addition to depending on AFS and DFS in a real-world day-to-day settings,
+IBM has also used the technology as the basis for their showcase Web sites,
+such as the 1996 Atlanta Olympic Games, the U.S. Open tennis tournament,
+and the Deep-Blue versus Gary Kasparov chess matches. The value that AFS 
+adds to Web services are the high availability of production binaries and 
+location-independent access to shared files, as well as the ability to 
+replicate copies of files to geographically distributed Web servers.
+
+Let's take a look at the specifics of the Atlanta Olympics site. 
+In July of 1996, this Web site was the largest in the world, with 
+coordinated servers located in four different countries, 24 hour-a-day 
+service for the 17 days of the Games, nine gigabytes of file data at the 
+opening growing to 15 gigabytes by the closing ceremonies, and peak 
+rates of 17 million hits a day.
+
+All the content for this event was generated at the games in Atlanta but 
+was immediately delivered to the primary administration site in Connecticut. 
+From there, the data was massaged, formatted, and then replicated to the 
+four main Web servers located in New York, England, Germany, and Japan. 
+Each of these sites consisted of a major IBM SP2 cluster node. 
+
+To coordinate the distribution, a single DFS cell was used to encompass all 
+of these computing centers. Each country's center had their own dedicated
+file servers but the three fileset location database servers (the equivalent
+of the AFS volume location database servers) were located only at the
+primary site. A little over once an hour, the newest files, consisting
+of anywhere from 20 to hundreds of megabytes were replicated to each 
+read-only site.
+
+Because no failures of the system could be tolerated, the hardware at the
+primary site included redundant disk controllers and mirrored disks.
+Of course, as the Web servers around the world were DFS clients and
+could fail over to any available read-only copy, each city was spared the 
+expense of local RAID storage.
+
+To produce the site's content, most data, however authored, was placed
+in a database specifically designed for Web objects. This web object manager
+stored all the information on the content, format, and meta-data needed
+to build any of the sites' HTML pages. One interesting feature of the manager
+is that while building any page, all embedded links would be automatically
+validated. The constructed pages would then be served via a built-in
+high-performance HTTP server.
+
+With a dozen or so gigabytes of data available, each delivered Web page
+caused the server to access an average of 15 DFS files. Yet even
+with a DFS cache of only 250 megabytes, over 95% of file accesses
+were satisfied locally rather than requiring a file transfer from the server.
+
+Some data could not be efficiently distributed to all replica sites.
+38 video cameras captured images every ten seconds -- an average
+of 21,0000 new images an hour -- and stored the frames directly into DFS. 
+Rather than ship this constantly changing information around the
+world, IBM relied on the single namespace of DFS to ensure that
+remote sites could always locate the images, no matter their physical 
+location. As users requested new downloads, the latest images would 
+be automatically downloaded (due to the consistency guarantees of DFS) 
+and then inserted into a suitable Web page. Approximately 40% of the site
+hits were for these pages which accessed the single read-write master data.
+
+IBM continues to use AFS and DFS at their corporate sites and as the
+basis for their Web services. This constant use and engineering has the
+important side-effect of providing IBM and Transarc developers important
+data points on the system's efficiencies. This scale of operation
+supports the contention that aggressive client-side caching, 
+read-only replication, and the administrative tools of the system
+are uniquely suited for file services, including Web sites.
+
+SECTION: CASE STUDY: MORGAN STANLEY
+
+Morgan Stanley is a financial services firm catering to all segments of the
+trading and asset management markets. It has over 10,000 employees with
+offices in every major city in the world, and its primary computing operations 
+run continuously, everywhere. 
+
+Though Morgan Stanley's trades and accounting information are stored in 
+relational databases, the production UNIX applications themselves are 
+predominantly stored in AFS. And most UNIX clients are dataless: out of 
+the box, they are quickly installed with a minimal kernel and AFS client code. 
+Everything else - window systems, production binaries, home directories, 
+and project development - is stored in AFS. 
+
+While the company sees a competitive advantage in having this highly tuned 
+distributed file system, they are also concerned with the general success of 
+Transarc and AFS. To their credit they have been quite open about their use 
+of the system. You can read their LISA conference presentation (listed in 
+the bibliography) for more information.
+
+Several restrictions on cell sizing have had an effect on Morgan Stanley's
+rollout of AFS services. With each site needing quick and reliable access to
+volume location, group, and security information, many more than five or
+seven database servers need to be running to support the dozen or more
+cities around the world where Morgan Stanley has offices. Also, many more replicas
+are needed than the 11 possible read-only volumes; if any piece of the WAN
+goes down, each site still needs access to production code. And with certain
+sections of the WAN at drastically slower speeds than other sections, it is
+difficult for Ubik or the volume replication code to tell the difference
+between a slow link and an outage. Even with their huge investment in global
+WAN coverage, there is still a difference of an order or two magnitude in 
+throughput and reliability between certain network routes.
+
+To provide a higher level of availability for these services, at least
+one AFS cell per city has been implemented. Because most cities have
+offices in a single building, it's often one cell per building. And for New
+York, with its multiple offices, not only does each building have
+its own cell, but dual cells per building have been set up to provide 
+the utmost in reliability. This is certainly an extreme approach, but the
+design of a central cell could introduce the risk of a single point of
+failure; if the ~~root.afs~/~ volume were to become corrupt and released to all
+replicas, every AFS client in the cell would be unable to get at critical
+production applications. With dual cells in a building and every other
+client bound to one or the other cell, only half of the desktops would be
+affected by an AFS outage.
+
+Servers are typically Solaris machines; globally, about 1.4 terabytes 
+of disk storage are available, and about 1 terabyte is actively used. Legato 
+Networker with BoxHill's ~~vosasm~/~ utility is used to back up the file data.
+
+The namespace is optimized for corporate operations and is quite different
+from the usual generic, public AFS namespace. Rather than many cells
+located underneath ~~/afs~/~, the local cell ~~root.afs~/~ volume is mounted at ~~/ms~/~, and the
+other Morgan Stanley cells are mounted underneath ~~/ms/.global~/~. Several
+directories under ~~/ms~/~ create a virtual view of the entire namespace;
+symbolic links are set up from the virtual area leading to the actual
+cell-based location of the data.
+
+For instance, all users home directories can be found underneath ~~/ms/user~/~.
+You'll recall from Chapter 5 when we set up home directories, we mentioned the
+problem of finding one home among many thousands. Morgan
+Stanley uses the convention of locating a home directory in a subdirectory
+based on the first letter of the user's login name. A user Alice would
+therefore have a home directory path of ~~/ms/user/a/alice~/~; this path name
+is actually a symbolic link to wherever Alice's home is geographically
+located; if her desk is in Tokyo, ~~/ms/user/a/alice~/~ points to
+~~/ms/.global/tokyo/user/a/alice~/~. With this system, it is trivial to find
+each user's directory. Once you find it, you can either directly descend into the
+directory or examine the value of the link to determine if the user's data
+is on a distant, slow network.
+
+Group directories are handled similarly: a bond project's home directory
+could be found at ~~/ms/group/it/bond~/~, which is a link to the New York office 
+cell's ~~/ms/.global/newyork/group/it/bond~/~.
+
+Two other top-level directories are ~~dev~/~ and ~~dist~/~. Under ~~dev~/~ are project
+development areas, again, using symbolic links to point to the read-write
+home for the data. The ~~dist~/~ subtree is different in that it is guaranteed to be
+a local copy of the standard, globally distributed set of read-only
+production binaries. There is a careful correspondence between the naming of
+the directories in the ~~dev~/~ and ~~dist~/~ area, so that for any given piece of
+production code, the current set of source that was used to produce it can be found - anywhere on the planet.
+
+A specially written Volume Management System keeps the global set of read-only volumes up to date. This client/server system has processes running as root
+on AFS servers. These processes can use the ~~-localauth~/~ option to perform
+privileged commands on behalf of properly authorized users. When, for
+example, a developer is ready to distribute a new version of an application,
+the developer runs a simple command to contact a VMS process, and, if the user's
+authentication checks out, the VMS process carriers out a series of predefined AFS operations.
+
+When asked to propagate a volume globally, VMS determines the authority of
+the user to perform the operation by checking directory ACLs and protection group
+memberships. If the developer is authorized, VMS dumps the volume containing the new
+release of the code, then restores the volume in each remote cell. The decision
+as to where binaries are to be distributed is kept, along with other
+volume metadata, in a separate administrative database. The binaries are thereby
+distributed worldwide efficiently and quickly. However, any interruptions
+or problems with the WAN can cause a volume not to reach certain cells;
+these problems must usually be corrected manually.
+
+VMS is also used to set up users into the global namespace or even to move a
+user from one location to another. With this system, developers and
+administrators do not directly manipulate volumes or cells; they simply
+request that certain predefined actions are initiated. Because of the
+multiple cells, and the large number of volumes, a nightly audit volume location databases and ~~vice~/~ partitions 
+ensures that the database and the disks are in synchronization, that there
+are no off-line volumes, and that selected volumes are correctly replicated
+at all designated sites.
+
+All database servers in all cells are also checked regularly to make sure
+that the Ubik system in each cell has a quorum, a valid sync site, and that all
+server ~~CellServDB~/~ files are correct. Any restarted ~~bos~/~ jobs and AFS 
+program core dumps are also reported.
+
+The existence of multiple cells raises the question of how authentication is
+managed. Luckily, Morgan Stanley had implemented a single, global Kerberos version 4
+realm based on standard MIT sources a few years before AFS was introduced.
+The standard AFS ~~kaserver~/~ was therefore never run. Improvements to the MIT
+Kerberos system permitted multiple, redundant servers to run without the
+usual limitations on the number of Ubik servers. More recently, Kerberos 
+version 5 has been introduced.
+
+Administration of this system simply requires creating or deleting users at
+the master Kerberos site with propagation automatically copying the changes out to
+remote servers. All of the user login programs have been modified
+so that with each entry into a machine, Kerberos 4 and 5 tickets are granted,
+as are AFS tokens for all cells. (Morgan Stanley has many other
+applications that use Kerberos authentication). Thus, after login, each
+user has credentials that will be recognized anywhere in the file system to
+permit reading, writing, or deleting of file data where authorized.
+
+Transarc's protection server databases must still be used to contain all
+user identities and group membership. But each database holds
+information valid only for a single cell, and so, because of the multiple cell
+layout, most ~~pts~/~ commands are replaced with a wrapper that performs
+read-only queries against the local cell. The wrapper performs any update operations first against a designated primary cell to serialize and verify
+the operation, then against the local cell, where the information is immediately needed,
+and then, in a background process, against all other remote cells.
+
+This is a cumbersome, error-prone operation, so, again, an audit
+process runs regularly to synchronize all ~~ptserver~/~ databases. The AFS
+libraries provide only a few remote procedure calls to extract and inject
+information to the databases; most of the work is done by laboriously
+running ~~pts~/~ commands against the various cells and comparing the textual
+output.
+
+Some other large-scale problems are due to Transarc's limited resources and
+market focus: Ports of AFS to the latest operating system versions must be
+available before a platform can be used effectively. Until the port is
+ready, the NFS-to-AFS gateway must be used as a stopgap. And while very
+large scale symmetric multiprocessing systems with their very high I/O
+throughputs and multiple network interfaces could be useful for certain applications, AFS is not optimized for them.
+
+AFS's traditional missing functionality - no hard mounts across directories,  
+group and other permission bits made obsolete - are a nagging problem that
+needs regular attention. Newly installed software must be checked carefully
+to make sure that there are no unforeseen AFS incompatibilities.
+
+But the nagging problems and cumbersome cell layout are issues that are
+dealt with behind the scenes. What traders and managers see is a global
+enterprise file system: almost every UNIX desktop is identical to all others,
+users can log in to any workstation in any Morgan Stanley office and see
+their home directory; all other users, groups, and project directories for
+the entire corporation are visible as needed, and applications can be
+distributed and made reliably available everywhere with delegated control to
+developers.
+
+SECTION: CASE STUDY: - UNIVERSITY OF MICHIGAN 
+
+The University of Michigan is one of the larger public universities in
+the United States. In the late '60s, the University installed a large IBM
+mainframe to support its educational and administrative needs resulting in a powerful, shared computing resource for the entire campus. During
+the '80s, the proliferation of thousands of PCs, Macs, and hundreds of
+departmental minicomputers increased the useful computing power but
+devalued the easy sharing of data.
+
+By the late '80s, the University established a research project to
+use the mainframe computers as the backbone to a campus-wide, distributed
+file system based on AFS. With the chilling title of the Institutional File
+System, the project spawned a service organization that offered IFS
+to the campus in 1991. After a few years, IFS has become a de facto
+storage location for file data at the University; like the local phone
+service, it is ubiquitous, visible on all major client platforms, and
+supports sharing of data across the city-sized campus.
+
+In terms of scale, a terabyte of disk space is available, with
+almost 700 gigabytes in current use; there are 138,000 principals in the
+AFS Kerberos databases, and some 65,000 home directories are installed.
+
+The namespace is based on the conventional AFS layout with remote
+cells - especially dozens of other academic sites - available underneath
+~~/afs~/~. Under the local cell, ~~/afs/umich.edu~/~, there are areas for
+system binaries, group home directories, class homes, and users. The
+user namespace makes use of the two-letter convention: a user with the
+login name of alice will have her home directory located at 
+~~/afs/umich.edu/user/a/l/alice~/~. The virtues of this 
+path name are that it breaks the multitudes of home directories down to manageable sizes
+which can be retrieved quickly by file browsers and that the intermediate
+directory names can be simply derived from the login name itself. For
+the users, this convention has been accepted without undue problems.
+
+The original hardware proposal was to use the legacy mainframes as
+the primary storage device for IFS. The research project
+completed the port successfully and the system is being used for
+some cell services, but IFS is currently using ordinary IBM RS/6000ª
+servers for database and file services. Even with over 100,000 principals
+and upwards of 100,000 volumes, only three database servers are needed
+to support the entire campus. 
+
+For file services, a total of 15 servers are installed. Because of the
+security concerns of having each server store the current AFS file 
+service key, ~~/usr/afs/etc/KeyFile~/~, all of these servers and their disks
+are located in one building on campus. This strategy makes it easier to ensure
+that access to the servers is restricted to the minimum number of
+people. Even though the total number of servers is quite small for this
+large cell, data transfers among them use a separate FDDI ring for
+increased throughput.
+
+The file server disk drives are standard SCSI drives used even for the
+read-write volumes. Many sites have chosen hardware RAID systems for
+this precious nonreplicated data, but the University, which for all
+its size does not have unlimited resources, still has questions about the
+performance and reliability of RAID. The downside is that disk crashes
+on partitions housing read-write volumes cause a considerable amount
+of work as files are retrieved from backup tapes.
+
+The IFS project's initial charter was to port AFS to new hardware
+and to investigate areas where intermediate caching or other mechanisms
+would be needed to support the campus. As the University of Michigan
+is about 10 times as large as Carnegie Mellon University, the project 
+tested the limits of AFS is scalability. It turns out that the implementation 
+scaled more than enough. For example, while many sites use the MIT Kerberos 
+server because of the slightly more standard interfaces offered by it, the 
+University of Michigan chose to use the AFS ~~kaserver~/~ because of 
+the much better replication characteristics
+of the CMU-built and Ubik-based distributed database.
+ 
+The one nonstandard extension provided by IFS concerns the protection
+server. AFS provides a significant enhancement over normal UNIX group
+management by encouraging user-managed groups. Since the University has
+access to the AFS source code, they improved upon this idea by permitting
+AFS groups to contain other groups as members. This hierarchy
+of group membership further eases the management of the large number of principals. For example, there is a ~~university:members~/~
+group that consists of the subgroups ~~university:employees~/~, ~~university:student.registered~/~, etc. Each of these subgroups may contain further subgroups,
+until, finally, there are groups containing actual principals. 
+
+Without subgroups permitted as members of groups, whenever a student
+registers or graduates, many dozen groups would have to be modified.
+And, of course, at the University of Michigan, about 10,000 new students
+enroll over the summer, and some 10,000 others graduate each June.
+The ~~university:members~/~ group does not have to change at all during these
+population shifts, so this arrangement reduces AFS management a great deal.
+
+Now that a manageable group like ~~university:members~/~ is available, it
+is used on ACLs that control permissions to many pieces of licensed
+software. You are free to browse the public areas of ~~/afs/umich.edu~/~,
+but unless you are a student at the University, or a staff or faculty
+member, you will not be able to use the software products purchased
+for use only by members of the University community.
+
+Joining this community is an interesting exercise in modern computing.
+The University's data systems unit manages all new personnel and
+student registrations by storing their data in a large relational database. This
+data is used for construction of each person's University identification
+card - a smart-card/cash-card which is used for identification, as
+a debit card for local merchants, to check out library materials, for
+dormitory meals, or as a cash card to access facilities such as
+vending machines or discount long-distance telephone services.
+
+The IFS administrators regularly extract the personnel data and 
+add or delete principals from the various AFS groups which they maintain. New 
+users must use a facility called ~~uniqname~/~ which makes sure that all
+principals have a name and numeric identifier to uniquely describe the individual across
+all campus computing sites.
+
+All new users are entered into the Kerberos database so that authenticated
+access is possible. Users are then able to subscribe to any of various 
+services such as a dial-in service, e-mail, Lotus Notes, or IFS.
+For certain services, students receive a subsidized account balance;
+others have to apportion their budgets themselves. The IFS service
+provides entry into the standard password database, a home directory volume, 
+a path name, and an on-line backup volume for a total cost of $0.09 per
+megabyte of stored data per month.
+
+IFS supported workstations include all of Transarc's client ports.
+In addition, Macintosh users can attach to one of nine dedicated IFS
+clients which speak the Mac's AppleShare¨ Filing Protocol and
+translate those requests into IFS file accesses. As with all gateways,
+the difficult part is to securely enable authenticated access for
+each Mac user. This support was another important product of the IFS 
+research project.
+
+For every one of the native AFS clients around the campus, the ~~CellServDB~/~
+file must be copied over as needed from a centrally maintained copy.
+Similarly, for UNIX systems, a single ~~/etc/passwd~/~ file is available
+with the complete set of current users and their home directory
+paths. Finally, login services have been replaced with a version that
+checks an auxiliary database to see if a user is permitted to log in to
+that workstation. For users not affiliated with any other computer
+resource, 20 Sun machines are maintained as login servers for general use;
+their system binaries are maintained and replicated in IFS.
+
+The usual sore spots of AFS management do not present much of a
+problem at the University. While many sites have to fight the mismatch
+between UNIX and Kerberos authentication as users access remote machines,
+IFS users rely on the easy availability of file data across the campus; 
+there's not much need to pass credentials over to a specific machine when 
+the machine you're logged in to can access all the data it needs. For 
+long-running jobs, you can request a new Kerberos service ticket which 
+you can use with products such as ~~reauth~/~ to keep process credentials 
+fresh.
+
+And while some have found inadequacies with Transarc's backup system,
+IFS uses the AFS archive system as delivered for the backup of the
+entire system every night.
+
+The original research project team charged with investigating large-scale
+distributed file services chose AFS for many of the same reasons that
+CMU researchers wrote the system in the first place. AFS was five years old 
+at that point and the University of Michigan was much larger than CMU, 
+so the project team expected that significant work would be needed to make 
+AFS feasible. The big surprise is that the production IFS services are 
+running a fairly stock AFS cell with only minor improvements such as 
+AFS protection subgroup membership and support for AppleShare. 
+
+SECTION: CASE STUDY - MULTIRESIDENT AFS
+
+A final case study is devoted not to a particular site but to a version
+of AFS used by the Pittsburgh Supercomputing Center. The PSC was faced
+with managing an ever-larger amount of data and making it available to
+any of their researchers on any of their special-purpose computers.
+Their total storage needs at the time, about 2.5 terabytes, was growing
+at over 3 gigabytes a day.
+
+A typical project at the center involves animating 
+a natural phenomenon. One or more of the supercomputers will create many
+directories containing hundreds of files of data totaling 100-200 megabytes each.
+All of the files must then be processed by other computers to create
+ray-traced animation frames. Each frame must further be converted into
+a common graphical format and then rendered into a final picture.
+
+After beginning with a regular NFS installation, the PSC became concerned that
+there were inherent limitations with their set up. They investigated AFS and
+became convinced that it provided a superior solution. In their experience,
+on similar server hardware, NFS servers became saturated more quickly and 
+were more difficult to manage than were AFS servers. And while AFS was somewhat proprietary,
+the source code was available and the technology was being used as the
+basis for an industry-standard implementation, DFS.
+
+Since 1990, AFS has provided a secure caching file system and
+global namespace to 100 PSC computers, including training, graphics, and staff 
+workstations, and each of the center's supercomputers. The staff has since
+extended AFS to meet a variety of mass storage needs, including a flexible,
+hierarchical file system.
+
+The name <I>multi-resident</I> describes how MR-AFS adds additional functionality
+to AFS. Files in a standard AFS volume are permitted to exist on only a single
+file server. MR-AFS permits each file in a volume to be stored at a different 
+site. These additional sites are permitted not only to be other disk drives 
+but to be optical storage devices or tape drives. In this model, a volume is now a container 
+for a variety of data, some of which may be accessed quickly, and some of which 
+especially large data sets on serial storage, would be accessed slowly. For example, an 8mm data tape can hold approximately 5,000 files of about 1 
+megabytes each.
+
+Additionally, each file can reside on multiple storage devices. This feature not
+only provides redundancy for all AFS file data but also allows automatically maintained archival versions of all files to be stored
+on a tape drive.
+
+This new model of volume containment helps alleviate one AFS administrative
+concern: How big should a volume be? AFS volumes are normally restricted
+to a single file server's ~~vice~/~ partition. As the file data in the volume
+grows, administrators either have to move the volume from one machine to
+another or break up the volume by potentially copying some portion of it
+into a new volume and then mounting one inside the other. In MR-AFS, 
+a volume is still stored on a partition, but the volume contents can
+reside on any of several storage systems, and the total size of the volume is 
+almost immaterial.
+
+This model is implemented with yet another replicated database to store
+information about the available storage devices, including the device's
+priority level, the computers supporting the device, and desired
+file sizes. A data migration facility uses this information to move or
+copy data from one storage device to another, either to move frequently
+accessed files to faster media and less frequently used files to slower
+media or to free up space on overused systems. By use of the
+size distribution information in the database, files are migrated
+to a medium that is optimized for its size. Naturally, all of these
+moves are made transparently to users of the files.
+
+The critical design issue with this system is how to maintain the consistency
+of multiply-resident read-write files. The goals of the supercomputing
+center are important to recall: overwhelmingly, files are 
+written once and then read once or a few times; only very rarely 
+are files randomly accessed and written. In fact, according to PSC statistics,
+almost 70 percent of files (containing about 50 percent of the data) are written but
+never read from the file server. If that data is read back at all, it is
+read back while it is still in an AFS client cache.
+
+The solution to the consistency problem is that, when written, all other 
+residencies for a file are immediately freed. The system will at some point 
+attempt to reconstruct the desired residencies, but that attempt is only an 
+administrative concern.  Any files that have a heavy write access pattern 
+are therefore not given multiple residencies to slow media.
+
+It is also possible to use MR-AFS to introduce file data on existing
+media into AFS without a laborious copy operation. Given a piece of hardware 
+with large amounts of data already on it, that data location is simply installed as a new residency for some volume's files. As if by magic, the pre-existing data thereby shows up in the AFS namespace.
+
+Also, file servers can make use of a remote server's I/O devices by using
+a new RPC service. In this way, one file server can use the
+disks belonging to another. And therefore, hardware systems
+to which AFS has not been ported can still provide AFS storage services;
+all that is needed is for the remote I/O RPC service to be installed on them.
+
+Clients access MR-AFS files in the same way as with standard AFS. They
+follow the volume location database's pointer to the file server that
+contains the volume; the ~~fileserver~/~ process there retrieves the
+file, though in this case, any of the residencies for the file can be read.
+In the case where the file exists only on a serial device, an additional
+residency is created on a disk, the data is spooled onto the
+disk, and the file is delivered from the spool to the client.
+
+The resulting system enables the visualization process outlined above
+to take place with no intermediate file transfers and with the data
+being stored on an appropriate storage device, automatically managed
+by the data migrator and residency database.
+
+Now that multiple residencies of files are available, PSC uses this
+facility, rather than the coarse-grained, read-only volume replication, to make data delivery reliable. When read-only replicas are desired, a 
+further enhancement permits read-only volumes to point to the same
+set of file residencies as the read-write files. Thus, the volume headers
+are readily available via AFS, and the file data, via MR-AFS.
+
+If you recall that the file server's ~~fs~/~ job consists of three processes,
+you'll be wondering how MR-AFS deals with salvaging. The ~~salvager~/~ needed 
+many enhancements to understand the multiple residencies of files and 
+to understand that not all storage devices would be available at all 
+times. If a device is not available because it is either down or busy, 
+~~salvager~/~ must not remove files which it can't see.
+
+Besides the PSC, several other sites use MR-AFS. While some
+of these sites are similar in storage needs to PSC, others use MR-AFS just for
+the additional location functionality. In the mid-90s, PSC and Transarc discussed folding some of these features into the commercial AFS
+offering, but nothing ever came of it. For now, MR-AFS is available only as a set
+of source-code changes to AFS; because sites can purchase source from Transarc
+for a very reasonable price, this burden is not too heavy. 
+
+The MR-AFS sites necessarily provide their own support for the product and
+help each other with features and issues which inevitably crop up. Currently,
+The Computing Center of the Max-Plank-Gesellshaft and 
+the Institute for Plasma Physics in Germany has brought MR-AFS up to date 
+with AFS version 3.4a. 
+
+MR-AFS is included here as another example of how many academic and research 
+institutions are using AFS. Like the University of Michigan, the PSC needed
+to find a solution to their distributed file system needs. Their particular
+scale was not merely the number of users or desktops, but the size and
+location of file data. Though they have modified some fundamental aspects
+of AFS, their changes really add to many of the design assumptions of the
+system. As a production tool, their version of AFS provides unmatched
+functionality. And, it is hoped, at some point that functionality will
+find its way into standards work supported by the Data Management Interfaces
+Group (DMIG) and future versions of DCE/DFS.
+
+SECTION: SUMMARY
+
+In this chapter, we examined some large-scale uses of AFS. As you can see, the primary goal of AFS, support for ever-increasing numbers
+of desktops and users, has been achieved without the need for 
+advanced hardware or networks. A shared, common, file storage
+medium can be a central part of the data processing
+environments in many organizations.
+
+AFS succeeds not only with its ability to efficiently use a WAN and
+cache files locally, but with additional features which delegate
+group management and provide flexible access controls to users. That
+way, administrators can concentrate on providing seemingly omnipresent
+and highly reliable file services.
+
+Though AFS certainly scales up, you may wonder if it is right for
+small sites. Given the state of the computing market, there probably
+are no small sites, at least in the long term. Certainly anyone who
+has had to bring down a server to replace a disk or who has had to
+manually replicate most system files onto the desktop should 
+appreciate the functionality available in AFS. The learning curve
+and initial investments are clearly higher than for bundled
+or shareware services, but the payback as additional desktops are
+brought on-line is potentially enormous.

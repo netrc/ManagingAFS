@@ -1,0 +1,70 @@
+#! /ubs/mach/bin/perl5 
+
+while (<>) {
+  # The following constrictions are WRONG
+	$p=0;
+	if (/Andrew File system/) { $p=1; };
+	if (/Andrew file system/) { $p=1; };
+	if (/filesystem/) { $p=1; };
+	if (/mountpoint/) { $p=1; };
+	if (/name space/) { $p=1; };
+	if (/pathname/) { $p=1; };
+	if (/call back/) { $p=1; };
+	if (/call-back/) { $p=1; };
+	if (/sub-tree/) { $p=1; };
+	if (/sub-command/) { $p=1; };
+	if (/sub-directory/) { $p=1; };
+	if (/can not/) { $p=1; };
+	if (/cellname/) { $p=1; };
+	if (/shutdown/) { $p=1; };
+	if (/hostname/) { $p=1; };
+	if (/failover/) { $p=1; };
+	if (/super-user/) { $p=1; };
+	if (/systemcall/) { $p=1; };
+	if (/\([123]\)/) { $p=1; };
+	if (/fileset/) { $p=1; };
+	if (/listmount/) { $p=1; };
+	if (/lsm /) { $p=1; };
+	if (/hq.com/) { $p=1; };
+	if (/Salvage/) { $p=1; };
+	if (/pts database/) { $p=1; };
+	if (/pts group/) { $p=1; };
+	if (/readwrite/) { $p=1; };
+	if (/ReadWrite/) { $p=1; };
+#	if (/readonly/) { $p=1; };
+	if (/ReadOnly/) { $p=1; };
+	if (/read-onlies/) { $p=1; };
+	if (/read-onlys/) { $p=1; };
+	if (/\.rw/) { $p=1; };
+	if (/info /) { $p=1; };
+#	if (/%/) { $p=1; };
+	if (/principle/) { $p=1; };
+	if (/kernal/) { $p=1; };
+	if (/E-mail/) { $p=1; };
+	if (/GB/) { $p=1; };
+	if (/MB/) { $p=1; };
+	if (/KB/) { $p=1; };
+	if (/VFID/) { $p=1; };
+	if (/x86/) { $p=1; };
+	if (/Carnegie-Mellon/) { $p=1; };
+	if (/Inc/) { $p=1; };
+	if (/client-server/) { $p=1; };
+	if (/ticket granting ticket/) { $p=1; };
+	if (/flserver/) { $p=1; };
+	if (/bos job/) { $p=1; };
+	if (/high availability/) { $p=1; };
+	if (/high-avail/) { $p=1; };
+	if (/translator/) { $p=1; };
+	if (/filetree/) { $p=1; };
+	if (/setup/) { $p=1; };
+	if (/makefs/) { $p=1; };
+	if (/runntpd/) { $p=1; };
+	if (/Pittsburg[^h]/) { $p=1; };
+	if (/[(][)]/) { $p=1; };
+
+	if (/backup\~\/\~ vol/) { $p=1; };
+
+	if ($p) {
+		print;
+	}
+}
