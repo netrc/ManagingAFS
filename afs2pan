@@ -98,7 +98,7 @@ function procChapter( c ) {
   });
 }
 
-const D = "ManagingAFS/";
+const D = "archive/";
 let bookChaps = [ 'CH00R.txt'];
 
 if (process.argv.length > 2) {

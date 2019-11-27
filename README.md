@@ -14,6 +14,7 @@ $ afs2pan | pandoc -s -t docbook -o x.docbook
 
 ## TODO
 * don't Afs in chapter/section, etc
+* set pandoc options, like html title
 * pathnames in CH01 are not 'pre'. 
 * how to add css for better html style?
 * Figures
