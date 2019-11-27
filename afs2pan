@@ -1,0 +1,108 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const process = require('process');
+
+function initCapWords( l ) {
+  let words = l.split(' ');
+  words = words.map( w => `${w[0]}${w.slice(1).toLowerCase()}` );
+  return words.join(' ');
+}
+
+function strReplace( l, i, size, nStr ) {
+  return l.slice(0,i) + nStr + l.slice(i+size);
+}
+
+const chr_tm = 0252
+const buf_tm = Buffer.from( '&#153;' )    // trademark
+const chr_cp = 0250
+const buf_cp = Buffer.from( '&#169;' )    // copyright
+
+function convertSymbolsInBuffer( d ) {
+  let buf2 = Buffer.alloc(d.length + 500)
+  let i = j = 0
+
+  for (i = 0; i < d.length; i++) {
+    if (d[i] == chr_tm) { //console.log(`tm found at ${i}`)
+      buf_tm.copy(buf2,j)          // buf.copy(target[, targetStart[, sourceStart[, sourceEnd]]])
+      j += buf_tm.length
+    } else if (d[i] == chr_cp) { //console.log(`cp found at ${i}`)
+      buf_cp.copy(buf2,j)          // buf.copy(target[, targetStart[, sourceStart[, sourceEnd]]])
+      j += buf_cp.length
+    } else {
+      buf2[j] = d[i]
+      j += 1
+    }
+  }
+  return buf2.subarray(0,j).toString()
+}
+
+const convSymList = [
+  { a: '~~', that: '' },    // need this for 'inline' code?   
+  { a: '~/~', that: '' },
+  { a: '~B~', that: '<b>' },
+  { a: '~/B~', that: '</b>' }
+];
+
+function convertSymbols( l ) {    // converts my ~~ expansion
+  let foundOne = true; // e.g. get the while rolling
+  while (foundOne) {
+    foundOne = false;
+    for (let c in convSymList) {
+      let i = l.indexOf(convSymList[c].a);
+      if (i>=0) {
+        foundOne = true;
+        l = strReplace( l, i, convSymList[c].a.length, convSymList[c].that );
+      }
+    }
+  }
+  return l
+}
+
+function procLine( l, cs ) {
+  if (l.match(/PREFACE/)) {
+    console.log(``);
+    console.log(`# Preface`);
+  } else if (l.match(/CHAPTER /)) {
+    let z = l.indexOf(':')
+    let sname = initCapWords( l.slice(z+2) );
+    console.log(`# ${sname}`);
+  } else if (l.match(/SECTION:/)) {
+    let sname = initCapWords( l.slice(9) );
+    console.log(`## ${sname}`);
+  } else if (l.match(/PROGRAM/)) {
+    //console.log("~~~");
+    if (cs != "in program") {
+      console.log('<pre>');
+    } else {
+      console.log('</pre>');
+    }
+    cs = (cs == "in program") ? 'normal' : 'in program';
+  } else {
+    l = convertSymbols(l);
+    console.log(l)
+  }
+  return cs;
+}
+
+function procChapter( c ) {
+  //console.log(`chapter ${c}`);
+  const data = fs.readFileSync(c);
+  //console.log(`${c}: data ${data.length}`);
+  const lines = convertSymbolsInBuffer(data).split('\n')      // converts tm and (c)
+  //console.log(`${c}: lines ${lines.length}`);
+
+  let curState = 'normal';
+  lines.forEach( l => {
+    curState = procLine(l, curState); // tracks state and outputs markdown
+  });
+}
+
+const D = "ManagingAFS/";
+let bookChaps = [ 'CH00R.txt'];
+
+if (process.argv.length > 2) {
+  bookChaps = process.argv.slice(2);
+  console.error(`doing: ${bookChaps}`);
+}
+bookChaps.map( c => D+c ).forEach( c => procChapter(c) );
