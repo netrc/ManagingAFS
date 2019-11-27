@@ -40,3 +40,4 @@ $ afs2pan | pandoc -s -t docbook -o x.docbook
 
 
 2019-90-28 - initial raw dump of final text
+? new repo name?
