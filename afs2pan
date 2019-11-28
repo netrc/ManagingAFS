@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const process = require('process');
+const cvs = require('./lib/convSymbols')
 
 function initCapWords( l ) {
   let words = l.split(' ');
@@ -37,28 +38,6 @@ function convertSymbolsInBuffer( d ) {
   return buf2.subarray(0,j).toString()
 }
 
-const convSymList = [
-  { a: '~~', that: '' },    // need this for 'inline' code?   
-  { a: '~/~', that: '' },
-  { a: '~B~', that: '<b>' },
-  { a: '~/B~', that: '</b>' }
-];
-
-function convertSymbols( l ) {    // converts my ~~ expansion
-  let foundOne = true; // e.g. get the while rolling
-  while (foundOne) {
-    foundOne = false;
-    for (let c in convSymList) {
-      let i = l.indexOf(convSymList[c].a);
-      if (i>=0) {
-        foundOne = true;
-        l = strReplace( l, i, convSymList[c].a.length, convSymList[c].that );
-      }
-    }
-  }
-  return l
-}
-
 function procLine( l, cs ) {
   if (l.match(/PREFACE/)) {
     console.log(``);
@@ -84,7 +63,7 @@ function procLine( l, cs ) {
     }
     cs = (cs == "in program") ? 'normal' : 'in program';
   } else {
-    l = convertSymbols(l);
+    l = cvs.convSymbols(l);
     console.log(l)
   }
   return cs;
