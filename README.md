@@ -13,11 +13,13 @@ $ afs2pan | pandoc -s -t docbook -o x.docbook
 ```
 
 ## TODO
-* don't Afs in chapter/section, etc
+* initCaps don't Afs in chapter/section, etc
 * set pandoc options, like html title
 * pathnames in CH01 are not 'pre'. 
 * how to add css for better html style?
-* Figures
+* chapter - grab chapter #
+* see CH01R.txt  - some <I> items; seem ok
+* Figures - needs table? grab 1-1 and caption
 ```
   [[Figure 1-1: The AFS Architecture]]
 ```

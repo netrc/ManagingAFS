@@ -2,36 +2,13 @@
 
 const fs = require('fs');
 const process = require('process');
-const cvs = require('./lib/convSymbols')
-const cl = require('./lib/convLine')
-
-const chr_tm = 0252
-const buf_tm = Buffer.from( '&#153;' )    // trademark
-const chr_cp = 0250
-const buf_cp = Buffer.from( '&#169;' )    // copyright
-
-function convertSymbolsInBuffer( d ) {
-  let buf2 = Buffer.alloc(d.length + 500)
-  let i = j = 0
-
-  for (i = 0; i < d.length; i++) {
-    if (d[i] == chr_tm) { //console.log(`tm found at ${i}`)
-      buf_tm.copy(buf2,j)          // buf.copy(target[, targetStart[, sourceStart[, sourceEnd]]])
-      j += buf_tm.length
-    } else if (d[i] == chr_cp) { //console.log(`cp found at ${i}`)
-      buf_cp.copy(buf2,j)          // buf.copy(target[, targetStart[, sourceStart[, sourceEnd]]])
-      j += buf_cp.length
-    } else {
-      buf2[j] = d[i]
-      j += 1
-    }
-  }
-  return buf2.subarray(0,j).toString()
-}
+const c8b = require('./lib/conv8bitBuffer')   // converts tm and (c) 8-bit chars
+const cvs = require('./lib/convSymbols')    // converts ~~ and other inline markup
+const cl = require('./lib/convLine')      // converts whole line markup, CHAPTER, SECTION, PROGRAM
 
 function procChapter( c ) {   //console.log(`chapter ${c}`);
   const data = fs.readFileSync(c);   //console.log(`${c}: data ${data.length}`);
-  const lines = convertSymbolsInBuffer(data).split('\n')      // converts tm and (c)
+  const lines = c8b.conv8bitBuffer(data).split('\n')      // converts tm and (c)
 
   let curState = 'normal';
   lines.forEach( l => {
@@ -41,6 +18,6 @@ function procChapter( c ) {   //console.log(`chapter ${c}`);
 }
 
 const D = "archive/";
-let bookChaps = (process.argv.length == 2) [ 'CH00R.txt'] : process.argv.slice(2);
+let bookChaps = (process.argv.length == 2) ? [ 'CH00R.txt'] : process.argv.slice(2);
 console.error(`doing: ${bookChaps}`);
 bookChaps.map( c => D+c ).forEach( c => procChapter(c) );
