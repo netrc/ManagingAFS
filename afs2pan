@@ -3,16 +3,7 @@
 const fs = require('fs');
 const process = require('process');
 const cvs = require('./lib/convSymbols')
-
-function initCapWords( l ) {
-  let words = l.split(' ');
-  words = words.map( w => `${w[0]}${w.slice(1).toLowerCase()}` );
-  return words.join(' ');
-}
-
-function strReplace( l, i, size, nStr ) {
-  return l.slice(0,i) + nStr + l.slice(i+size);
-}
+const cl = require('./lib/convLine')
 
 const chr_tm = 0252
 const buf_tm = Buffer.from( '&#153;' )    // trademark
@@ -38,55 +29,18 @@ function convertSymbolsInBuffer( d ) {
   return buf2.subarray(0,j).toString()
 }
 
-function procLine( l, cs ) {
-  if (l.match(/PREFACE/)) {
-    console.log(``);
-    console.log(`# Preface`);
-  } else if (l.match(/CHAPTER /)) {
-    let z = l.indexOf(':')
-    let sname = initCapWords( l.slice(z+2) );
-    console.log(`# ${sname}`);
-  } else if (l.match(/SECTION:/)) {
-    let sname = initCapWords( l.slice(9) );
-    console.log(`## ${sname}`);
-  } else if (l.match(/\[\[Figure /)) {
-    let iname = "newfigs/fig1.jpg"  // maybe use a table to convert figure # to file name?
-    let icaption = "Figure 1-1: The AFS Architecture"
-    //console.log(`![figure 1](${iname}) </p> <p>${icaption}</p>`);
-    console.log(`<img src="${iname}" alt="${icaption}" height="458" width="638"/> <p>${icaption}</p>`);
-  } else if (l.match(/PROGRAM/)) {
-    //console.log("~~~");
-    if (cs != "in program") {
-      console.log('<pre>');
-    } else {
-      console.log('</pre>');
-    }
-    cs = (cs == "in program") ? 'normal' : 'in program';
-  } else {
-    l = cvs.convSymbols(l);
-    console.log(l)
-  }
-  return cs;
-}
-
-function procChapter( c ) {
-  //console.log(`chapter ${c}`);
-  const data = fs.readFileSync(c);
-  //console.log(`${c}: data ${data.length}`);
+function procChapter( c ) {   //console.log(`chapter ${c}`);
+  const data = fs.readFileSync(c);   //console.log(`${c}: data ${data.length}`);
   const lines = convertSymbolsInBuffer(data).split('\n')      // converts tm and (c)
-  //console.log(`${c}: lines ${lines.length}`);
 
   let curState = 'normal';
   lines.forEach( l => {
-    curState = procLine(l, curState); // tracks state and outputs markdown
+    ({ l:l, cs:curState }  = cl.convLine(l, curState)) // tracks state and outputs markdown
+    console.log(l)
   });
 }
 
 const D = "archive/";
-let bookChaps = [ 'CH00R.txt'];
-
-if (process.argv.length > 2) {
-  bookChaps = process.argv.slice(2);
-  console.error(`doing: ${bookChaps}`);
-}
+let bookChaps = (process.argv.length == 2) [ 'CH00R.txt'] : process.argv.slice(2);
+console.error(`doing: ${bookChaps}`);
 bookChaps.map( c => D+c ).forEach( c => procChapter(c) );
