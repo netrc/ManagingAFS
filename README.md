@@ -12,23 +12,22 @@ $ ./afs2pan | pandoc -s --metadata pagetitle=ManagingAFS -t html -o index.html
 $ afs2pan | pandoc -s -t docbook -o x.docbook
 ```
 
+## FINAL Proof
+* no extra bold italic
+* all 'code' in pre
+* figures, tables labelled correctly
+* html with css
+
 ## TODO
-* initCaps don't Afs in chapter/section, etc
+* Preface - Netware<U+0099> ; Chap 1 AIX<U+0099>
 * set pandoc options, like html title
 * pathnames in CH01 are not 'pre'. 
 * how to add css for better html style?
-* chapter - grab chapter #
 * See https://pandoc.org/MANUAL.html#pandocs-markdown
 * what about my text lists "^--"  - convert to simple '*' ?
 * links
 * ? what about other normal markup in my text? e.g. * 
 * see CH01R.txt  - some <I> items; seem ok
-* Figures - needs table? grab 1-1 and caption
-* Table
-```
-  [[Table 1-1: A Selection of Publicly Accessible AFS Cells]]</p>
-  [[Table 1-2: Supported Hardware/OS Ports of AFS]]</p>
-```
 * Footnote
 ```
   [[Footnote 1]]
@@ -37,6 +36,10 @@ $ afs2pan | pandoc -s -t docbook -o x.docbook
 
 
 ## Done
+* Tables - need to be hand done; added to meta table
+* Figures - needs meta table? grab 1-1 and caption   lib/figData.js
+* chapter - grab chapter # // not done; not how pandoc/docbook/etc work
+* initCaps don't Afs in chapter/section, etc
 * can't match \250 \252 in CH00R.txt file
 * doesn't have title
 * some meta information shows on first line
