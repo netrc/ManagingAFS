@@ -18,11 +18,12 @@ $ afs2pan | pandoc -s -t docbook -o x.docbook
 * pathnames in CH01 are not 'pre'. 
 * how to add css for better html style?
 * chapter - grab chapter #
+* See https://pandoc.org/MANUAL.html#pandocs-markdown
+* what about my text lists "^--"  - convert to simple '*' ?
+* links
+* ? what about other normal markup in my text? e.g. * 
 * see CH01R.txt  - some <I> items; seem ok
 * Figures - needs table? grab 1-1 and caption
-```
-  [[Figure 1-1: The AFS Architecture]]
-```
 * Table
 ```
   [[Table 1-1: A Selection of Publicly Accessible AFS Cells]]</p>
