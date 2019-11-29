@@ -1,0 +1,50 @@
+  Vendor  |Operating System, Hardware|AFS System Name
+---------:|:-------------------------|---------------
+Digital Equipment Corporation||
+&nbsp;|Ultrix 4.3, DECstation 2100, 3100 or 5000 (single processor)|pmax_ul43  (3.4)
+&nbsp;|Ultrix 4.3a or 4.4, DECstation 2100, 3100 or 5000 (single processor)|pmax_ul43a (3.4)
+&nbsp;|Digital Unix 3.0, Alpha|AXP|alpha_osf30 (3.4)
+&nbsp;|Digital Unix 2.0, Alpha|AXP|alpha_osf20 (3.4)
+&nbsp;|Digital UNIX 3.2-3.2a, Alpha AXP|alpha_osf32
+&nbsp;|Digital UNIX 3.2c-3.2d, Alpha AXP (&dagger;)|alpha_osf32c
+&nbsp;|Digital UNIX 4.0-4.0b, Alpha AXP|alpha-dux40
+Hewlett-Packard||
+&nbsp;|HP-UX 9.0, 9.0.1, 9.0.3, 9000 Series 700 (&dagger;)|hp700_ux90      
+&nbsp;|HP-UX 9.0. 9.0.2, 9.0.4, 9000 Series 800 (&dagger;)|hp800_ux90      
+&nbsp;|HP-UX 10.01, 9000 Series 700 (&dagger;)|hp700_ux100
+&nbsp;|HP-UX 10.01, 9000 Series 800 (&dagger;)|hp800_ux100
+&nbsp;|HP-UX 10.10, 9000 Series 700 (&dagger;)|hp700_ux101
+&nbsp;|HP-UX 10.10, 9000 Series 800 (&dagger;)|hp800_ux101
+&nbsp;|HP-UX 10.20, 9000 Series 700 and 800 (&dagger;)|hp800_ux102
+IBM||
+&nbsp;|AIX 3.2, 3.2.1-3.2.5, RS/6000|rs_aix32        
+&nbsp;|AIX 4.1.1, 4.1.3-5,  RS/6000 (&dagger;)|rs_aix41
+&nbsp;|AIX 4.2, 4.2.1 RS/6000 (&dagger;)|rs_aix42
+NCR||
+&nbsp;|NCR UNIX 2.0.2 and 3.0|ncrx86_30
+Silicon Graphics||
+&nbsp;|IRIX 5.2|sgi_52 (3.4)
+&nbsp;|IRIX 5.3|sgi_53
+&nbsp;|IRIX 6.1 (&dagger;)|sgi_61
+&nbsp;|IRIX 6.2 (&dagger;)|sgi_62
+&nbsp;|IRIX 6.3 (&dagger;)|sgi_63
+&nbsp;|IRIX 6.4 (&dagger;)|sgi_64
+Sun Microsystems||
+&nbsp;|SunOS 4.1.1-4.1.3, Sun 4 (non-SPARCstations)|sun4_411 (3.4)
+&nbsp;|SunOS 4.1.1-4.1.3, Sun4c kernel|sun4c_411
+&nbsp;|SunOS 4.1.2, 4.1.3, 4.1.3_U1, Sun4m kernel (&dagger;)|sun4m_412
+&nbsp;|SunOS 5.3, Sun 4 (non-SPARCstations)|sun4_53 (3.4)
+&nbsp;|SunOS 5.3, Sun4c kernel (&dagger;)|sun4c_53
+&nbsp;|SunOS 5.3, Sun4m kernel (&dagger;)|sun4m_53
+&nbsp;|SunOS 5.4, Sun 4 (non-SPARCstations)|sun4_54 (3.4)
+&nbsp;|SunOS 5.4, Sun4c kernel (&dagger;)|sun4c_54
+&nbsp;|SunOS 5.4, Sun4m kernel (&dagger;)|sun4m_54
+&nbsp;|SunOS 5.5-5.5.1, all kernels (&dagger;)|sun4x_55
+&nbsp;|SunOS 5.6, all kernels (&dagger;)|sun4x_56
+Microsoft Windows||
+&nbsp;|NT 3.51, 4.0, x86 only|i86_nt
+
+<i> &dagger; - including multiprocessors </i> 
+
+<i> (3.4) - AFS 3.4 only; no new releases planned </i> 
+
