@@ -36,6 +36,7 @@ $ afs2pan | pandoc -s -t docbook -o x.docbook
 
 
 ## Done
+* better match of copyright/trademark; pandoc now supports &copy; &trade; correctly
 * Tables - need to be hand done; added to meta table
 * Figures - needs meta table? grab 1-1 and caption   lib/figData.js
 * chapter - grab chapter # // not done; not how pandoc/docbook/etc work
