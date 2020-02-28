@@ -1,0 +1,17 @@
+Disk Caches
+
+Configured||Resulting||||||
+----------|----------|----------|----------|--------------|-------------|---------|------------
+cache size|chunk size|cache size|chunk size|number V-files|memory dcache|file stat|volume cache
+64 MB|default|64 MB| 64 KB| 6,554|2,000|300|50
+100 MB|256 KB|100 MB|256 KB|10,240|2,000|300|50
+200 MB|1 MB|200 MB|1 MB|20,480|2,000|300|50
+
+Memory Caches
+
+Configured||Resulting||||||
+----------|----------|----------|----------|--------------|-------------|---------|------------
+cache size|chunk size|cache size|chunk size|number V-files|memory dcache|file stat|volume cache
+16 MB|default|16 MB|8 KB| 2,048|2,048|300|50
+24 MB|default|24 MB|8 KB| 3,072|3,072|300|50
+

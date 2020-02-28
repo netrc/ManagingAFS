@@ -1,0 +1,20 @@
+Machine|Server Type|Configured Processes
+------:|-----------|:-------------------
+db-one|database server|bosserver, kaserver, vlserver, ptserver
+||system control|upserver (for /usr/afs/etc)
+||binary distribution|upserver (for /usr/afs/bin)
+db-two|database server|bosserver, kaserver, vlserver, ptserver
+||system client|upclient (of db-one /usr/afs/etc)
+||binary client|upclient (of db-one /usr/afs/bin)
+db-three|database server	|bosserver, kaserver, vlserver, ptserver
+||system client|upclient (of db-one /usr/afs/etc)
+||binary distribution|upserver (for /usr/afs/bin)
+fs-one|file server|bosserver, fileserver, volserver
+||system client|upclient (of db-one /usr/afs/etc)
+||binary client|upclient (of db-one /usr/afs/bin)
+fs-two|file server|bosserver, fileserver, volserver
+||system client|upclient (of db-one /usr/afs/etc)
+||binary client|upclient (of db-one /usr/afs/bin)
+fs-three|file server|bosserver, fileserver, volserver
+||system client|upclient (of db-one /usr/afs/etc)
+||binary client|upclient (of db-three /usr/afs/bin)

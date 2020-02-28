@@ -1,0 +1,19 @@
+~~~~
+-------------------------------------------------------------------------------
+AFSMonitor [Version 1.0]                           [System Overview, p. 1 of 1]
+ 
+    2 File Servers monitored                1 Cache Managers monitored
+    0 alerts on 0 machines                  0 alerts on 0 machines
+ 
+      fs-one                                  client1
+      fs-two
+ 
+ 
+
+
+
+
+
+Command [fs, cm]?                             [probes 1(fs) 1(cm), freq=60 sec]
+-------------------------------------------------------------------------------
+~~~~

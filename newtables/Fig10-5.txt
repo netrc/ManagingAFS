@@ -1,0 +1,19 @@
+~~~~
+-------------------------------------------------------------------------------
+AFSMonitor [Version 1.0]                [Cache Managers, p.1 of 1, c.13 of 571]
+ 
+<<<           1 Cache Managers monitored, 0 alerts on 0 machines            >>>
+ 
+             cache      cache
+            MaxDirty  CurrDirty    dcache     vcache     dcache     vcache
+             Chunks     Chunks      Hits       Hits      Misses     Misses
+ 
+client1           926          0         41         13          6         27
+ 
+
+
+
+
+Command [oview, fs, left, right]?                    [CM probes 6, freq=60 sec]
+-------------------------------------------------------------------------------
+~~~~

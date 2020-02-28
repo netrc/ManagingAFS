@@ -1,0 +1,19 @@
+~~~~
+-------------------------------------------------------------------------------
+AFSMonitor [Version 1.0]                [File Servers, p. 1 of 1, c. 31 of 271]
+ 
+<<<            2 File Servers monitored, 0 alerts on 0 machines             >>>
+ 
+               rx         rx         rx         rx         rx         rx
+            pktsRead     data       ack        dup      spurious   pktsSent
+           SpecialCl*  PktsRead   PktsRead   PktsRead   PktsRead   RcvClass
+ 
+fs-one              0         39         14          0          0         41
+ 
+fs-two              0         53         11          0          0         61
+ 
+
+ 
+Command [oview, cm, left, right]?                    [FS probes 5, freq=60 sec]
+-------------------------------------------------------------------------------
+~~~~

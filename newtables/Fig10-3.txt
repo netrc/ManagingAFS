@@ -1,0 +1,19 @@
+~~~~
+-------------------------------------------------------------------------------
+AFSMonitor [Version 1.0]                 [File Servers, p. 1 of 1, c. 1 of 271]
+ 
+               2 File Servers monitored, 0 alerts on 0 machines             >>>
+ 
+ 
+              num       vcache     vcache     vcache     vcache     vcache
+           PerfCalls  L_Entries   L_Allocs    L_Gets    L_Reads    L_Writes
+ 
+fs-one              2        400          0         19          6          2
+ 
+fs-two              2        400          0          9          2          0
+ 
+
+
+Command [oview, cm, right]?                          [FS probes 2, freq=60 sec]
+-------------------------------------------------------------------------------
+~~~~
