@@ -6,10 +6,36 @@
   <meta name="generator" content="pandoc" />
   <title>ManagingAFS</title>
   <style type="text/css">code{white-space: pre;}</style>
-  <link rel="stylesheet" href="pandoc.css" type="text/css" />
+  <link rel="stylesheet" href="../pandoc.css" type="text/css" />
 </head>
 <body>
-to be written...
+<a href="../index.html">Managing AFS</a>
+<h2> Notes on the original text </h2>
+All of the original text, figures, and tables are in the "archive" folder just as I delivered to Prentice-Hall in 1997.  As you will see, the files are mostly just simple text - editing powered by Vi!.  
+<p>
+The text formatting based on what the publisher could accept back then, a very simple kind of markdown. The book didn't require very sophisticated typography, so the main indicators are just
+<ul>
+<li> Per-chapter files
+<li> "CHAPTER" - to indicate chapter title text
+<li> "SECTION" - for section headings
+<li> "~~", "~/~" - to demark code/shell commands
+<li> "~B~", "~/B~" - for bold
+<li> "--" - for bullet lists
+<li> and UTF-8 copyright and trademark symbols
+</ul>
+<p>
+The figures (see <a href="../notes/backstory.html">backstory</a>) were hand-drawn by me and are now lost. At the time, they were re-drawn by Prentice-Hall to what you see in the book. So far, I've just scanned those in to the 'newfigures' folder. (Major TODO: to make those illustrations better.)
+<p>
+My table 'markdown' wasn't particularly sophisticated and I believe were just hand set by someone at the publisher.  I've manually updated those tables with pandoc "pipe" formatting for now in the 'newtables' directory. (Minor TODO: perhaps write in HTML for final formatting).
+<p>
+I've written a small javascript library/program (in 'afs2pan' and 'lib/*.js') to convert all the above files to a format that pandoc can process. Essentially, for each chapter, I read in each line, and convert the formatting in the characters and the text; then to be processed by pandoc which can produce final output in html and pandoc.
+
+pandoc link / note
+
+pandoc.css
+
+github
+issues
 
 </body>
 </html>
