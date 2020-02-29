@@ -1,8 +1,6 @@
 # ManagingAFS
 
-[![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
-
-![GitHub issues](https://img.shields.io/github/issues-raw/netrc/ManagingAFS)
+[![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/) ![GitHub issues](https://img.shields.io/github/issues-raw/netrc/ManagingAFS)
 
 Text of "Managine AFS: The Andrew File System"
 
@@ -15,6 +13,8 @@ $ ./afs2pan | pandoc -s --metadata pagetitle=ManagingAFS -t html -o index.html
 
 $ afs2pan | pandoc -s -t docbook -o x.docbook
 ```
+
+See https://netrc.github.io/ManagingAFS
 
 ## FINAL Proof
 * no extra bold italic
