@@ -19,7 +19,6 @@ $ afs2pan | pandoc -s -t docbook -o x.docbook
 * html with css
 
 ## TODO
-* tables
 * make "figure", "table" captions bold
 * tif figures
 * or convert all to png?
@@ -47,6 +46,7 @@ $ afs2pan | pandoc -s -t docbook -o x.docbook
 
 
 ## Done
+* tables
 * using pandoc.css - https://gist.github.com/killercup/5917178
 * how to add css for better html style?
 * pathnames in CH01 are not 'pre'. 
