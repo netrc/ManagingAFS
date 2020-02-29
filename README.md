@@ -48,7 +48,6 @@ $ afs2pan | pandoc -s -t docbook -o x.docbook
   [[Footnote 1]] By the way, the SCO Corporation’s UNIX operating system, OpenServer, also has an AFS file system: this is the Acer© Fast File System and is a local disk file system only. Also, the Apple© Macintosh© file system and the Amiga File System are occasionally referred to as AFS. Don’t confuse these file systems with Transarc’s distributed file system.
 ```
 
-
 ## Done
 * tables
 * using pandoc.css - https://gist.github.com/killercup/5917178
@@ -64,7 +63,7 @@ $ afs2pan | pandoc -s -t docbook -o x.docbook
 * can't match \250 \252 in CH00R.txt file
 * doesn't have title
 * some meta information shows on first line
+* 2019-09-28 - initial raw dump of final text
 
+![Powered by Vim](https://www.vim.org/images/vim_created.gif)
 
-2019-90-28 - initial raw dump of final text
-? new repo name?
