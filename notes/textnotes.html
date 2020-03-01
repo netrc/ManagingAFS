@@ -32,7 +32,18 @@ I've written a small javascript library/program (in 'afs2pan' and 'lib/*.js') to
 
 pandoc link / note
 
-pandoc.css
+See the Makefile for latest commands to create the online book.
+
+```
+$ ./afs2pan > book/ma.pandoc
+$ pandoc -s --metadata pagetitle=ManagingAFS -t html -o book/ma.html  < book/ma.pandoc
+$ pandoc -s -t docbook -o book/ma.docbook  < book/ma.pandoc
+```
+
+The style "pandoc.css" is from https://gist.github.com/killercup/5917178
+
+See https://netrc.github.io/ManagingAFS
+
 
 github
 issues

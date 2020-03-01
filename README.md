@@ -2,19 +2,10 @@
 
 [![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/) [![GitHub issues](https://img.shields.io/github/issues-raw/netrc/ManagingAFS)](https://github.com/netrc/ManagingAFS/issues)
 
-Text of "Managing AFS: The Andrew File System"
+Online edition of "Managing AFS: The Andrew File System" - See https://netrc.github.io/ManagingAFS
 
-* input format is my 1997 version of markdown
-* working on script to convert original files (archive/*) to true markdown
-* ... then use 'pandoc' to convert to html, docbook, etc
+The archive/* files are the original text as delivered to publisher. See [notes/textnotes.html](notes/textnotes.html) for details on how the files are processed. 
 
-```
-$ ./afs2pan | pandoc -s --metadata pagetitle=ManagingAFS -t html -o index.html
-
-$ afs2pan | pandoc -s -t docbook -o x.docbook
-```
-
-See https://netrc.github.io/ManagingAFS
 
 ## FINAL Proof
 * no extra bold italic
