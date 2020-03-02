@@ -28,25 +28,20 @@ The figures (see <a href="../notes/backstory.html">backstory</a>) were hand-draw
 <p>
 My table 'markdown' wasn't particularly sophisticated and I believe were just hand set by someone at the publisher.  I've manually updated those tables with pandoc "pipe" formatting for now in the 'newtables' directory. (Minor TODO: perhaps write in HTML for final formatting).
 <p>
-I've written a small javascript library/program (in 'afs2pan' and 'lib/*.js') to convert all the above files to a format that pandoc can process. Essentially, for each chapter, I read in each line, and convert the formatting in the characters and the text; then to be processed by pandoc which can produce final output in html and pandoc.
-
-pandoc link / note
-
+I've written a small javascript library/program (in 'afs2pan' and 'lib/*.js') to convert all the above files to a format that pandoc can process. Essentially, for each chapter, I read in each line, and convert the formatting in the characters and the text; then to be processed by pandoc.
+<p>
+Pandoc - https://pandoc.org/ - is run to convert that formatted text to desired output. The makefile is configured to create both html and docbook files.
+<p>
 See the Makefile for latest commands to create the online book.
 
 ```
-$ ./afs2pan > book/ma.pandoc
+$ ./afs2pan archive/CH* > book/ma.pandoc
 $ pandoc -s --metadata pagetitle=ManagingAFS -t html -o book/ma.html  < book/ma.pandoc
 $ pandoc -s -t docbook -o book/ma.docbook  < book/ma.pandoc
 ```
+<p>
+For the html files, the style "pandoc.css" is from https://gist.github.com/killercup/5917178 . The final html is viewable on Github Pages at https://netrc.github.io/ManagingAFS
 
-The style "pandoc.css" is from https://gist.github.com/killercup/5917178
-
-See https://netrc.github.io/ManagingAFS
-
-
-github
-issues
-
+Please use issues to report typos, bad formatting, etc.
 </body>
 </html>
