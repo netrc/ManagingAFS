@@ -34,11 +34,11 @@ Pandoc - https://pandoc.org/ - is run to convert that formatted text to desired 
 <p>
 See the Makefile for latest commands to create the online book.
 
-```
+<pre>
 $ ./afs2pan archive/CH* > book/ma.pandoc
 $ pandoc -s --metadata pagetitle=ManagingAFS -t html -o book/ma.html  < book/ma.pandoc
 $ pandoc -s -t docbook -o book/ma.docbook  < book/ma.pandoc
-```
+</pre>
 <p>
 For the html files, the style "pandoc.css" is from https://gist.github.com/killercup/5917178 . The final html is viewable on Github Pages at https://netrc.github.io/ManagingAFS
 
