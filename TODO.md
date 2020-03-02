@@ -2,7 +2,7 @@
 
 Online edition of "Managing AFS: The Andrew File System" - See https://netrc.github.io/ManagingAFS
 
-[README.md](README.MD)
+[README.md](README.md)
 
 ## FINAL Proof
 * no extra bold italic
