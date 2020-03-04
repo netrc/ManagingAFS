@@ -6,63 +6,57 @@
   <meta name="generator" content="pandoc" />
   <title>ManagingAFS</title>
   <style type="text/css">code{white-space: pre;}</style>
-  <link rel="stylesheet" href="pandoc.css" type="text/css" />
+  <link rel="stylesheet" href="../pandoc.css" type="text/css" />
 </head>
 <body>
+<a href="../index.html">Managing AFS</a>
+<h2> Background  </h2>
 <p>
-to be written....
-
-<h2> My Backstory </h2>
-
-COSI / SaaS
-
-CITI / Misc UNIX / X11
-
-IFS group / Mainframe
-
-vs NFS
-
-About 1989/90 asked O'Reilly about an AFS book.  Not terribly interested; wanted a DCE/DFS book.
-
-One response, "wonder if you've backed the wrong horse? NFS?"  So what? only one programming language ?
-
-Get to Morgan Stanley
-
-AFS; obvious advantages
-
-Go to UBS for DCE/DFS
-
-Springer Verlag responds; sounds great.
-
-Mention it to colleague, wife works for Prentice-Hall; contact, contract.
-
-1995
-
-Devote 3 nights a week, three hours a night.
-
-After year and a half, 4 nights.
-
-Revisions
-
-illustrations
-
-Not much support; not enough outreach on my part
-
-Some said, make it a small book. How to do that? It's a rats nest. And who/when will other books be written??
-
-
-Best part, I think, is that I was able to write a story over many chapters that made sense. 
-
-Illustrations major fail.
-
-One more massive editorial rewrite over 24 hours.
-
-
-
-
-
-
-
-
+My father was an engineer, a literal rocket scientist, and worked with the first digital computers, winding up his career in 
+middle-management at Chrysler.
+<p>
+I grew up a bit of a math wiz and started computing on microcomputers, the first hobby computers, and the mainframe at
+The University of Michigan in the late '70s. Also at the university, I became main movie reviewer, and editor of the Arts Section
+and the Weekend Magazine. (Which explains my hubris at thinking I could actually write a book!)
+<p>
+I graduated with a degree in Computer Science and got a job as C/UNIX programmer at arguably the very first SaaS-based business -- in 1984! (And that's a whole other story...)
+<p>
+After that company folded, I, along with a few others, wound up working for The University of Michigan; a pretty common situation for people living in Ann Arbor. I first worked as a UNIX engineer in the Information Technlogy department but soon got a transfer to CITI's "IFS" project.
+<p>
+CITI - <a href="http://www.citi.umich.edu/">The Center for Information Technology Integration</a> - was a research hub working with any and all tech vendors on projects either useful to the University or that needed our expertise. The Institutional File System project was funded by IBM to see if their mainframes (of which the University had at least six and a great staff to run them) could be the storage backbone to expand on Carnegie-Mellon Univsersity's <a href="https://www.cmu.edu/computing/services/comm-collab/collaboration/afs/">Andrew File System project.</a>
+<p>
+The plan was for IFS to provide essentially an order of magnitude increase in size over CMU's implementation and, if successful, be the default distributed file system for the campus (and of course becoming one more AFS 'cell' among the hundred or so that already existed).
+<p>
+While others worked on getting AFS (and TCP) to work well on the mainframe (for its purported storgage capabilities), I worked with the UNIX team on basic AFS funcitonality, and in particular an "intermediate" caching server to help distribute file service load across a relatively large campus. Along with misc other work I also created a Network General Sniffer package that could trace Rx packets (the network protcol used by AFS).
+<p>
+Eventually, in 1991, I left Ann Arbor for work in New York (and London). The firm I worked for had a large array of NFS servers. As described in the book, I had not realized how important a centralized, secure, highly-available, caching distributed file system could be. Working at the IFS project was just interesting work; while working in New York, I was astonished at how poorly managed a clunky hodge-podge of NFS was to manage and what a poor experience it was for users.
+<p>
+So, I started explaining AFS to colleagues and managers, even got the IFS team in for a chat, and put together a pilot project. This eventually grew, over many years, and with the leadership of many others as well, to be a core component of computing at the firm.
+<p>
+Now, even back in 1989, I wondered why there wasn't a book on AFS. Back in Ann Arbor, I contacted O'Reilly publishing, then and now, one of the premier tech publishers. Oddly, their response was to deprecate AFS and instead ask if I wanted to work on their series of book on DCE/DFS. Never having worked on DFS, I declined, not understanding why an AFS book wouldn't be a great fit for O'Reilly.
+<p>
+Over the next few years, I asked a couple more publishers if they were interested but was told that AFS was too much a niche product, or the book would just be an expanded manual. Finally, in 1995, Springer-Verlag responded and said they'd like to go ahead. I literally jumped out of my chair and bragged about this to my colleague, who responded, Why Springer-Verlag? Why not Prentice-Hall? Turns out his wife worked for Prentice-Hall; he quickly got me in contact with them and for no particular reason, I agreed with them to write the book.
+<p>
+<h2> Putting It Together </h2>
+Now that I had a contract, I had to start writing. Nothing was expected for a couple years, but I realized that I had to try and get serious about this. Working with Transarc (a company set up by IBM to commercialize AFS and other technology), I got a copy of AFS for my own test cell and set that up.
+<p>
+More importantly, I dedicated Monday, Tuesday, and Wednesday of each week to write for three hours each night. Note that I did have a full-time job working on trading systems at the time. Plunging in, I realized that the hardest thing to do was to write about one aspect of AFS at a time -- breaking down the inter-related services that comprise AFS was a challenge.
+<p>
+After about a year, I had the basic structure sorted out and many chapters written. But it was slow going. So, I turned to working on the book four nights a week for the next year.
+<p>
+One criticism about the book I've heard is that it tries to explain too much, that it would have been better to just craft a shorter, best-practices, book. While writing the book, though, I kept finding places where I could either "wave my hands" and say, you don't have to understand that or that's not important, or could dive in and try to explain as best I could.
+<p>
+Try and remember life 25 years ago, there were no eventually consistent databases, service orchestration fabrics, or widely used distributed authentication and authorization services. Besides the workings of the file system itself, the AFS designers had had to invent or adapt that underlying infrastructure for their purposes -- and I could either just say "trust them" or show how the pieces all worked together.  (But even so, there are a few times, such as with Kerberos authentication issues, that I have left a couple of details for the reader to figure out.)
+<p>
+Anyway, for better or worse, I plowed through and tried to explain to greater and lesser degrees as much about AFS as possible. In the back of my mind was always the question, this could be the only book published on AFS; with some luck, others could write their own "best practices" document.
+<p>
+Finally, coming to the end of the process, I asked the publisher how illustrations were going to be made. I was told to draw up the illustrations I wanted. After turning those in, I was pretty disappointed in the result that showed up in the book, but not in any position to argue about it.
+<p>
+Going through the whole book again and again, trying to make sure I explained things in some sort of order, making sure areas were not repeated, trying to keep the big picture of AFS present even while in the weeds, was exhausting and I finally had to work on the book five nights a week.  Of course, the whole text was (as you can see in the archives/* files) just a bunch of simple text with minimal markup. I created many extra shell-scripts and programs to try and make sure I used the correct style, had the right copyright symbols next to company names, and command names were put in 'code' format.
+<p>
+And then I was told that I'd have to write the Index myself! I was given a galley draft of the book and in another weeklong project went through each printed page, entering item names and page numbers into another file, and writing a script to collate all the items into an index.
+<p>
+By the end of 1997, I had finished the book and made one last pass through the text. I was never quite sure what Prentice-Hall's reaction was to the text; at that point they just took the marked-up galley and my index, asked what the cover should look like (Well, maybe a book about file/directory trees should have a tree on the cover??), and it was <a href="https://www.amazon.com/Managing-AFS-Andrew-File-System/dp/0138027293/"> published </a>
+<p>
 </body>
 </html>
