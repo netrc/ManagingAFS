@@ -8149,7 +8149,7 @@ For security, the Kerberos authentication model relies on timestamps to help pre
       the directory contents, the data is directed to any of the
       available replicas, with a fail over if necessary.
     </para>
-    <img src="../newfigs/not in fd" alt="Figure 4-3: Path Preferences: ~~/afs/tmp/sample/root-afs~/~" height="0" width="0"/>
+    <img src="../newfigs/Figure 4-3 not in fd" alt="Figure 4-3: Path Preferences: ~~/afs/tmp/sample/root-afs~/~" height="0" width="0"/>
     <p>
     Figure 4-3: Path Preferences:
     <subscript><subscript>/afs/tmp/sample/root-afs</subscript>/</subscript>
@@ -8223,7 +8223,7 @@ For security, the Kerberos authentication model relies on timestamps to help pre
       In Figure 4-4, the path <code>/afs/.rw/tmp/sample</code> is
       analyzed.
     </para>
-    <img src="../newfigs/not in fd" alt="Figure 4-4: Path Preferences: ~~/afs/.rw/tmp/sample~/~" height="0" width="0"/>
+    <img src="../newfigs/Figure 4-4 not in fd" alt="Figure 4-4: Path Preferences: ~~/afs/.rw/tmp/sample~/~" height="0" width="0"/>
     <p>
     Figure 4-4: Path Preferences:
     <subscript><subscript>/afs/.rw/tmp/sample</subscript>/</subscript>
@@ -10868,7 +10868,7 @@ For security, the Kerberos authentication model relies on timestamps to help pre
       <code>afsd</code> command line options. Figure 5-2 is a snapshot
       of this dialogue.
     </para>
-    <img src="../newfigs/not in fd" alt="Figure 5-2: NT Client Configuration Dialog Boxes" height="0" width="0"/>
+    <img src="../newfigs/Fig05-3.jpg" alt="Figure 5-2: NT Client Configuration Dialog Boxes" height="450" width="400"/>
     <p>
     Figure 5-2: NT Client Configuration Dialog Boxes
     </p>
@@ -10999,7 +10999,7 @@ For security, the Kerberos authentication model relies on timestamps to help pre
       downloaded separately. The dialog box presents a graphical
       interface to edit the entries as illustrated in Figure 5-3.
     </para>
-    <img src="../newfigs/not in fd" alt="Figure 5-3:  NT Cell Configuration Dialog Box" height="0" width="0"/>
+    <img src="../newfigs/Fig05-4.jpg" alt="Figure 5-3:  NT Cell Configuration Dialog Box" height="450" width="400"/>
     <p>
     Figure 5-3: NT Cell Configuration Dialog Box
     </p>

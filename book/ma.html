@@ -2273,7 +2273,7 @@ Figure 4-2: Internal View of vice Partition with Backup Volume
     $ <B>rm /afs/tmp/sample/root-afs/newFile</B>
 </pre>
 <p>In Figure 4-3, the path name <code>/afs/tmp/sample/root-afs</code> is analyzed element by element, and the bias at each level is described. At the top, a client begins by looking for read-only replicas, and the volume under <code>/afs</code>, <code>root.afs</code>, has replicas available. So, when fetching the directory contents, the data is directed to any of the available replicas, with a fail over if necessary.</p>
-<img src="../newfigs/not in fd" alt="Figure 4-3: Path Preferences: ~~/afs/tmp/sample/root-afs~/~" height="0" width="0"/>
+<img src="../newfigs/Figure 4-3 not in fd" alt="Figure 4-3: Path Preferences: ~~/afs/tmp/sample/root-afs~/~" height="0" width="0"/>
 <p>
 Figure 4-3: Path Preferences: <sub><sub>/afs/tmp/sample/root-afs</sub>/</sub>
 </p>
@@ -2301,7 +2301,7 @@ Figure 4-3: Path Preferences: <sub><sub>/afs/tmp/sample/root-afs</sub>/</sub>
 </pre>
 <p>Both <code>/afs</code> and <code>/afs/.rw</code> are connections to the same volume, <code>root.afs</code>. The former is a general connection, which means it will use a read-only volume if available, whereas the latter is a hardcoded read-write path. This scheme ensures that a read-write path will always be available to any volume anywhere in the tree. Access to <code>/afs/.rw</code> will permit reading or writing data to the <code>root.afs</code> master volume.</p>
 <p>In Figure 4-4, the path <code>/afs/.rw/tmp/sample</code> is analyzed.</p>
-<img src="../newfigs/not in fd" alt="Figure 4-4: Path Preferences: ~~/afs/.rw/tmp/sample~/~" height="0" width="0"/>
+<img src="../newfigs/Figure 4-4 not in fd" alt="Figure 4-4: Path Preferences: ~~/afs/.rw/tmp/sample~/~" height="0" width="0"/>
 <p>
 Figure 4-4: Path Preferences: <sub><sub>/afs/.rw/tmp/sample</sub>/</sub>
 </p>
@@ -3048,7 +3048,7 @@ Table 5-1: Possible Cache Configuration Options
 <p>The installation and configuration steps are similar to the ones described above for UNIX clients, with some PC-like flourishes. But Transarc does not support file or database servers on PCs, nor are any server or cell administration commands ported to the PC client. The Windows NT port is solely concerned with those items that will configure the client properly, connect the desktop to the AFS cell, and authenticate the user.</p>
 <p>Once AFS is installed onto a PC, two additions are made to the standard NT administration toolset: an AFS Client Configuration tool in the Windows Control Panel and, in the Control Panel Services list, an AFS daemon entry. Additionally, a program group labelled Transarc AFS is added to the program manager or &quot;Start&quot; menu.</p>
 <p>During initial set up, you'll be asked if you want to configure the client immediately. When the client configuration tool runs, a dialog box enables the NT client administrator to change certain parameters of the client. These parameters are similar to the ones managed by the UNIX <code>cacheinfo</code> file and <code>afsd</code> command line options. Figure 5-2 is a snapshot of this dialogue.</p>
-<img src="../newfigs/not in fd" alt="Figure 5-2: NT Client Configuration Dialog Boxes" height="0" width="0"/>
+<img src="../newfigs/Fig05-3.jpg" alt="Figure 5-2: NT Client Configuration Dialog Boxes" height="450" width="400"/>
 <p>
 Figure 5-2: NT Client Configuration Dialog Boxes
 </p>
@@ -3074,7 +3074,7 @@ Figure 5-2: NT Client Configuration Dialog Boxes
 <li><B>Set Probe Interval</B> - Enter an alternate value for the client cache probe interval. In normal operation, a PC AFS client (just like a UNIX AFS client) will send off an RPC query to the file servers it has encountered during the client's running lifetime. When an RPC fails to return, the client can guess that the server (or the network) is down and will take steps to work around the problem if possible. The interval can be set, in seconds, from 10 minutes to 1 second.</li>
 </ul>
 <p>The second tab in the configuration dialog box enables you to manage the list of available cells similar to the list in the <code>CellServDB</code> file on a UNIX system. This list is kept in the file <code>afsdcell.ini</code> and can be maintained and downloaded separately. The dialog box presents a graphical interface to edit the entries as illustrated in Figure 5-3.</p>
-<img src="../newfigs/not in fd" alt="Figure 5-3:  NT Cell Configuration Dialog Box" height="0" width="0"/>
+<img src="../newfigs/Fig05-4.jpg" alt="Figure 5-3:  NT Cell Configuration Dialog Box" height="450" width="400"/>
 <p>
 Figure 5-3: NT Cell Configuration Dialog Box
 </p>
