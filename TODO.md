@@ -11,8 +11,8 @@ Online edition of "Managing AFS: The Andrew File System" - See https://netrc.git
 * html with css
 
 ## TODO
+* Figure 4-3, 4-4 are tables
 * make "figure", "table" captions bold
-* tif figures
 * or convert all to png?
 * 0377 in Ch4; just before Client Administration
 * 0245 - turn into list? '\n* ' ? (one more to control kerberos, put the server in a secure room
@@ -30,6 +30,8 @@ Online edition of "Managing AFS: The Andrew File System" - See https://netrc.git
 * links
 * ? what about other normal markup in my text? e.g. * 
 * see CH01R.txt  - some <I> items; seem ok
+* DOI
+* gitbook
 * Footnote
 ```
   [[Footnote 1]]
@@ -37,6 +39,7 @@ Online edition of "Managing AFS: The Andrew File System" - See https://netrc.git
 ```
 
 ## Done
+* tif figures
 * tables
 * using pandoc.css - https://gist.github.com/killercup/5917178
 * how to add css for better html style?
