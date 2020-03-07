@@ -38,6 +38,10 @@ Online edition of "Managing AFS: The Andrew File System" - See https://netrc.git
   [[Footnote 1]] By the way, the SCO Corporation’s UNIX operating system, OpenServer, also has an AFS file system: this is the Acer© Fast File System and is a local disk file system only. Also, the Apple© Macintosh© file system and the Amiga File System are occasionally referred to as AFS. Don’t confuse these file systems with Transarc’s distributed file system.
 ```
 
+## Other Options
+# gitbook
+# https://blog.reedsy.com/print-on-demand-books/
+
 ## Done
 * tif figures
 * tables
