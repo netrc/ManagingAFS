@@ -11,6 +11,7 @@ Online edition of "Managing AFS: The Andrew File System" - See https://netrc.git
 * html with css
 
 ## TODO
+* note/post/mafs blog - http://pages.cs.wisc.edu/~remzi/OSTEP/
 * Figure 4-3, 4-4 are tables
 * make "figure", "table" captions bold
 * or convert all to png?
