@@ -4,6 +4,13 @@
 
 Online edition of "Managing AFS: The Andrew File System" - See https://netrc.github.io/ManagingAFS
 
+Output files include
+
+* book/ma.html - the html content
+* book/ma.docbook
+* book/ma.pandoc
+* book/ma.pdf
+
 The archive/* files are the original text as delivered to publisher. See [notes/textnotes.html](notes/textnotes.html) for details on how the files are processed. 
 
 [TODO](TODO.md)
